@@ -16,13 +16,13 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-// AI Trading Monitor - 使用真实 API
+// AI Trading Monitor - Using real APIs
 class TradingMonitor {
     constructor() {
         this.cryptoPrices = new Map();
         this.accountData = null;
         this.equityChart = null;
-        this.chartTimeframe = '24'; // 固定24小时
+        this.chartTimeframe = '24'; // Fixed to 24 hours
         this.init();
     }
 
@@ -34,7 +34,7 @@ class TradingMonitor {
         this.initTabs();
         this.initChat();
         this.duplicateTicker();
-        this.loadGitHubStars(); // 加载 GitHub 星标数
+        this.loadGitHubStars(); // Load GitHub stars
     }
 
     // 加载初始数据
@@ -48,11 +48,11 @@ class TradingMonitor {
                 this.loadTickerPrices()
             ]);
         } catch (error) {
-            console.error('加载初始数据失败:', error);
+            console.error('Failed to load initial data:', error);
         }
     }
 
-    // 加载 GitHub 星标数
+    // Load GitHub stars
     async loadGitHubStars() {
         try {
             const response = await fetch('https://api.github.com/repos/195440/open-nof1.ai');
@@ -64,7 +64,7 @@ class TradingMonitor {
                 starsCount.textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count;
             }
         } catch (error) {
-            console.error('加载 GitHub 星标数失败:', error);
+            console.error('Failed to load GitHub stars:', error);
             const starsCount = document.getElementById('stars-count');
             if (starsCount) {
                 starsCount.textContent = '-';
@@ -72,14 +72,14 @@ class TradingMonitor {
         }
     }
 
-    // 加载账户数据
+    // Load account data
     async loadAccountData() {
         try {
             const response = await fetch('/api/account');
             const data = await response.json();
             
             if (data.error) {
-                console.error('API错误:', data.error);
+                console.error('API Error:', data.error);
                 return;
             }
 
@@ -90,19 +90,19 @@ class TradingMonitor {
             // 显示的总资产需要加上未实现盈亏，以便实时反映持仓盈亏
             const totalBalanceWithPnl = data.totalBalance + data.unrealisedPnl;
             
-            // 更新总资产
+            // Update total equity
         const accountValueEl = document.getElementById('account-value');
             if (accountValueEl) {
                 accountValueEl.textContent = totalBalanceWithPnl.toFixed(2);
             }
 
-            // 更新可用余额
+            // Update available balance
             const availableBalanceEl = document.getElementById('available-balance');
             if (availableBalanceEl) {
                 availableBalanceEl.textContent = data.availableBalance.toFixed(2);
             }
 
-            // 更新未实现盈亏（带符号和颜色）
+            // Update unrealized PnL (with sign and color)
             const unrealisedPnlEl = document.getElementById('unrealised-pnl');
             if (unrealisedPnlEl) {
                 const pnlValue = (data.unrealisedPnl >= 0 ? '+' : '') + data.unrealisedPnl.toFixed(2);
@@ -110,7 +110,7 @@ class TradingMonitor {
                 unrealisedPnlEl.className = 'detail-value ' + (data.unrealisedPnl >= 0 ? 'positive' : 'negative');
             }
 
-            // 更新收益（总资产 - 初始资金）
+            // Update return (Total Equity - Initial Capital)
         const valueChangeEl = document.getElementById('value-change');
         const valuePercentEl = document.getElementById('value-percent');
 
@@ -123,24 +123,24 @@ class TradingMonitor {
                 valueChangeEl.textContent = `${isPositive ? '+' : ''}$${Math.abs(totalPnl).toFixed(2)}`;
                 valuePercentEl.textContent = `(${isPositive ? '+' : ''}${returnPercent.toFixed(2)}%)`;
                 
-                // 更新颜色
+                // Update color
                 valueChangeEl.className = 'change-amount ' + (isPositive ? '' : 'negative');
                 valuePercentEl.className = 'change-percent ' + (isPositive ? '' : 'negative');
             }
             
         } catch (error) {
-            console.error('加载账户数据失败:', error);
+            console.error('Failed to load account data:', error);
         }
     }
 
-    // 加载持仓数据
+    // Load positions data
     async loadPositionsData() {
         try {
             const response = await fetch('/api/positions');
             const data = await response.json();
             
             if (data.error) {
-                console.error('API错误:', data.error);
+                console.error('API Error:', data.error);
                 return;
             }
 
@@ -150,26 +150,26 @@ class TradingMonitor {
             if (!data.positions || data.positions.length === 0) {
                 // 更新表格
                 if (positionsBody) {
-                    positionsBody.innerHTML = '<tr><td colspan="8" class="empty-state">暂无持仓</td></tr>';
+                    positionsBody.innerHTML = '<tr><td colspan="8" class="empty-state">No active positions</td></tr>';
                 }
                 // 更新小卡片
                 if (positionsCardsContainer) {
-                    positionsCardsContainer.innerHTML = '<div class="positions-cards-empty">暂无持仓</div>';
+                    positionsCardsContainer.innerHTML = '<div class="positions-cards-empty">No active positions</div>';
                 }
                 return;
             }
 
-            // 更新加密货币价格
+            // Update cryptocurrency prices
             data.positions.forEach(pos => {
                 this.cryptoPrices.set(pos.symbol, pos.currentPrice);
             });
             this.updateTickerPrices();
 
-            // 更新持仓表格
+            // Update positions table
             if (positionsBody) {
                 positionsBody.innerHTML = data.positions.map(pos => {
                     const profitPercent = ((pos.unrealizedPnl / pos.openValue) * 100).toFixed(2);
-                    const sideText = pos.side === 'long' ? '做多' : '做空';
+                    const sideText = pos.side === 'long' ? 'Long' : 'Short';
                     const sideClass = pos.side === 'long' ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
                     return `
@@ -191,12 +191,12 @@ class TradingMonitor {
                 }).join('');
             }
 
-            // 更新持仓小卡片
+            // Update position cards
             if (positionsCardsContainer) {
                 positionsCardsContainer.innerHTML = data.positions.map(pos => {
                     const profitPercent = ((pos.unrealizedPnl / pos.openValue) * 100).toFixed(2);
                     const sideClass = pos.side;
-                    const sideText = pos.side === 'long' ? '多' : '空';
+                    const sideText = pos.side === 'long' ? 'Long' : 'Short';
                     const pnlClass = pos.unrealizedPnl >= 0 ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
                     
@@ -212,18 +212,18 @@ class TradingMonitor {
             }
             
         } catch (error) {
-            console.error('加载持仓数据失败:', error);
+            console.error('Failed to load positions data:', error);
         }
     }
 
-    // 加载交易记录 - 使用和 index.html 相同的布局
+    // Load trade history - using the same layout as index.html
     async loadTradesData() {
         try {
             const response = await fetch('/api/trades?limit=100');
             const data = await response.json();
             
             if (data.error) {
-                console.error('API错误:', data.error);
+                console.error('API Error:', data.error);
                 return;
             }
 
@@ -248,7 +248,7 @@ class TradingMonitor {
                 tradesBody.innerHTML = data.trades.map(trade => {
                     const date = new Date(trade.timestamp);
                     const timeStr = date.toLocaleString('zh-CN', {
-                        timeZone: 'Asia/Shanghai',
+                        timeZone: 'Asia/Ho_Chi_Minh',
                         month: '2-digit',
                         day: '2-digit',
                         hour: '2-digit',
@@ -256,15 +256,15 @@ class TradingMonitor {
                         second: '2-digit'
                     });
                     
-                    // 类型显示
-                    const typeText = trade.type === 'open' ? '开仓' : '平仓';
+                    // Type display
+                    const typeText = trade.type === 'open' ? 'Open' : 'Closed';
                     const typeClass = trade.type === 'open' ? 'buy' : 'sell';
                     
-                    // 方向显示
-                    const sideText = trade.side === 'long' ? '做多' : '做空';
+                    // Side display
+                    const sideText = trade.side === 'long' ? 'Long' : 'Short';
                     const sideClass = trade.side === 'long' ? 'long' : 'short';
                     
-                    // 盈亏显示（仅平仓时显示）
+                    // PnL display (only for close trades)
                     const pnlHtml = trade.type === 'close' && trade.pnl !== null && trade.pnl !== undefined
                         ? `<span class="${trade.pnl >= 0 ? 'profit' : 'loss'}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>`
                         : '<span class="na">-</span>';
@@ -286,18 +286,18 @@ class TradingMonitor {
             }
             
         } catch (error) {
-            console.error('加载交易记录失败:', error);
+            console.error('Failed to load trade history:', error);
         }
     }
 
-    // 加载 AI 决策日志 - 显示最新一条完整内容
+    // Load AI decision logs - display the latest full entry
     async loadLogsData() {
         try {
             const response = await fetch('/api/logs?limit=1');
             const data = await response.json();
             
             if (data.error) {
-                console.error('API错误:', data.error);
+                console.error('API Error:', data.error);
                 return;
             }
 
@@ -307,7 +307,7 @@ class TradingMonitor {
             if (data.logs && data.logs.length > 0) {
                 const log = data.logs[0]; // 只取最新一条
                 
-                // 更新决策元信息
+                // Update decision metadata
                 if (decisionMeta) {
                     const timestamp = new Date(log.timestamp).toLocaleString('zh-CN', {
                         year: 'numeric',
@@ -324,9 +324,9 @@ class TradingMonitor {
                     `;
                 }
                 
-                // 更新决策详细内容
+                // Update decision details
                 if (decisionContent) {
-                    const decision = log.decision || log.actionsTaken || '暂无决策内容';
+                    const decision = log.decision || log.actionsTaken || 'No decision content';
                     // 保留换行和格式，转换为HTML
                     const formattedDecision = decision
                         .replace(/&/g, '&amp;')
@@ -338,30 +338,30 @@ class TradingMonitor {
                 }
             } else {
                 if (decisionContent) {
-                    decisionContent.innerHTML = '<p class="no-data">暂无 AI 决策记录</p>';
+                    decisionContent.innerHTML = '<p class="no-data">No AI decision logs found</p>';
                 }
                 if (decisionMeta) {
-                    decisionMeta.innerHTML = '<span class="decision-time">无数据</span>';
+                    decisionMeta.innerHTML = '<span class="decision-time">No data</span>';
                 }
             }
             
         } catch (error) {
-            console.error('加载日志失败:', error);
+            console.error('Failed to load logs:', error);
             const decisionContent = document.getElementById('decision-content');
             if (decisionContent) {
-                decisionContent.innerHTML = `<p class="error">加载失败: ${error.message}</p>`;
+                decisionContent.innerHTML = `<p class="error">Failed to load: ${error.message}</p>`;
             }
         }
     }
 
-    // 加载顶部 Ticker 价格（从 API 获取）
+    // Load top ticker prices (from API)
     async loadTickerPrices() {
         try {
             const response = await fetch('/api/prices?symbols=BTC,ETH,SOL,BNB,DOGE,XRP');
             const data = await response.json();
             
             if (data.error) {
-                console.error('获取价格失败:', data.error);
+                console.error('Failed to get prices:', data.error);
                 return;
             }
             
@@ -370,14 +370,14 @@ class TradingMonitor {
                 this.cryptoPrices.set(symbol, price);
             });
             
-            // 更新显示
+            // Update display
             this.updateTickerPrices();
         } catch (error) {
-            console.error('加载 Ticker 价格失败:', error);
+            console.error('Failed to load ticker prices:', error);
         }
     }
 
-    // 更新价格滚动条
+    // Update price ticker
     updateTickerPrices() {
         this.cryptoPrices.forEach((price, symbol) => {
                 const priceElements = document.querySelectorAll(`[data-symbol="${symbol}"]`);
@@ -388,9 +388,9 @@ class TradingMonitor {
         });
     }
 
-    // 启动数据更新
+    // Start data updates
     startDataUpdates() {
-        // 每3秒更新账户和持仓（实时数据）
+        // Update account and positions every 3 seconds (real-time data)
         setInterval(async () => {
             await Promise.all([
                 this.loadAccountData(),
@@ -398,12 +398,12 @@ class TradingMonitor {
             ]);
         }, 3000);
 
-        // 每10秒更新价格（实时价格）
+        // Update prices every 10 seconds (real-time prices)
         setInterval(async () => {
             await this.loadTickerPrices();
         }, 10000);
 
-        // 每30秒更新交易记录和日志
+        // Update trade history and logs every 30 seconds
         setInterval(async () => {
             await Promise.all([
                 this.loadTradesData(),
@@ -411,13 +411,13 @@ class TradingMonitor {
             ]);
         }, 30000);
 
-        // 每30秒更新资产曲线图表
+        // Update equity curve chart every 30 seconds
         setInterval(async () => {
             await this.updateEquityChart();
         }, 30000);
     }
 
-    // 复制ticker内容实现无缝滚动
+    // Duplicate ticker content for seamless scrolling
     duplicateTicker() {
         const ticker = document.getElementById('ticker');
         if (ticker) {
@@ -426,38 +426,38 @@ class TradingMonitor {
         }
     }
 
-    // 初始化选项卡（简化版，只有一个选项卡）
+    // Initialize tabs (simplified, only one tab)
     initTabs() {
-        // 已经只有一个选项卡，不需要切换功能
+        // Only one tab, no switching functionality needed
     }
 
-    // 初始化聊天功能（已移除）
+    // Initialize chat function (removed)
     initChat() {
-        // 聊天功能已移除
+        // Chat function removed
     }
 
-    // 初始化资产曲线图表
+    // Initialize equity curve chart
     async initEquityChart() {
         const ctx = document.getElementById('equityChart');
         if (!ctx) {
-            console.error('未找到图表canvas元素');
+            console.error('Chart canvas element not found');
             return;
         }
 
-        // 加载历史数据
+        // Load historical data
         const historyData = await this.loadEquityHistory();
         
-        console.log('资产历史数据:', historyData);
+        console.log('Equity history data:', historyData);
         
         if (!historyData || historyData.length === 0) {
-            console.log('暂无历史数据，图表将在有数据后显示');
-            // 显示提示信息
+            console.log('No history data, chart will be displayed once data is available');
+            // Display prompt message
             const container = ctx.parentElement;
             if (container) {
                 const message = document.createElement('div');
                 message.className = 'no-data';
                 message.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00cc88; text-align: center;';
-                message.innerHTML = '暂无历史数据<br><small style="color: #008866;">系统将每10分钟自动记录账户资产</small>';
+                message.innerHTML = 'No history data available<br><small style="color: #008866;">The system will automatically record account equity every 10 minutes</small>';
                 container.appendChild(message);
             }
             return;
@@ -478,8 +478,8 @@ class TradingMonitor {
                 }),
                 datasets: [
                     {
-                        label: '总资产 (USDT)',
-                        data: historyData.map(d => parseFloat(d.totalValue.toFixed(2))),
+                        label: 'Total Equity (USDT)',
+                        data: historyData.map(d => parseFloat((d.totalValue + d.unrealizedPnl).toFixed(2))),
                         borderColor: 'rgb(0, 255, 170)',
                         backgroundColor: 'rgba(0, 255, 170, 0.1)',
                         borderWidth: 2,
@@ -562,7 +562,7 @@ class TradingMonitor {
         });
     }
 
-    // 加载资产历史数据
+    // Load equity history data
     async loadEquityHistory() {
         try {
             // 获取全部历史数据
@@ -570,18 +570,18 @@ class TradingMonitor {
             const data = await response.json();
             
             if (data.error) {
-                console.error('API错误:', data.error);
+                console.error('API Error:', data.error);
                 return [];
             }
             
             return data.history || [];
         } catch (error) {
-            console.error('加载资产历史数据失败:', error);
+            console.error('Failed to load equity history:', error);
             return [];
         }
     }
 
-    // 更新资产曲线图表
+    // Update equity curve chart
     async updateEquityChart() {
         if (!this.equityChart) {
             await this.initEquityChart();
@@ -594,7 +594,7 @@ class TradingMonitor {
             return;
         }
 
-        // 更新图表数据
+        // Update chart data
         this.equityChart.data.labels = historyData.map(d => {
             const date = new Date(d.timestamp);
             return date.toLocaleString('zh-CN', {
@@ -609,19 +609,19 @@ class TradingMonitor {
             parseFloat(d.totalValue.toFixed(2))
         );
         
-        // 固定不显示圆点
+        // Fixed to not show points
         this.equityChart.data.datasets[0].pointRadius = 0;
         
-        this.equityChart.update('none'); // 无动画更新
+        this.equityChart.update('none'); // Update without animation
     }
 
-    // 初始化时间范围选择器（已禁用切换功能）
+    // Initialize timeframe selector (switching function disabled)
     initTimeframeSelector() {
-        // 时间范围已固定为24小时，不再支持切换
+        // Timeframe is fixed to 24 hours, switching is no longer supported
     }
 }
 
-// 初始化监控系统
+// Initialize monitoring system
 document.addEventListener('DOMContentLoaded', () => {
     const monitor = new TradingMonitor();
 });

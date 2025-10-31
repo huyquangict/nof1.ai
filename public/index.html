@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   
   <!-- Primary Meta Tags - Bilingual -->
-  <title>open-nof1.ai - AI 驱动的加密货币交易监控系统 | Cryptocurrency Trading Monitor</title>
-  <meta name="title" content="open-nof1.ai - AI 驱动的加密货币交易监控系统 | Cryptocurrency Trading Monitor">
-  <meta name="description" content="实时监控加密货币交易账户，查看 AI 交易决策、资产曲线、持仓情况和交易历史。支持 BTC、ETH、SOL 等多种主流加密货币的实时价格追踪。Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history.">
+  <title>open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor</title>
+  <meta name="title" content="open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor">
+  <meta name="description" content="Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history. Supports BTC, ETH, SOL and other major cryptocurrencies.">
   <meta name="keywords" content="加密货币交易,AI交易系统,比特币交易,以太坊交易,SOL交易,数字货币监控,交易策略,量化交易,cryptocurrency trading,AI trading system,Bitcoin trading,Ethereum trading,SOL trading,crypto monitor,trading strategy,quantitative trading">
   <meta name="author" content="open-nof1.ai">
   <meta name="robots" content="index, follow">
@@ -26,8 +26,8 @@
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://open-nof1.195440.com/">
-  <meta property="og:title" content="open-nof1.ai - AI 驱动的加密货币交易监控系统">
-  <meta property="og:description" content="实时监控加密货币交易账户，查看 AI 交易决策、资产曲线、持仓情况和交易历史。支持 BTC、ETH、SOL 等多种主流加密货币的实时价格追踪。">
+  <meta property="og:title" content="open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor">
+  <meta property="og:description" content="Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history. Supports BTC, ETH, SOL and other major cryptocurrencies.">
   <meta property="og:image" content="https://open-nof1.195440.com/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -36,14 +36,14 @@
   <meta property="og:site_name" content="open-nof1.ai">
   
   <!-- Open Graph - English -->
-  <meta property="og:title:en" content="open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor">
-  <meta property="og:description:en" content="Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history. Supports BTC, ETH, SOL and other major cryptocurrencies.">
+  <meta property="og:title" content="open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor">
+  <meta property="og:description" content="Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history. Supports BTC, ETH, SOL and other major cryptocurrencies.">
   
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://open-nof1.195440.com/">
-  <meta name="twitter:title" content="open-nof1.ai - AI 驱动的加密货币交易监控系统">
-  <meta name="twitter:description" content="实时监控加密货币交易账户，查看 AI 交易决策、资产曲线、持仓情况和交易历史。">
+  <meta name="twitter:title" content="open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor">
+  <meta name="twitter:description" content="Real-time cryptocurrency trading account monitoring with AI decision tracking, equity curves, positions, and trade history.">
   <meta name="twitter:image" content="https://open-nof1.195440.com/og-image.png">
   
   <!-- Mobile Web App -->
@@ -63,11 +63,11 @@
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "open-nof1.ai",
-    "name@zh": "open-nof1.ai - AI 驱动的加密货币交易监控系统",
-    "name@en": "open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor",
-    "description": "AI 驱动的加密货币交易监控系统，实时跟踪交易账户和 AI 决策",
-    "description@zh": "AI 驱动的加密货币交易监控系统，实时跟踪交易账户和 AI 决策",
-    "description@en": "AI-powered cryptocurrency trading monitoring system with real-time account tracking and AI decision insights",
+    "name": "open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor",
+    "name": "open-nof1.ai - AI-Powered Cryptocurrency Trading Monitor",
+    "description": "AI-powered cryptocurrency trading monitoring system with real-time account tracking and AI decision insights",
+    "description": "AI-powered cryptocurrency trading monitoring system with real-time account tracking and AI decision insights",
+    "description": "AI-powered cryptocurrency trading monitoring system with real-time account tracking and AI decision insights",
     "url": "https://open-nof1.195440.com/",
     "applicationCategory": "FinanceApplication",
     "operatingSystem": "Web",
@@ -153,7 +153,7 @@
     <!-- Account Equity Curve Section -->
     <section class="chart-section">
       <div class="chart-header">
-        <h3 class="chart-title">资产曲线</h3>
+        <h3 class="chart-title">Equity Curve</h3>
       </div>
       <div class="chart-container">
         <canvas id="equityChart"></canvas>
@@ -163,15 +163,15 @@
     <!-- AI Decision Section -->
     <section class="chart-section">
       <div class="chart-header">
-        <h3 class="decision-title">最新 AI 决策</h3>
+        <h3 class="decision-title">Latest AI Decision</h3>
         <div class="decision-meta" id="decision-meta">
-          <span class="decision-time">加载中...</span>
+          <span class="decision-time">Loading...</span>
           <span class="decision-iteration">#-</span>
         </div>
       </div>
       <div class="decision-container">
         <div class="decision-content" id="decision-content">
-          <p class="loading">加载 AI 决策中...</p>
+          <p class="loading">Loading AI decision...</p>
         </div>
       </div>
     </section>
@@ -179,7 +179,7 @@
     <!-- Account Value Section -->
     <section class="account-section">
       <div class="account-header">
-        <h2>总资产</h2>
+        <h2>Total Equity</h2>
       </div>
       <div class="account-value">
         <span class="currency-symbol">$</span>
@@ -191,11 +191,11 @@
       </div>
       <div class="account-details">
         <div class="detail-item">
-          <span class="detail-label">可用余额</span>
+          <span class="detail-label">Available Balance</span>
           <span class="detail-value" id="available-balance">0.00</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">未实现盈亏</span>
+          <span class="detail-label">Unrealized PnL</span>
           <span class="detail-value" id="unrealised-pnl">+0.00</span>
         </div>
       </div>
@@ -203,34 +203,34 @@
       <!-- Current Positions Cards -->
       <div class="positions-cards" id="positions-cards">
         <div class="positions-cards-header">
-          <span class="positions-cards-title">当前持仓</span>
+          <span class="positions-cards-title">Current Positions</span>
         </div>
         <div class="positions-cards-container" id="positions-cards-container">
-          <div class="positions-cards-empty">暂无持仓</div>
+          <div class="positions-cards-empty">No active positions</div>
         </div>
       </div>
     </section>
 
         <!-- Positions Section -->
         <section class="positions-section">
-            <h2 class="section-header">当前持仓</h2>
+            <h2 class="section-header">Current Positions</h2>
             <div class="positions-container">
                 <table class="positions-table">
                     <thead>
                         <tr>
-                            <th>币种</th>
-                            <th>方向</th>
-                            <th>开仓倍数</th>
-                            <th>开仓价格</th>
-                            <th>开仓价值</th>
-                            <th>当前价格</th>
-                            <th>未实现盈亏</th>
-                            <th>收益率</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Leverage</th>
+                            <th>Entry Price</th>
+                            <th>Open Value</th>
+                            <th>Current Price</th>
+                            <th>Unrealized PnL</th>
+                            <th>Return %</th>
                         </tr>
                     </thead>
                     <tbody id="positions-body">
                         <tr>
-                            <td colspan="8" class="loading">加载中...</td>
+                            <td colspan="8" class="loading">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -239,25 +239,25 @@
 
         <!-- Trades Section -->
         <section class="trades-section">
-            <h2 class="section-header">交易历史 <span id="tradesCount"></span></h2>
+            <h2 class="section-header">Trade History <span id="tradesCount"></span></h2>
             <div class="trades-container">
                 <table class="trades-table">
                     <thead>
                         <tr>
-                            <th>时间</th>
-                            <th>币种</th>
-                            <th>类型</th>
-                            <th>方向</th>
-                            <th>价格</th>
-                            <th>数量</th>
-                            <th>杠杆</th>
-                            <th>手续费</th>
-                            <th>盈亏</th>
+                            <th>Time</th>
+                            <th>Symbol</th>
+                            <th>Type</th>
+                            <th>Side</th>
+                            <th>Price</th>
+                            <th>Quantity</th>
+                            <th>Leverage</th>
+                            <th>Fee</th>
+                            <th>PnL</th>
                         </tr>
                     </thead>
                     <tbody id="trades-body">
                         <tr>
-                            <td colspan="9" class="loading">加载中...</td>
+                            <td colspan="9" class="loading">Loading...</td>
                         </tr>
                     </tbody>
                 </table>

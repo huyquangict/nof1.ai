@@ -82,11 +82,11 @@ function initVisibilityControl() {
     if (typeof document[hidden] !== "undefined") {
         document.addEventListener(visibilityChange, () => {
             if (document[hidden]) {
-                // 页面隐藏时，减少更新频率或暂停
-                console.log('页面隐藏，暂停更新');
+                // When the page is hidden, reduce the update frequency or pause
+                console.log('Page hidden, pausing updates');
             } else {
-                // 页面可见时，立即更新一次
-                console.log('页面可见，恢复更新');
+                // When the page is visible, update immediately
+                console.log('Page visible, resuming updates');
                 loadAllData();
             }
         }, false);
@@ -139,7 +139,7 @@ async function loadAccountData() {
         returnPercentEl.className = 'value ' + (returnPercent >= 0 ? 'positive' : 'negative');
         
     } catch (error) {
-        console.error('加载账户数据失败:', error);
+        console.error('Failed to load account data:', error);
     }
 }
 
@@ -176,7 +176,7 @@ async function loadPositionsData() {
         const countEl = document.getElementById('positionsCount');
         
         if (!data.positions || data.positions.length === 0) {
-            container.innerHTML = '<p class="no-data">当前无持仓</p>';
+            container.innerHTML = '<p class="no-data">No active positions</p>';
             countEl.textContent = '';
             return;
         }
@@ -187,11 +187,11 @@ async function loadPositionsData() {
             <div class="position-item ${pos.side}">
                 <div class="position-header">
                     <div class="position-symbol">${pos.symbol}</div>
-                    <div class="position-side ${pos.side}">${pos.side === 'long' ? '多' : '空'}</div>
+                    <div class="position-side ${pos.side}">${pos.side === 'long' ? 'Long' : 'Short'}</div>
                 </div>
                 <div class="position-grid">
                     <div class="position-field">
-                        <div class="label">数量</div>
+                        <div class="label">Quantity</div>
                         <div class="value">${pos.quantity}</div>
                     </div>
                     <div class="position-field">
@@ -199,19 +199,19 @@ async function loadPositionsData() {
                         <div class="value">${pos.entryPrice.toFixed(4)}</div>
                     </div>
                     <div class="position-field">
-                        <div class="label">开仓价值</div>
+                        <div class="label">Open Value</div>
                         <div class="value">${pos.openValue.toFixed(2)} USDT</div>
                     </div>
                     <div class="position-field">
-                        <div class="label">当前价</div>
+                        <div class="label">Current Price</div>
                         <div class="value">${pos.currentPrice.toFixed(4)}</div>
                     </div>
                     <div class="position-field">
-                        <div class="label">杠杆</div>
+                        <div class="label">Leverage</div>
                         <div class="value">${pos.leverage}x</div>
                     </div>
                     <div class="position-field">
-                        <div class="label">盈亏</div>
+                        <div class="label">PnL</div>
                         <div class="value ${pos.unrealizedPnl >= 0 ? 'positive' : 'negative'}">
                             ${(pos.unrealizedPnl >= 0 ? '+' : '')}${pos.unrealizedPnl.toFixed(2)}
                         </div>
@@ -237,7 +237,7 @@ async function loadPositionsData() {
         `).join('');
         
     } catch (error) {
-        console.error('加载持仓数据失败:', error);
+        console.error('Failed to load positions data:', error);
     }
 }
 
@@ -250,14 +250,14 @@ async function loadLogsData() {
         const container = document.getElementById('logsContainer');
         
         if (!data.logs || data.logs.length === 0) {
-            container.innerHTML = '<p class="no-data">暂无决策日志</p>';
+            container.innerHTML = '<p class="no-data">No decision logs</p>';
             return;
         }
         
         container.innerHTML = data.logs.map((log, index) => {
             const date = new Date(log.timestamp);
             const timeStr = date.toLocaleString('zh-CN', {
-                timeZone: 'Asia/Shanghai',
+                timeZone: 'Asia/Ho_Chi_Minh',
                 month: '2-digit',
                 day: '2-digit',
                 hour: '2-digit',
@@ -271,7 +271,7 @@ async function loadLogsData() {
                             <div class="log-time">${timeStr}</div>
                             <div class="log-iteration">#${log.iteration}</div>
                         </div>
-                        <button class="copy-btn" onclick="copyLog(${index})" title="复制决策内容">
+                        <button class="copy-btn" onclick="copyLog(${index})" title="Copy decision content">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -287,7 +287,7 @@ async function loadLogsData() {
         window.logsData = data.logs;
         
     } catch (error) {
-        console.error('加载日志失败:', error);
+        console.error('Failed to load logs:', error);
     }
 }
 
@@ -302,7 +302,7 @@ async function loadTradesData() {
         const countEl = document.getElementById('tradesCount');
         
         if (!data.trades || data.trades.length === 0) {
-            container.innerHTML = '<p class="no-data">暂无交易记录</p>';
+            container.innerHTML = '<p class="no-data">No trade history</p>';
             countEl.textContent = '';
             return;
         }
@@ -312,7 +312,7 @@ async function loadTradesData() {
         container.innerHTML = data.trades.map(trade => {
             const date = new Date(trade.timestamp);
             const timeStr = date.toLocaleString('zh-CN', {
-                timeZone: 'Asia/Shanghai',
+                timeZone: 'Asia/Ho_Chi_Minh',
                 month: '2-digit',
                 day: '2-digit',
                 hour: '2-digit',
@@ -323,7 +323,7 @@ async function loadTradesData() {
             // 对于平仓交易，显示盈亏
             const pnlHtml = trade.type === 'close' && trade.pnl !== null && trade.pnl !== undefined
                 ? `<div class="trade-field">
-                    <span class="label">盈亏</span>
+                    <span class="label">PnL</span>
                     <span class="value ${trade.pnl >= 0 ? 'profit' : 'loss'}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} USDT</span>
                    </div>`
                 : '';
@@ -336,27 +336,27 @@ async function loadTradesData() {
                     </div>
                     <div class="trade-info">
                         <div class="trade-field">
-                            <span class="label">方向</span>
-                            <span class="value ${trade.side}">${trade.side === 'long' ? '做多' : trade.side === 'short' ? '做空' : '-'}</span>
+                            <span class="label">Side</span>
+                            <span class="value ${trade.side}">${trade.side === 'long' ? 'Long' : trade.side === 'short' ? 'Short' : '-'}</span>
                         </div>
                         <div class="trade-field">
-                            <span class="label">类型</span>
-                            <span class="value">${trade.type === 'open' ? '开仓' : '平仓'}</span>
+                            <span class="label">Type</span>
+                            <span class="value">${trade.type === 'open' ? 'Open' : 'Closed'}</span>
                         </div>
                         <div class="trade-field">
-                            <span class="label">数量</span>
+                            <span class="label">Quantity</span>
                             <span class="value">${trade.quantity.toFixed(4)}</span>
                         </div>
                         <div class="trade-field">
-                            <span class="label">价格</span>
+                            <span class="label">Price</span>
                             <span class="value">${trade.price.toFixed(4)}</span>
                         </div>
                         <div class="trade-field">
-                            <span class="label">杠杆</span>
+                            <span class="label">Leverage</span>
                             <span class="value">${trade.leverage}x</span>
                         </div>
                         <div class="trade-field">
-                            <span class="label">手续费</span>
+                            <span class="label">Fee</span>
                             <span class="value">${trade.fee.toFixed(4)}</span>
                         </div>
                         ${pnlHtml}
@@ -366,7 +366,7 @@ async function loadTradesData() {
         }).join('');
         
     } catch (error) {
-        console.error('加载交易历史失败:', error);
+        console.error('Failed to load trade history:', error);
     }
 }
 
@@ -374,7 +374,7 @@ async function loadTradesData() {
 function updateLastUpdateTime() {
     const now = new Date();
     document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('zh-CN', {
-        timeZone: 'Asia/Shanghai',
+        timeZone: 'Asia/Ho_Chi_Minh',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
@@ -384,15 +384,15 @@ function updateLastUpdateTime() {
 // 复制日志决策内容
 function copyLog(index) {
     if (!window.logsData || !window.logsData[index]) {
-        console.error('日志数据不存在');
+        console.error('Log data does not exist');
         return;
     }
     
     const log = window.logsData[index];
-    const logText = `时间: ${new Date(log.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n迭代: #${log.iteration}\n\n决策:\n${log.decision}`;
+    const logText = `Time: ${new Date(log.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}\nIteration: #${log.iteration}\n\nDecision:\n${log.decision}`;
     
     navigator.clipboard.writeText(logText).then(() => {
-        // 显示复制成功提示
+        // Show copy success notification
         const btn = event.target.closest('.copy-btn');
         if (btn) {
             const originalHTML = btn.innerHTML;
@@ -405,7 +405,7 @@ function copyLog(index) {
             }, 2000);
         }
     }).catch(err => {
-        console.error('复制失败:', err);
-        alert('复制失败，请手动复制');
+        console.error('Copy failed:', err);
+        alert('Copy failed, please copy manually');
     });
 }

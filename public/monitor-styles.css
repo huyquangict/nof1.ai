@@ -410,11 +410,11 @@ body {
 }
 
 .detail-value.positive {
-    color: var(--accent-red);
+    color: var(--accent-green);
 }
 
 .detail-value.negative {
-    color: var(--accent-green);
+    color: var(--accent-red);
 }
 
 /* Positions Cards - Small cards under account section */
@@ -474,19 +474,19 @@ body {
     top: 0;
     bottom: 0;
     width: 3px;
-    background-color: var(--accent-red);
-}
-
-.position-card.negative::before {
     background-color: var(--accent-green);
 }
 
+.position-card.negative::before {
+    background-color: var(--accent-red);
+}
+
 .position-card:hover {
-    border-color: var(--accent-red);
+    border-color: var(--accent-green);
 }
 
 .position-card.negative:hover {
-    border-color: var(--accent-green);
+    border-color: var(--accent-red);
 }
 
 .position-card-symbol {
@@ -503,11 +503,11 @@ body {
 }
 
 .position-card-pnl.positive {
-    color: var(--accent-red);
+    color: var(--accent-green);
 }
 
 .position-card-pnl.negative {
-    color: var(--accent-green);
+    color: var(--accent-red);
 }
 
 /* Scrollbar for positions cards */
@@ -586,12 +586,12 @@ body {
 }
 
 .positions-table td.positive {
-    color: var(--accent-red);
+    color: var(--accent-green);
     font-weight: bold;
 }
 
 .positions-table td.negative {
-    color: var(--accent-green);
+    color: var(--accent-red);
     font-weight: bold;
 }
 
@@ -700,20 +700,20 @@ body {
 }
 
 .trades-table .side.long {
-    color: var(--accent-red);
-}
-
-.trades-table .side.short {
     color: var(--accent-green);
 }
 
-.trades-table .profit {
+.trades-table .side.short {
     color: var(--accent-red);
+}
+
+.trades-table .profit {
+    color: var(--accent-green);
     font-weight: bold;
 }
 
 .trades-table .loss {
-    color: var(--accent-green);
+    color: var(--accent-red);
     font-weight: bold;
 }
 
@@ -834,23 +834,23 @@ body {
 }
 
 .trade-field .value.long {
-    color: var(--accent-red);
-    text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+    color: var(--accent-green);
+    text-shadow: 0 0 5px rgba(0, 255, 170, 0.3);
 }
 
 .trade-field .value.short {
-    color: var(--accent-green);
-    text-shadow: 0 0 5px rgba(0, 255, 170, 0.3);
-}
-
-.trade-field .value.profit {
     color: var(--accent-red);
     text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
 }
 
-.trade-field .value.loss {
+.trade-field .value.profit {
     color: var(--accent-green);
     text-shadow: 0 0 5px rgba(0, 255, 170, 0.3);
+}
+
+.trade-field .value.loss {
+    color: var(--accent-red);
+    text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
 }
 
 /* Chat */
@@ -1431,4 +1431,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--accent-green);
 }
-

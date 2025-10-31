@@ -1,50 +1,52 @@
 /**
  * open-nof1.ai - AI 加密货币自动交易系统
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { createOpenAI } from "@ai-sdk/openai";
 /**
  * 交易 Agent 配置（极简版）
  */
 import { Agent, Memory } from "@voltagent/core";
 import { LibSQLMemoryAdapter } from "@voltagent/libsql";
 import { createPinoLogger } from "@voltagent/logger";
-import { createOpenAI } from "@ai-sdk/openai";
+import { RISK_PARAMS } from "../config/riskParams";
 import * as tradingTools from "../tools/trading";
 import { formatChinaTime } from "../utils/timeUtils";
-import { RISK_PARAMS } from "../config/riskParams";
 
 /**
  * 账户风险配置
  */
 export interface AccountRiskConfig {
-  stopLossUsdt: number;
-  takeProfitUsdt: number;
-  syncOnStartup: boolean;
+	stopLossUsdt: number;
+	takeProfitUsdt: number;
+	syncOnStartup: boolean;
 }
 
 /**
  * 从环境变量读取账户风险配置
  */
 export function getAccountRiskConfig(): AccountRiskConfig {
-  return {
-    stopLossUsdt: Number.parseFloat(process.env.ACCOUNT_STOP_LOSS_USDT || "50"),
-    takeProfitUsdt: Number.parseFloat(process.env.ACCOUNT_TAKE_PROFIT_USDT || "10000"),
-    syncOnStartup: process.env.SYNC_CONFIG_ON_STARTUP === "true",
-  };
+	return {
+		stopLossUsdt: Number.parseFloat(process.env.ACCOUNT_STOP_LOSS_USDT || "10"),
+		takeProfitUsdt: Number.parseFloat(
+			process.env.ACCOUNT_TAKE_PROFIT_USDT || "10000",
+		),
+		syncOnStartup: process.env.SYNC_CONFIG_ON_STARTUP === "true",
+	};
 }
 
 /**
@@ -56,70 +58,46 @@ export type TradingStrategy = "conservative" | "balanced" | "aggressive";
  * 策略参数配置
  */
 export interface StrategyParams {
-  name: string;
-  description: string;
-  leverageMin: number;
-  leverageMax: number;
-  leverageRecommend: {
-    normal: string;
-    good: string;
-    strong: string;
-  };
-  positionSizeMin: number;
-  positionSizeMax: number;
-  positionSizeRecommend: {
-    normal: string;
-    good: string;
-    strong: string;
-  };
-  stopLoss: {
-    low: number;
-    mid: number;
-    high: number;
-  };
-  entryCondition: string;
-  riskTolerance: string;
-  tradingStyle: string;
+	name: string;
+	description: string;
+	leverageMin: number;
+	leverageMax: number;
+	leverageRecommend: {
+		normal: string;
+		good: string;
+		strong: string;
+	};
+	positionSizeMin: number;
+	positionSizeMax: number;
+	positionSizeRecommend: {
+		normal: string;
+		good: string;
+		strong: string;
+	};
+	stopLoss: {
+		low: number;
+		mid: number;
+		high: number;
+	};
+	entryCondition: string;
+	riskTolerance: string;
+	tradingStyle: string;
 }
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
  */
 export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
-  const maxLeverage = RISK_PARAMS.MAX_LEVERAGE;
-  
-  // 根据 MAX_LEVERAGE 动态计算各策略的杠杆范围
-  // 保守策略：30%-60% 的最大杠杆
-  const conservativeLevMin = Math.max(1, Math.ceil(maxLeverage * 0.3));
-  const conservativeLevMax = Math.max(2, Math.ceil(maxLeverage * 0.6));
-  const conservativeLevNormal = conservativeLevMin;
-  const conservativeLevGood = Math.ceil((conservativeLevMin + conservativeLevMax) / 2);
-  const conservativeLevStrong = conservativeLevMax;
-  
-  // 平衡策略：60%-85% 的最大杠杆
-  const balancedLevMin = Math.max(2, Math.ceil(maxLeverage * 0.6));
-  const balancedLevMax = Math.max(3, Math.ceil(maxLeverage * 0.85));
-  const balancedLevNormal = balancedLevMin;
-  const balancedLevGood = Math.ceil((balancedLevMin + balancedLevMax) / 2);
-  const balancedLevStrong = balancedLevMax;
-  
-  // 激进策略：85%-100% 的最大杠杆
-  const aggressiveLevMin = Math.max(3, Math.ceil(maxLeverage * 0.85));
-  const aggressiveLevMax = maxLeverage;
-  const aggressiveLevNormal = aggressiveLevMin;
-  const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);
-  const aggressiveLevStrong = aggressiveLevMax;
-  
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "conservative": {
       name: "稳健",
       description: "低风险低杠杆，严格入场条件，适合保守投资者",
-      leverageMin: conservativeLevMin,
-      leverageMax: conservativeLevMax,
+      leverageMin: 15,
+      leverageMax: 18,
       leverageRecommend: {
-        normal: `${conservativeLevNormal}倍`,
-        good: `${conservativeLevGood}倍`,
-        strong: `${conservativeLevStrong}倍`,
+        normal: "15倍",
+        good: "16倍",
+        strong: "17-18倍",
       },
       positionSizeMin: 15,
       positionSizeMax: 22,
@@ -140,12 +118,12 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     "balanced": {
       name: "平衡",
       description: "中等风险杠杆，合理入场条件，适合大多数投资者",
-      leverageMin: balancedLevMin,
-      leverageMax: balancedLevMax,
+      leverageMin: 18,
+      leverageMax: 22,
       leverageRecommend: {
-        normal: `${balancedLevNormal}倍`,
-        good: `${balancedLevGood}倍`,
-        strong: `${balancedLevStrong}倍`,
+        normal: "18-19倍",
+        good: "20倍",
+        strong: "21-22倍",
       },
       positionSizeMin: 20,
       positionSizeMax: 27,
@@ -166,12 +144,12 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     "aggressive": {
       name: "激进",
       description: "高风险高杠杆，宽松入场条件，适合激进投资者",
-      leverageMin: aggressiveLevMin,
-      leverageMax: aggressiveLevMax,
+      leverageMin: 22,
+      leverageMax: 25,
       leverageRecommend: {
-        normal: `${aggressiveLevNormal}倍`,
-        good: `${aggressiveLevGood}倍`,
-        strong: `${aggressiveLevStrong}倍`,
+        normal: "22-23倍",
+        good: "23-24倍",
+        strong: "24-25倍",
       },
       positionSizeMin: 25,
       positionSizeMax: 32,
@@ -191,43 +169,56 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     },
   };
 
-  return strategyConfigs[strategy];
+	return strategyConfigs[strategy];
 }
 
 const logger = createPinoLogger({
-  name: "trading-agent",
-  level: "info",
+	name: "trading-agent",
+	level: "info",
 });
 
 /**
  * 从环境变量读取交易策略
  */
 export function getTradingStrategy(): TradingStrategy {
-  const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive") {
-    return strategy;
-  }
-  logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
-  return "balanced";
+	const strategy = process.env.TRADING_STRATEGY || "balanced";
+	if (
+		strategy === "conservative" ||
+		strategy === "balanced" ||
+		strategy === "aggressive"
+	) {
+		return strategy;
+	}
+	logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
+	return "balanced";
 }
 
 /**
  * 生成交易提示词（参照 1.md 格式）
  */
 export function generateTradingPrompt(data: {
-  minutesElapsed: number;
-  iteration: number;
-  intervalMinutes: number;
-  marketData: any;
-  accountInfo: any;
-  positions: any[];
-  tradeHistory?: any[];
-  recentDecisions?: any[];
+	minutesElapsed: number;
+	iteration: number;
+	intervalMinutes: number;
+	marketData: any;
+	accountInfo: any;
+	positions: any[];
+	tradeHistory?: any[];
+	recentDecisions?: any[];
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
-  const currentTime = formatChinaTime();
-  
-  let prompt = `您已经开始交易 ${minutesElapsed} 分钟。当前时间是 ${currentTime}，您已被调用 ${iteration} 次。下面我们为您提供各种状态数据、价格数据和预测信号，以便您发现阿尔法收益。下面还有您当前的账户信息、价值、表现、持仓等。
+	const {
+		minutesElapsed,
+		iteration,
+		intervalMinutes,
+		marketData,
+		accountInfo,
+		positions,
+		tradeHistory,
+		recentDecisions,
+	} = data;
+	const currentTime = formatChinaTime();
+
+	let prompt = `您已经开始交易 ${minutesElapsed} 分钟。当前时间是 ${currentTime}，您已被调用 ${iteration} 次。下面我们为您提供各种状态数据、价格数据和预测信号，以便您发现阿尔法收益。下面还有您当前的账户信息、价值、表现、持仓等。
 
 重要说明：
 - 本提示词已经包含了所有必需的市场数据、技术指标、账户信息和持仓状态
@@ -242,85 +233,85 @@ export function generateTradingPrompt(data: {
 所有币种的当前市场状态
 `;
 
-  // 按照 1.md 格式输出每个币种的数据
-  for (const [symbol, dataRaw] of Object.entries(marketData)) {
-    const data = dataRaw as any;
-    
-    prompt += `\n所有 ${symbol} 数据\n`;
-    prompt += `当前价格 = ${data.price.toFixed(1)}, 当前EMA20 = ${data.ema20.toFixed(3)}, 当前MACD = ${data.macd.toFixed(3)}, 当前RSI（7周期） = ${data.rsi7.toFixed(3)}\n\n`;
-    
-    // 资金费率
-    if (data.fundingRate !== undefined) {
-      prompt += `此外，这是 ${symbol} 永续合约的最新资金费率（您交易的合约类型）：\n\n`;
-      prompt += `资金费率: ${data.fundingRate.toExponential(2)}\n\n`;
-    }
-    
-    // 日内时序数据（3分钟级别）
-    if (data.intradaySeries && data.intradaySeries.midPrices.length > 0) {
-      const series = data.intradaySeries;
-      prompt += `日内序列（按分钟，最旧 → 最新）：\n\n`;
-      
-      // Mid prices
-      prompt += `中间价: [${series.midPrices.map((p: number) => p.toFixed(1)).join(", ")}]\n\n`;
-      
-      // EMA indicators (20‑period)
-      prompt += `EMA指标（20周期）: [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
-      
-      // MACD indicators
-      prompt += `MACD指标: [${series.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
-      
-      // RSI indicators (7‑Period)
-      prompt += `RSI指标（7周期）: [${series.rsi7Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
-      
-      // RSI indicators (14‑Period)
-      prompt += `RSI指标（14周期）: [${series.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
-    }
-    
-    // 更长期的上下文数据（1小时级别 - 用于短线交易）
-    if (data.longerTermContext) {
-      const ltc = data.longerTermContext;
-      prompt += `更长期上下文（1小时时间框架）：\n\n`;
-      
-      prompt += `20周期EMA: ${ltc.ema20.toFixed(2)} vs. 50周期EMA: ${ltc.ema50.toFixed(2)}\n\n`;
-      
-      if (ltc.atr3 && ltc.atr14) {
-        prompt += `3周期ATR: ${ltc.atr3.toFixed(2)} vs. 14周期ATR: ${ltc.atr14.toFixed(3)}\n\n`;
-      }
-      
-      prompt += `当前成交量: ${ltc.currentVolume.toFixed(2)} vs. 平均成交量: ${ltc.avgVolume.toFixed(3)}\n\n`;
-      
-      // MACD 和 RSI 时序（4小时，最近10个数据点）
-      if (ltc.macdSeries && ltc.macdSeries.length > 0) {
-        prompt += `MACD指标: [${ltc.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
-      }
-      
-      if (ltc.rsi14Series && ltc.rsi14Series.length > 0) {
-        prompt += `RSI指标（14周期）: [${ltc.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
-      }
-    }
-    
-    // 多时间框架指标数据
-    if (data.timeframes) {
-      prompt += `多时间框架指标：\n\n`;
-      
-      const tfList = [
-        { key: "1m", name: "1分钟" },
-        { key: "3m", name: "3分钟" },
-        { key: "5m", name: "5分钟" },
-        { key: "15m", name: "15分钟" },
-        { key: "30m", name: "30分钟" },
-        { key: "1h", name: "1小时" },
-      ];
-      
-      for (const tf of tfList) {
-        const tfData = data.timeframes[tf.key];
-        if (tfData) {
-          prompt += `${tf.name}: 价格=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, 成交量=${tfData.volume.toFixed(2)}\n`;
-        }
-      }
-      prompt += `\n`;
-    }
-  }
+	// 按照 1.md 格式输出每个币种的数据
+	for (const [symbol, dataRaw] of Object.entries(marketData)) {
+		const data = dataRaw as any;
+
+		prompt += `\n所有 ${symbol} 数据\n`;
+		prompt += `当前价格 = ${data.price.toFixed(1)}, 当前EMA20 = ${data.ema20.toFixed(3)}, 当前MACD = ${data.macd.toFixed(3)}, 当前RSI（7周期） = ${data.rsi7.toFixed(3)}\n\n`;
+
+		// 资金费率
+		if (data.fundingRate !== undefined) {
+			prompt += `此外，这是 ${symbol} 永续合约的最新资金费率（您交易的合约类型）：\n\n`;
+			prompt += `资金费率: ${data.fundingRate.toExponential(2)}\n\n`;
+		}
+
+		// 日内时序数据（3分钟级别）
+		if (data.intradaySeries && data.intradaySeries.midPrices.length > 0) {
+			const series = data.intradaySeries;
+			prompt += `日内序列（按分钟，最旧 → 最新）：\n\n`;
+
+			// Mid prices
+			prompt += `中间价: [${series.midPrices.map((p: number) => p.toFixed(1)).join(", ")}]\n\n`;
+
+			// EMA indicators (20‑period)
+			prompt += `EMA指标（20周期）: [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
+
+			// MACD indicators
+			prompt += `MACD指标: [${series.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+
+			// RSI indicators (7‑Period)
+			prompt += `RSI指标（7周期）: [${series.rsi7Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+
+			// RSI indicators (14‑Period)
+			prompt += `RSI指标（14周期）: [${series.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+		}
+
+		// 更长期的上下文数据（1小时级别 - 用于短线交易）
+		if (data.longerTermContext) {
+			const ltc = data.longerTermContext;
+			prompt += `更长期上下文（1小时时间框架）：\n\n`;
+
+			prompt += `20周期EMA: ${ltc.ema20.toFixed(2)} vs. 50周期EMA: ${ltc.ema50.toFixed(2)}\n\n`;
+
+			if (ltc.atr3 && ltc.atr14) {
+				prompt += `3周期ATR: ${ltc.atr3.toFixed(2)} vs. 14周期ATR: ${ltc.atr14.toFixed(3)}\n\n`;
+			}
+
+			prompt += `当前成交量: ${ltc.currentVolume.toFixed(2)} vs. 平均成交量: ${ltc.avgVolume.toFixed(3)}\n\n`;
+
+			// MACD 和 RSI 时序（4小时，最近10个数据点）
+			if (ltc.macdSeries && ltc.macdSeries.length > 0) {
+				prompt += `MACD指标: [${ltc.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+			}
+
+			if (ltc.rsi14Series && ltc.rsi14Series.length > 0) {
+				prompt += `RSI指标（14周期）: [${ltc.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+			}
+		}
+
+		// 多时间框架指标数据
+		if (data.timeframes) {
+			prompt += `多时间框架指标：\n\n`;
+
+			const tfList = [
+				{ key: "1m", name: "1分钟" },
+				{ key: "3m", name: "3分钟" },
+				{ key: "5m", name: "5分钟" },
+				{ key: "15m", name: "15分钟" },
+				{ key: "30m", name: "30分钟" },
+				{ key: "1h", name: "1小时" },
+			];
+
+			for (const tf of tfList) {
+				const tfData = data.timeframes[tf.key];
+				if (tfData) {
+					prompt += `${tf.name}: 价格=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, 成交量=${tfData.volume.toFixed(2)}\n`;
+				}
+			}
+			prompt += `\n`;
+		}
+	}
 
   // 账户信息和表现（参照 1.md 格式）
   prompt += `\n以下是您的账户信息和表现\n`;
@@ -410,8 +401,7 @@ export function generateTradingPrompt(data: {
   // 历史成交记录（最近10条）
   if (tradeHistory && tradeHistory.length > 0) {
     prompt += `\n最近交易历史（最近10笔交易，最旧 → 最新）：\n`;
-    prompt += `⚠️ 重要说明：以下仅为最近10条交易的统计，用于分析近期策略表现，不代表账户总盈亏。\n`;
-    prompt += `使用此信息评估近期交易质量、识别策略问题、优化决策方向。\n\n`;
+    prompt += `使用此信息分析您的交易策略有效性和优化决策。\n\n`;
     
     let totalProfit = 0;
     let profitCount = 0;
@@ -445,44 +435,41 @@ export function generateTradingPrompt(data: {
     
     if (profitCount > 0 || lossCount > 0) {
       const winRate = profitCount / (profitCount + lossCount) * 100;
-      prompt += `最近10条交易统计（仅供参考）:\n`;
-      prompt += `  - 胜率: ${winRate.toFixed(1)}%\n`;
-      prompt += `  - 盈利交易: ${profitCount}笔\n`;
-      prompt += `  - 亏损交易: ${lossCount}笔\n`;
-      prompt += `  - 最近10条净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT\n`;
-      prompt += `\n⚠️ 注意：此数值仅为最近10笔交易统计，用于评估近期策略有效性，不是账户总盈亏。\n`;
-      prompt += `账户真实盈亏请参考上方"当前账户状态"中的收益率和总资产变化。\n\n`;
+      prompt += `交易统计: 胜率: ${winRate.toFixed(1)}%, 盈利交易: ${profitCount}, 亏损交易: ${lossCount}, 净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT\n\n`;
     }
   }
 
-  // 上一次的AI决策记录
-  if (recentDecisions && recentDecisions.length > 0) {
-    prompt += `\n您上一次的决策：\n`;
-    prompt += `使用此信息作为参考，并基于当前市场状况做出决策。\n\n`;
-    
-    for (let i = 0; i < recentDecisions.length; i++) {
-      const decision = recentDecisions[i];
-      const decisionTime = formatChinaTime(decision.timestamp);
-      
-      prompt += `决策 #${decision.iteration} (${decisionTime}):\n`;
-      prompt += `  账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
-      prompt += `  持仓数量: ${decision.positions_count}\n`;
-      prompt += `  决策: ${decision.decision}\n\n`;
-    }
-    
-    prompt += `\n参考上一次的决策结果，结合当前市场数据做出最佳判断。\n\n`;
-  }
+	// 上一次的AI决策记录
+	if (recentDecisions && recentDecisions.length > 0) {
+		prompt += `\n您上一次的决策：\n`;
+		prompt += `使用此信息作为参考，并基于当前市场状况做出决策。\n\n`;
 
-  return prompt;
+		for (let i = 0; i < recentDecisions.length; i++) {
+			const decision = recentDecisions[i];
+			const decisionTime = formatChinaTime(decision.timestamp);
+
+			prompt += `决策 #${decision.iteration} (${decisionTime}):\n`;
+			prompt += `  账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
+			prompt += `  持仓数量: ${decision.positions_count}\n`;
+			prompt += `  决策: ${decision.decision}\n\n`;
+		}
+
+		prompt += `\n参考上一次的决策结果，结合当前市场数据做出最佳判断。\n\n`;
+	}
+
+	return prompt;
 }
 
 /**
  * 根据策略生成交易指令
  */
-function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
-  const params = getStrategyParams(strategy);
-  
-  return `您是一位经验丰富的加密货币期货量化交易员，当前采用【${params.name}】策略。您的目标是${params.tradingStyle}。
+function generateInstructions(
+	strategy: TradingStrategy,
+	intervalMinutes: number,
+): string {
+	const params = getStrategyParams(strategy);
+
+	return `您是一位经验丰富的加密货币期货量化交易员，当前采用【${params.name}】策略。您的目标是${params.tradingStyle}。
 
 您的身份：
 - 15年量化交易经验，${params.description}
@@ -536,7 +523,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 11. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
 
 当前交易规则（${params.name}策略）：
-- 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
+- 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join("、")}）
 - 仅限市价单 - 以当前价格即时执行
 - **杠杆控制（严格限制）**：必须使用${params.leverageMin}-${params.leverageMax}倍杠杆。
   * ${params.leverageRecommend.normal}：用于普通信号
@@ -552,10 +539,10 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   * 总名义敞口不超过账户净值的${params.leverageMax}倍
 - 交易费用：每笔交易约0.05%（往返总计0.1%）。每笔交易应有至少2-3%的盈利潜力。
 - **执行周期**：系统每${intervalMinutes}分钟执行一次，这意味着：
-  * 36小时 = ${Math.floor(36 * 60 / intervalMinutes)}个执行周期
+  * 36小时 = ${Math.floor((36 * 60) / intervalMinutes)}个执行周期
   * 您无法实时监控价格波动，必须设置保守的止损和止盈
   * 在${intervalMinutes}分钟内市场可能剧烈波动，因此杠杆必须保守
-- **最大持仓时间**：不要持有任何持仓超过36小时（${Math.floor(36 * 60 / intervalMinutes)}个周期）。无论盈亏，在36小时内平仓所有持仓。
+- **最大持仓时间**：不要持有任何持仓超过36小时（${Math.floor((36 * 60) / intervalMinutes)}个周期）。无论盈亏，在36小时内平仓所有持仓。
 - **开仓前强制检查**：
   1. 使用getAccountBalance检查可用资金和账户净值
   2. 使用getPositions检查现有持仓数量和总敞口
@@ -712,45 +699,47 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 /**
  * 创建交易 Agent
  */
-export function createTradingAgent(intervalMinutes: number = 5) {
-  // 使用 OpenAI SDK，通过配置 baseURL 兼容 OpenRouter 或其他供应商
-  const openai = createOpenAI({
-    apiKey: process.env.OPENAI_API_KEY || "",
-    baseURL: process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1",
-  });
+export function createTradingAgent(intervalMinutes = 5) {
+	// 使用 OpenAI SDK，通过配置 baseURL 兼容 OpenRouter 或其他供应商
+	const openai = createOpenAI({
+		apiKey: process.env.OPENAI_API_KEY || "",
+		baseURL: process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1",
+	});
 
-  const memory = new Memory({
-    storage: new LibSQLMemoryAdapter({
-      url: "file:./.voltagent/trading-memory.db",
-      logger: logger.child({ component: "libsql" }),
-    }),
-  });
-  
-  // 获取当前策略
-  const strategy = getTradingStrategy();
-  logger.info(`使用交易策略: ${strategy}`);
+	const memory = new Memory({
+		storage: new LibSQLMemoryAdapter({
+			url: "file:./.voltagent/trading-memory.db",
+			logger: logger.child({ component: "libsql" }),
+		}),
+	});
 
-  const agent = new Agent({
-    name: "trading-agent",
-    instructions: generateInstructions(strategy, intervalMinutes),
-    model: openai.chat(process.env.AI_MODEL_NAME || "deepseek/deepseek-v3.2-exp"),
-    tools: [
-      tradingTools.getMarketPriceTool,
-      tradingTools.getTechnicalIndicatorsTool,
-      tradingTools.getFundingRateTool,
-      tradingTools.getOrderBookTool,
-      tradingTools.openPositionTool,
-      tradingTools.closePositionTool,
-      tradingTools.cancelOrderTool,
-      tradingTools.getAccountBalanceTool,
-      tradingTools.getPositionsTool,
-      tradingTools.getOpenOrdersTool,
-      tradingTools.checkOrderStatusTool,
-      tradingTools.calculateRiskTool,
-      tradingTools.syncPositionsTool,
-    ],
-    memory,
-  });
+	// 获取当前策略
+	const strategy = getTradingStrategy();
+	logger.info(`使用交易策略: ${strategy}`);
 
-  return agent;
+	const agent = new Agent({
+		name: "trading-agent",
+		instructions: generateInstructions(strategy, intervalMinutes),
+		model: openai.chat(
+			process.env.AI_MODEL_NAME || "deepseek/deepseek-v3.2-exp",
+		),
+		tools: [
+			tradingTools.getMarketPriceTool,
+			tradingTools.getTechnicalIndicatorsTool,
+			tradingTools.getFundingRateTool,
+			tradingTools.getOrderBookTool,
+			tradingTools.openPositionTool,
+			tradingTools.closePositionTool,
+			tradingTools.cancelOrderTool,
+			tradingTools.getAccountBalanceTool,
+			tradingTools.getPositionsTool,
+			tradingTools.getOpenOrdersTool,
+			tradingTools.checkOrderStatusTool,
+			tradingTools.calculateRiskTool,
+			tradingTools.syncPositionsTool,
+		],
+		memory,
+	});
+
+	return agent;
 }

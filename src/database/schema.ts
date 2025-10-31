@@ -1,17 +1,17 @@
 /**
  * open-nof1.ai - AI 加密货币自动交易系统
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
@@ -21,85 +21,85 @@
  */
 
 export interface Trade {
-  id: number;
-  order_id: string;
-  symbol: string;
-  side: 'long' | 'short';
-  type: 'open' | 'close';
-  price: number;
-  quantity: number;
-  leverage: number;
-  pnl?: number;
-  fee?: number;
-  timestamp: string;
-  status: 'pending' | 'filled' | 'cancelled';
+	id: number;
+	order_id: string;
+	symbol: string;
+	side: "long" | "short";
+	type: "open" | "close";
+	price: number;
+	quantity: number;
+	leverage: number;
+	pnl?: number;
+	fee?: number;
+	timestamp: string;
+	status: "pending" | "filled" | "cancelled";
 }
 
 export interface Position {
-  id: number;
-  symbol: string;
-  quantity: number;
-  entry_price: number;
-  current_price: number;
-  liquidation_price: number;
-  unrealized_pnl: number;
-  leverage: number;
-  side: 'long' | 'short';
-  profit_target?: number;
-  stop_loss?: number;
-  tp_order_id?: string;
-  sl_order_id?: string;
-  entry_order_id: string;
-  opened_at: string;
-  confidence?: number;
-  risk_usd?: number;
-  peak_pnl_percent?: number; // 历史最高盈亏百分比（考虑杠杆）
+	id: number;
+	symbol: string;
+	quantity: number;
+	entry_price: number;
+	current_price: number;
+	liquidation_price: number;
+	unrealized_pnl: number;
+	leverage: number;
+	side: "long" | "short";
+	profit_target?: number;
+	stop_loss?: number;
+	tp_order_id?: string;
+	sl_order_id?: string;
+	entry_order_id: string;
+	opened_at: string;
+	confidence?: number;
+	risk_usd?: number;
+	peak_pnl_percent?: number; // 历史最高盈亏百分比（考虑杠杆）
 }
 
 export interface AccountHistory {
-  id: number;
-  timestamp: string;
-  total_value: number;
-  available_cash: number;
-  unrealized_pnl: number;
-  realized_pnl: number;
-  return_percent: number;
-  sharpe_ratio?: number;
+	id: number;
+	timestamp: string;
+	total_value: number;
+	available_cash: number;
+	unrealized_pnl: number;
+	realized_pnl: number;
+	return_percent: number;
+	sharpe_ratio?: number;
 }
 
 export interface TradingSignal {
-  id: number;
-  symbol: string;
-  timestamp: string;
-  price: number;
-  ema_20: number;
-  ema_50?: number;
-  macd: number;
-  rsi_7: number;
-  rsi_14: number;
-  volume: number;
-  open_interest?: number;
-  funding_rate?: number;
-  atr_3?: number;
-  atr_14?: number;
+	id: number;
+	symbol: string;
+	timestamp: string;
+	price: number;
+	ema_20: number;
+	ema_50?: number;
+	macd: number;
+	rsi_7: number;
+	rsi_14: number;
+	volume: number;
+	open_interest?: number;
+	funding_rate?: number;
+	atr_3?: number;
+	atr_14?: number;
 }
 
 export interface AgentDecision {
-  id: number;
-  timestamp: string;
-  iteration: number;
-  market_analysis: string;
-  decision: string;
-  actions_taken: string;
-  account_value: number;
-  positions_count: number;
+	id: number;
+	timestamp: string;
+	iteration: number;
+	market_analysis: string;
+	decision: string;
+	actions_taken: string;
+	account_value: number;
+	positions_count: number;
 }
 
 export interface SystemConfig {
-  id: number;
-  key: string;
-  value: string;
-  updated_at: string;
+	id: number;
+	key: string;
+	value: string;
+	updated_at: string;
 }
 
 /**
@@ -202,4 +202,3 @@ CREATE INDEX IF NOT EXISTS idx_signals_symbol ON trading_signals(symbol);
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON account_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_decisions_timestamp ON agent_decisions(timestamp);
 `;
-
