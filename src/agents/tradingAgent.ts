@@ -253,18 +253,49 @@ export function generateTradingPrompt(data: {
 
   let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
-Important Notes:
-- This prompt already contains all necessary market data, technical indicators, account information, and position status
-- You should **directly analyze the data provided below**, no need to call tools to fetch technical indicators again
-- **CRITICAL: Review recent closed positions** - If you just closed a position at a LOSS, DO NOT immediately open the same direction (LONG/SHORT) on the same coin
-- **Use the historical performance data** (win/loss rates per coin and side) to inform your trading decisions - avoid coins/directions with poor win rates
-- If a coin+direction has <40% win rate in recent trades, DO NOT open new positions in that direction
-- **PROFIT TAKING RULE**: If a position has reached +20% PnL or more, you MUST consider taking profit:
-  * Take at least HALF profit (50% of position) to lock in gains
-  * OR close the FULL position if trend shows signs of reversal
-  * DO NOT let large profits turn into losses - secure your gains!
-- Please provide a **complete analysis and decision**, including: Recent closed trades review → Historical performance review → Account health check → Existing position management → Market opportunity analysis → Specific trading decisions
-- Please ensure you output the complete decision-making process, do not stop midway
+Important Rules and Instructions:
+
+📊 DATA ANALYSIS:
+- This prompt contains all market data, technical indicators, account info, and positions
+- Analyze the data directly - DO NOT call tools to fetch indicators again
+- First identify MARKET REGIME for each coin (TRENDING UP/DOWN or RANGING/SIDEWAYS)
+
+🚫 LOSS PREVENTION:
+- **CRITICAL**: If you just closed a position at a LOSS, DO NOT immediately open the same direction on the same coin
+- If a coin+direction has <40% win rate in recent history, DO NOT open new positions in that direction
+- **CORRELATION RISK**: Avoid opening too many positions in the same direction when coins move together (e.g., all ALTs follow BTC)
+
+💰 PROFIT TAKING (+20% RULE):
+- Position at +20% PnL or more → MUST take action:
+  * MINIMUM: Close 50% to lock in half the profit
+  * BETTER: Close 100% if reversal signals appear
+  * DO NOT let large profits turn into losses!
+
+🔄 PROFITABLE RE-ENTRY (Be Specific):
+After closing a profitable position, re-entry criteria:
+- **SAME direction**: Only if price pulls back to EMA20 AND RSI resets below 40 (for LONG) or above 60 (for SHORT)
+- **OPPOSITE direction**: Only if clear reversal confirmed (3+ consecutive reversal candles + RSI divergence)
+- **WAIT if unclear**: Don't force trades - patience is profitable
+
+💵 POSITION SIZING:
+- Maximum risk per trade: 2% of account balance
+- High volatility coins (ATR > average) → use smaller size
+- Low win rate coins → use smaller size or avoid
+- Never risk more than 10% total account on all open positions combined
+
+📈 FUNDING RATE STRATEGY:
+- High positive funding (>0.05%) → Longs overcrowded → Consider SHORT
+- High negative funding (<-0.05%) → Shorts overcrowded → Consider LONG
+- Use as contrarian indicator, not absolute signal
+
+📋 DECISION FLOW:
+1. Market Overview: Identify BTC trend (market leader), overall volatility, coin correlation
+2. Review Recent Closed Trades: Any losses just now? Any coins to avoid?
+3. Historical Performance: Check win rates per coin+direction
+4. Account Health: Drawdown status, available margin
+5. Existing Positions: Any at +20%? Any near stop-loss? Correlation check?
+6. Market Opportunities: Regime-appropriate strategies (trending vs ranging)
+7. Execute Decisions: Size positions appropriately, set stops
 
 All price or signal data below is sorted chronologically: oldest → newest
 
@@ -272,6 +303,74 @@ Timeframe Note: Unless otherwise stated in section titles, intraday series are p
 
 Current Market Status for All Coins
 `;
+
+  // Add Market Overview before individual coin analysis
+  if (marketData) {
+    const symbols = Object.keys(marketData);
+
+    // Get BTC data for market leader analysis
+    const btcData = marketData['BTC'] as any;
+    let btcTrend = 'UNKNOWN';
+    if (btcData) {
+      const btcMacd = btcData.macd || 0;
+      const btcEma20 = btcData.ema20 || 0;
+      const btcEma50 = btcData.ema50 || 0;
+      const btcPrice = btcData.price || 0;
+
+      if (btcMacd > 0 && btcPrice > btcEma20 && btcEma20 > btcEma50) {
+        btcTrend = 'BULLISH ↑';
+      } else if (btcMacd < 0 && btcPrice < btcEma20 && btcEma20 < btcEma50) {
+        btcTrend = 'BEARISH ↓';
+      } else {
+        btcTrend = 'SIDEWAYS →';
+      }
+    }
+
+    // Calculate overall volatility (average ATR across coins)
+    let totalATR = 0;
+    let atrCount = 0;
+    for (const data of Object.values(marketData) as any[]) {
+      if (data.longerTermContext?.atr14) {
+        totalATR += data.longerTermContext.atr14;
+        atrCount++;
+      }
+    }
+    const avgATR = atrCount > 0 ? totalATR / atrCount : 0;
+    const volatilityLevel = avgATR > 100 ? 'HIGH' : avgATR > 50 ? 'MEDIUM' : 'LOW';
+
+    // Check correlation (simplified: are most coins moving in same direction as BTC?)
+    let sameDirectionCount = 0;
+    if (btcData) {
+      const btcMacdPositive = (btcData.macd || 0) > 0;
+      for (const [sym, data] of Object.entries(marketData) as [string, any][]) {
+        if (sym !== 'BTC' && data.macd !== undefined) {
+          const coinMacdPositive = data.macd > 0;
+          if (coinMacdPositive === btcMacdPositive) {
+            sameDirectionCount++;
+          }
+        }
+      }
+    }
+    const totalCoins = symbols.length - 1; // Exclude BTC itself
+    const correlationPercent = totalCoins > 0 ? (sameDirectionCount / totalCoins) * 100 : 0;
+    const correlation = correlationPercent > 70 ? 'HIGH CORRELATION - Coins moving together' :
+                       correlationPercent > 40 ? 'MODERATE CORRELATION' :
+                       'LOW CORRELATION - Coins diverging';
+
+    prompt += `\n=== MARKET OVERVIEW ===\n`;
+    prompt += `BTC Trend (Market Leader): ${btcTrend}\n`;
+    prompt += `Overall Volatility: ${volatilityLevel} (Avg ATR: ${avgATR.toFixed(2)})\n`;
+    prompt += `Correlation: ${correlation} (${correlationPercent.toFixed(0)}% aligned with BTC)\n`;
+    prompt += `\n⚠️ Trading Implications:\n`;
+    if (correlationPercent > 70) {
+      prompt += `- HIGH CORRELATION: Opening multiple positions in same direction = concentrated risk!\n`;
+      prompt += `- If BTC reverses, expect most alts to follow\n`;
+    }
+    if (volatilityLevel === 'HIGH') {
+      prompt += `- HIGH VOLATILITY: Use smaller position sizes, wider stops\n`;
+    }
+    prompt += `\n`;
+  }
 
   // Output data for each coin following 1.md format
   for (const [symbol, dataRaw] of Object.entries(marketData)) {
@@ -490,54 +589,6 @@ Current Market Status for All Coins
   // Sharpe Ratio
   if (accountInfo.sharpeRatio !== undefined) {
     prompt += `Sharpe Ratio: ${accountInfo.sharpeRatio.toFixed(3)}\n\n`;
-  }
-  
-  // Historical trade records (last 10 trades)
-  if (tradeHistory && tradeHistory.length > 0) {
-    prompt += `\nRecent Trade History (last 10 trades, oldest → newest):\n`;
-    prompt += `⚠️ Important Note: The following statistics are only for the last 10 trades, used to analyze recent strategy performance, not representing total account PnL.\n`;
-    prompt += `Use this information to assess recent trade quality, identify strategy issues, and optimize decision-making direction.\n\n`;
-
-    let totalProfit = 0;
-    let profitCount = 0;
-    let lossCount = 0;
-
-    for (const trade of tradeHistory) {
-      const tradeTime = formatChinaTime(trade.timestamp);
-
-      prompt += `Trade: ${trade.symbol} ${trade.type === 'open' ? 'OPEN' : 'CLOSE'} ${trade.side.toUpperCase()}\n`;
-      prompt += `  Time: ${tradeTime}\n`;
-      prompt += `  Price: ${formatPrice(trade.price)}, Quantity: ${trade.quantity.toFixed(4)}, Leverage: ${trade.leverage}x\n`;
-      prompt += `  Fee: ${trade.fee.toFixed(4)} USDT\n`;
-
-      // For close trades, always display PnL amount
-      if (trade.type === 'close') {
-        if (trade.pnl !== undefined && trade.pnl !== null) {
-          prompt += `  PnL: ${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} USDT\n`;
-          totalProfit += trade.pnl;
-          if (trade.pnl > 0) {
-            profitCount++;
-          } else if (trade.pnl < 0) {
-            lossCount++;
-          }
-        } else {
-          prompt += `  PnL: No data available\n`;
-        }
-      }
-
-      prompt += `\n`;
-    }
-
-    if (profitCount > 0 || lossCount > 0) {
-      const winRate = profitCount / (profitCount + lossCount) * 100;
-      prompt += `Last 10 Trades Statistics (for reference only):\n`;
-      prompt += `  - Win Rate: ${winRate.toFixed(1)}%\n`;
-      prompt += `  - Profitable Trades: ${profitCount}\n`;
-      prompt += `  - Losing Trades: ${lossCount}\n`;
-      prompt += `  - Last 10 Trades Net PnL: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT\n`;
-      prompt += `\n⚠️ Note: This value is only statistics for the last 10 trades, used to evaluate recent strategy effectiveness, not total account PnL.\n`;
-      prompt += `For actual account PnL, please refer to the return rate and total asset changes in "Current Account Status" above.\n\n`;
-    }
   }
 
   // Previous AI decision records
