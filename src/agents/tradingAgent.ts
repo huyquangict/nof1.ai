@@ -256,7 +256,10 @@ export function generateTradingPrompt(data: {
 Important Notes:
 - This prompt already contains all necessary market data, technical indicators, account information, and position status
 - You should **directly analyze the data provided below**, no need to call tools to fetch technical indicators again
-- Please provide a **complete analysis and decision**, including: Account health check → Existing position management → Market opportunity analysis → Specific trading decisions
+- **CRITICAL: Review recent closed positions** - If you just closed a position at a LOSS, DO NOT immediately open the same direction (LONG/SHORT) on the same coin
+- **Use the historical performance data** (win/loss rates per coin and side) to inform your trading decisions - avoid coins/directions with poor win rates
+- If a coin+direction has <40% win rate in recent trades, DO NOT open new positions in that direction
+- Please provide a **complete analysis and decision**, including: Recent closed trades review → Historical performance review → Account health check → Existing position management → Market opportunity analysis → Specific trading decisions
 - Please ensure you output the complete decision-making process, do not stop midway
 
 All price or signal data below is sorted chronologically: oldest → newest
