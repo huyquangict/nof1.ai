@@ -802,6 +802,19 @@ class TradingMonitor {
             this.equityChart = null;
         }
 
+        // Completely recreate the canvas element to clear any cached state
+        const oldCanvas = document.getElementById('equityChart');
+        if (oldCanvas) {
+            const container = oldCanvas.parentElement;
+            // Clear the entire container (removes canvas and any "no data" messages)
+            container.innerHTML = '';
+            // Create fresh canvas
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = 'equityChart';
+            container.appendChild(newCanvas);
+            console.log('[Equity Chart] Canvas element recreated');
+        }
+
         // Recreate chart with fresh data
         await this.initEquityChart();
         console.log('[Equity Chart] Chart recreated with fresh data');
