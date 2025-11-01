@@ -417,7 +417,6 @@ class TradingMonitor {
                 tradesBody.innerHTML = data.trades.map(trade => {
                     const date = new Date(trade.timestamp);
                     const timeStr = date.toLocaleString('zh-CN', {
-                        timeZone: 'Asia/Shanghai',
                         month: '2-digit',
                         day: '2-digit',
                         hour: '2-digit',
