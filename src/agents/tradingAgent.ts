@@ -259,6 +259,10 @@ Important Notes:
 - **CRITICAL: Review recent closed positions** - If you just closed a position at a LOSS, DO NOT immediately open the same direction (LONG/SHORT) on the same coin
 - **Use the historical performance data** (win/loss rates per coin and side) to inform your trading decisions - avoid coins/directions with poor win rates
 - If a coin+direction has <40% win rate in recent trades, DO NOT open new positions in that direction
+- **PROFIT TAKING RULE**: If a position has reached +20% PnL or more, you MUST consider taking profit:
+  * Take at least HALF profit (50% of position) to lock in gains
+  * OR close the FULL position if trend shows signs of reversal
+  * DO NOT let large profits turn into losses - secure your gains!
 - Please provide a **complete analysis and decision**, including: Recent closed trades review → Historical performance review → Account health check → Existing position management → Market opportunity analysis → Specific trading decisions
 - Please ensure you output the complete decision-making process, do not stop midway
 
