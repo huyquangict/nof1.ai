@@ -3,7 +3,7 @@
  * Fallback for when LLM doesn't use tools properly
  */
 
-import { createExchangeClient } from '../services/exchange/ExchangeFactory';
+import { createExchangeClient } from '../services/exchange/factory';
 import { createPinoLogger } from './logger';
 import { dbClient } from '../db/client';
 
