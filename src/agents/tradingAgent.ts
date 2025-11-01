@@ -212,6 +212,18 @@ function formatPrice(price: number): string {
 }
 
 /**
+ * Format MACD as percentage of price for comparability across assets
+ * This normalizes MACD values so low-price and high-price assets are comparable
+ * Example: DOGE MACD=0.0003 at price $0.35 → 0.086%
+ *          BTC MACD=23.7 at price $110,000 → 0.022%
+ */
+function formatMacd(macd: number, price: number): string {
+  if (price === 0) return macd.toFixed(3);
+  const macdPercent = (macd / price) * 100;
+  return `${macd.toFixed(3)} (${macdPercent >= 0 ? '+' : ''}${macdPercent.toFixed(3)}%)`;
+}
+
+/**
  * Read trading strategy from environment variables
  */
 export function getTradingStrategy(): TradingStrategy {
@@ -259,7 +271,7 @@ Current Market Status for All Coins
     const data = dataRaw as any;
 
     prompt += `\nAll ${symbol} Data\n`;
-    prompt += `Current Price = ${formatPrice(data.price)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${data.macd.toFixed(3)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
+    prompt += `Current Price = ${formatPrice(data.price)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${formatMacd(data.macd, data.price)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
 
     // Funding rate
     if (data.fundingRate !== undefined) {
@@ -282,7 +294,7 @@ Current Market Status for All Coins
       prompt += `EMA Indicators (20-period): [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
 
       // MACD indicators
-      prompt += `MACD Indicators: [${series.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+      prompt += `MACD Indicators: [${series.macdSeries.map((m: number) => formatMacd(m, data.price)).join(", ")}]\n\n`;
 
       // RSI indicators (7‑Period)
       prompt += `RSI Indicators (7-period): [${series.rsi7Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
@@ -306,7 +318,7 @@ Current Market Status for All Coins
 
       // MACD and RSI time series (4-hour, last 10 data points)
       if (ltc.macdSeries && ltc.macdSeries.length > 0) {
-        prompt += `MACD Indicators: [${ltc.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+        prompt += `MACD Indicators: [${ltc.macdSeries.map((m: number) => formatMacd(m, data.price)).join(", ")}]\n\n`;
       }
 
       if (ltc.rsi14Series && ltc.rsi14Series.length > 0) {
@@ -330,7 +342,7 @@ Current Market Status for All Coins
       for (const tf of tfList) {
         const tfData = data.timeframes[tf.key];
         if (tfData) {
-          prompt += `${tf.name}: Price=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, Volume=${tfData.volume.toFixed(2)}\n`;
+          prompt += `${tf.name}: Price=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${formatMacd(tfData.macd, tfData.currentPrice)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, Volume=${tfData.volume.toFixed(2)}\n`;
         }
       }
       prompt += `\n`;
