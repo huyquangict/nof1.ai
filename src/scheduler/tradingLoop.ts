@@ -455,16 +455,20 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // Handle object format candlestick data (Gate.io API returns objects, not arrays)
+  // Handle different candlestick data formats from different exchanges
   const closes = candles
     .map((c) => {
-      // If object format (FuturesCandlestick)
+      // Standard Candle format (Binance, CCXT)
+      if (c && typeof c === 'object' && 'close' in c) {
+        return Number.parseFloat(c.close);
+      }
+      // Gate.io format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // If array format (for backward compatibility)
+      // Array format (for backward compatibility)
       if (Array.isArray(c)) {
-        return Number.parseFloat(c[2]);
+        return Number.parseFloat(c[4]); // Index 4 is close price in [timestamp, open, high, low, close, volume]
       }
       return NaN;
     })
@@ -472,15 +476,19 @@ function calculateIndicators(candles: any[]) {
 
   const volumes = candles
     .map((c) => {
-      // If object format (FuturesCandlestick)
-      if (c && typeof c === 'object' && 'v' in c) {
-        const vol = Number.parseFloat(c.v);
-        // Validate volume: must be finite number and non-negative
+      // Standard Candle format (Binance, CCXT)
+      if (c && typeof c === 'object' && 'volume' in c) {
+        const vol = Number.parseFloat(c.volume);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // If array format (for backward compatibility)
+      // Gate.io format (FuturesCandlestick)
+      if (c && typeof c === 'object' && 'v' in c) {
+        const vol = Number.parseFloat(c.v);
+        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
+      }
+      // Array format (for backward compatibility)
       if (Array.isArray(c)) {
-        const vol = Number.parseFloat(c[1]);
+        const vol = Number.parseFloat(c[5]); // Index 5 is volume in [timestamp, open, high, low, close, volume]
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
       return 0;
