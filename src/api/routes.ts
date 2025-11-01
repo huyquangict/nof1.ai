@@ -42,6 +42,15 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-this-password";
 export function createApiRoutes() {
   const app = new Hono();
 
+  // Disable caching for static files in development
+  app.use("/*", async (c, next) => {
+    await next();
+    // Set cache-control headers to prevent caching
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+  });
+
   // 静态文件服务 - 需要使用绝对路径
   app.use("/*", serveStatic({ root: "./public" }));
 
@@ -209,7 +218,7 @@ export function createApiRoutes() {
       }
       
       const history = result.rows.map((row: any) => ({
-        timestamp: row.timestamp,
+        timestamp: new Date(row.timestamp as string).getTime(), // Convert ISO string to milliseconds
         totalValue: Number.parseFloat(row.total_value as string) || 0,
         unrealizedPnl: Number.parseFloat(row.unrealized_pnl as string) || 0,
         returnPercent: Number.parseFloat(row.return_percent as string) || 0,
