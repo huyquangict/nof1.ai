@@ -1062,4 +1062,79 @@ body {
         font-size: 1.25rem;
     }
 }
+
+/* Connection Status Indicator */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 20px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #666;
+    animation: pulse 2s infinite;
+}
+
+.status-connected .status-dot {
+    background: #00ff88;
+}
+
+.status-error .status-dot {
+    background: #ff4444;
+}
+
+.status-auth-required .status-dot {
+    background: #ff9800;
+}
+
+.status-text {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.status-connected .status-text {
+    color: #00ff88;
+}
+
+.status-error .status-text {
+    color: #ff4444;
+}
+
+.status-auth-required .status-text {
+    color: #ff9800;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Improved Login Modal */
+.login-subtitle {
+    margin: -10px 0 20px 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.login-hint {
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 6px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
 .black { font-weight: 900; }

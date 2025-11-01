@@ -39,22 +39,57 @@ class TradingMonitor {
         location.reload();
     }
 
+    // Update connection status indicator
+    updateConnectionStatus(status, message = '') {
+        const statusEl = document.getElementById('connection-status');
+        if (!statusEl) return;
+
+        const dot = statusEl.querySelector('.status-dot');
+        const text = statusEl.querySelector('.status-text');
+
+        // Remove all status classes
+        statusEl.classList.remove('status-connected', 'status-error', 'status-auth-required');
+
+        switch (status) {
+            case 'connected':
+                statusEl.classList.add('status-connected');
+                text.textContent = message || 'Connected';
+                console.log('✅ Status: Connected');
+                break;
+            case 'error':
+                statusEl.classList.add('status-error');
+                text.textContent = message || 'Connection Error';
+                console.error('❌ Status: Error -', message);
+                break;
+            case 'auth-required':
+                statusEl.classList.add('status-auth-required');
+                text.textContent = message || 'Login Required';
+                console.warn('🔐 Status: Auth Required');
+                break;
+            default:
+                text.textContent = message || 'Connecting...';
+        }
+    }
+
     async init() {
         console.log('Starting init, has token:', !!this.token);
 
         // If no token, show login immediately (no need to verify)
         if (!this.token) {
             console.log('No token, showing login form');
+            this.updateConnectionStatus('auth-required');
             this.showLoginForm();
             return;
         }
 
         console.log('Token exists, attempting to load data');
+        this.updateConnectionStatus('connecting', 'Loading data...');
 
         // If we have a token, try to load data (will redirect to login on 401)
         try {
             await this.loadInitialData();
             console.log('Data loaded successfully');
+            this.updateConnectionStatus('connected');
             this.initEquityChart();
             this.initTimeframeSelector();
             this.startDataUpdates();
@@ -66,6 +101,7 @@ class TradingMonitor {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);
             console.log('Showing login form due to error');
+            this.updateConnectionStatus('auth-required');
             this.showLoginForm();
         }
     }
@@ -82,18 +118,23 @@ class TradingMonitor {
         const loginHTML = `
             <div id="login-overlay">
                 <div class="login-box">
-                    <h2>Login Required</h2>
+                    <h2>🔐 Authentication Required</h2>
+                    <p class="login-subtitle">Please log in to access the trading dashboard</p>
                     <form id="login-form">
                         <div class="form-group">
                             <label for="username">Username:</label>
-                            <input type="text" id="username" name="username" required autocomplete="username">
+                            <input type="text" id="username" name="username" required autocomplete="username" placeholder="admin">
                         </div>
                         <div class="form-group">
                             <label for="password">Password:</label>
-                            <input type="password" id="password" name="password" required autocomplete="current-password">
+                            <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter password">
                         </div>
                         <button type="submit">Login</button>
                         <div id="login-error"></div>
+                        <div class="login-hint">
+                            <small>💡 Default credentials are in your .env file<br>
+                            (ADMIN_USERNAME / ADMIN_PASSWORD)</small>
+                        </div>
                     </form>
                 </div>
             </div>
