@@ -21,7 +21,7 @@
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
-import { createGateClient } from "../../services/gateClient";
+import { createExchangeClient } from "../../services/exchange";
 import { RISK_PARAMS } from "../../config/riskParams";
 
 /**
@@ -95,13 +95,19 @@ function calculateMACD(prices: number[]) {
 // 计算 ATR
 function calculateATR(candles: any[], period: number) {
   if (!candles || candles.length < 2) return 0;
-  
+
   const trs = [];
   for (let i = 1; i < candles.length; i++) {
     let high: number, low: number, prevClose: number;
-    
-    // 处理对象格式（FuturesCandlestick）
-    if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
+
+    // 处理标准化格式（Candle interface）
+    if (candles[i] && typeof candles[i] === 'object' && 'high' in candles[i]) {
+      high = candles[i].high;
+      low = candles[i].low;
+      prevClose = candles[i - 1].close;
+    }
+    // 处理旧的 Gate.io 格式（FuturesCandlestick）
+    else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
       prevClose = Number.parseFloat(candles[i - 1].c);
@@ -114,13 +120,13 @@ function calculateATR(candles: any[], period: number) {
     } else {
       continue;
     }
-    
+
     if (Number.isFinite(high) && Number.isFinite(low) && Number.isFinite(prevClose)) {
       const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
       trs.push(tr);
     }
   }
-  
+
   if (trs.length === 0) return 0;
   return trs.slice(-period).reduce((a, b) => a + b, 0) / Math.min(period, trs.length);
 }
@@ -155,14 +161,18 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理对象格式的K线数据（Gate.io API返回的是对象，不是数组）
+  // 处理K线数据（支持标准化格式和旧格式）
   const closes = candles
     .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
+      // 标准化格式（Candle interface）
+      if (c && typeof c === 'object' && 'close' in c) {
+        return c.close;
+      }
+      // 旧的 Gate.io 格式（FuturesCandlestick）
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // 如果是数组格式（兼容旧代码）
+      // 数组格式（兼容旧代码）
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -172,13 +182,17 @@ function calculateIndicators(candles: any[]) {
 
   const volumes = candles
     .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
-      if (c && typeof c === 'object' && 'v' in c) {
-        const vol = Number.parseFloat(c.v);
-        // 验证成交量：必须是有限数字且非负
+      // 标准化格式（Candle interface）
+      if (c && typeof c === 'object' && 'volume' in c) {
+        const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 如果是数组格式（兼容旧代码）
+      // 旧的 Gate.io 格式（FuturesCandlestick）
+      if (c && typeof c === 'object' && 'v' in c) {
+        const vol = Number.parseFloat(c.v);
+        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
+      }
+      // 数组格式（兼容旧代码）
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
@@ -226,21 +240,21 @@ export const getMarketPriceTool = createTool({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
   }),
   execute: async ({ symbol }) => {
-    const client = createGateClient();
-    const contract = `${symbol}_USDT`;
-    
-    const ticker = await client.getFuturesTicker(contract);
-    
+    const client = createExchangeClient();
+    const contract = client.normalizeSymbol(symbol);
+
+    const ticker = await client.getFuturesTicker(symbol);
+
     return {
       symbol,
       contract,
-      lastPrice: Number.parseFloat(ticker.last || "0"),
-      markPrice: Number.parseFloat(ticker.markPrice || "0"),
-      indexPrice: Number.parseFloat(ticker.indexPrice || "0"),
-      highPrice24h: Number.parseFloat(ticker.high24h || "0"),
-      lowPrice24h: Number.parseFloat(ticker.low24h || "0"),
-      volume24h: Number.parseFloat(ticker.volume24h || "0"),
-      change24h: Number.parseFloat(ticker.changePercentage || "0"),
+      lastPrice: ticker.lastPrice,
+      markPrice: ticker.markPrice,
+      indexPrice: ticker.indexPrice,
+      highPrice24h: 0, // Not in standardized interface yet
+      lowPrice24h: 0,  // Not in standardized interface yet
+      volume24h: ticker.volume24h,
+      change24h: ticker.change24h,
     };
   },
 });
@@ -257,12 +271,11 @@ export const getTechnicalIndicatorsTool = createTool({
     limit: z.number().default(100).describe("K线数量"),
   }),
   execute: async ({ symbol, interval, limit }) => {
-    const client = createGateClient();
-    const contract = `${symbol}_USDT`;
-    
-    const candles = await client.getFuturesCandles(contract, interval, limit);
+    const client = createExchangeClient();
+
+    const candles = await client.getFuturesCandles(symbol, interval, limit);
     const indicators = calculateIndicators(candles);
-    
+
     return {
       symbol,
       interval,
@@ -282,15 +295,14 @@ export const getFundingRateTool = createTool({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
   }),
   execute: async ({ symbol }) => {
-    const client = createGateClient();
-    const contract = `${symbol}_USDT`;
-    
-    const fundingRate = await client.getFundingRate(contract);
-    
+    const client = createExchangeClient();
+
+    const fundingRate = await client.getFundingRate(symbol);
+
     return {
       symbol,
-      fundingRate: Number.parseFloat(fundingRate.r || "0"),
-      fundingTime: fundingRate.t,
+      fundingRate: fundingRate.rate,
+      fundingTime: fundingRate.timestamp,
       timestamp: new Date().toISOString(),
     };
   },
@@ -307,21 +319,20 @@ export const getOrderBookTool = createTool({
     limit: z.number().default(10).describe("深度档位数量"),
   }),
   execute: async ({ symbol, limit }) => {
-    const client = createGateClient();
-    const contract = `${symbol}_USDT`;
-    
-    const orderBook = await client.getOrderBook(contract, limit);
-    
-    const bids = orderBook.bids?.slice(0, limit).map((b: any) => ({
-      price: Number.parseFloat(b.p),
-      size: Number.parseFloat(b.s),
-    })) || [];
-    
-    const asks = orderBook.asks?.slice(0, limit).map((a: any) => ({
-      price: Number.parseFloat(a.p),
-      size: Number.parseFloat(a.s),
-    })) || [];
-    
+    const client = createExchangeClient();
+
+    const orderBook = await client.getOrderBook(symbol, limit);
+
+    const bids = orderBook.bids.slice(0, limit).map(([price, size]) => ({
+      price,
+      size,
+    }));
+
+    const asks = orderBook.asks.slice(0, limit).map(([price, size]) => ({
+      price,
+      size,
+    }));
+
     return {
       symbol,
       bids,

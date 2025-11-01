@@ -76,7 +76,7 @@
     "@voltagent/logger": "^1.0.0",
     "@voltagent/server-hono": "^1.0.0",
     "ai": "^5.0.76",
-    "ccxt": "^4.5.12",
+    "ccxt": "^4.5.14",
     "chart.js": "^4.4.1",
     "dotenv": "^16.4.7",
     "gate-api": "^6.61.0",

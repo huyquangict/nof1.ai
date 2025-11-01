@@ -18,12 +18,12 @@
 
 /**
  * 快速同步持仓（不重置数据库）
- * 只从 Gate.io 同步持仓到本地数据库
+ * 只从交易所同步持仓到本地数据库
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { createPinoLogger } from "@voltagent/logger";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange";
 
 const logger = createPinoLogger({
   name: "sync-positions",
@@ -32,14 +32,14 @@ const logger = createPinoLogger({
 
 async function syncPositionsOnly() {
   try {
-    logger.info("🔄 从 Gate.io 同步持仓...");
-    
+    logger.info("🔄 从交易所同步持仓...");
+
     // 1. 连接数据库
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const client = createClient({
       url: dbUrl,
     });
-    
+
     // 2. 检查表是否存在，不存在则创建
     try {
       await client.execute("SELECT COUNT(*) FROM positions");
@@ -69,34 +69,30 @@ async function syncPositionsOnly() {
       `);
       logger.info("✅ 数据库表创建完成");
     }
-    
-    // 3. 从 Gate.io 获取持仓
-    const gateClient = createGateClient();
-    const positions = await gateClient.getPositions();
-    const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
-    
-    logger.info(`\n📊 Gate.io 当前持仓数: ${activePositions.length}`);
-    
+
+    // 3. 从交易所获取持仓 (adapter already filters non-zero positions)
+    const exchangeClient = createExchangeClient();
+    const positions = await exchangeClient.getPositions();
+
+    logger.info(`\n📊 交易所当前持仓数: ${positions.length}`);
+
     // 4. 清空本地持仓表
     await client.execute("DELETE FROM positions");
     logger.info("✅ 已清空本地持仓表");
-    
+
     // 5. 同步持仓到数据库
-    if (activePositions.length > 0) {
-      logger.info(`\n🔄 同步 ${activePositions.length} 个持仓到数据库...`);
-      
-      for (const pos of activePositions) {
-        const size = Number.parseInt(pos.size || "0");
-        if (size === 0) continue;
-        
-        const symbol = pos.contract.replace("_USDT", "");
-        const entryPrice = Number.parseFloat(pos.entryPrice || "0");
-        const currentPrice = Number.parseFloat(pos.markPrice || "0");
-        const leverage = Number.parseInt(pos.leverage || "1");
-        const side = size > 0 ? "long" : "short";
-        const quantity = Math.abs(size);
-        const pnl = Number.parseFloat(pos.unrealisedPnl || "0");
-        const liqPrice = Number.parseFloat(pos.liqPrice || "0");
+    if (positions.length > 0) {
+      logger.info(`\n🔄 同步 ${positions.length} 个持仓到数据库...`);
+
+      for (const pos of positions) {
+        const symbol = pos.symbol;
+        const entryPrice = pos.entryPrice;
+        const currentPrice = pos.currentPrice;
+        const leverage = pos.leverage;
+        const side = pos.side;
+        const quantity = pos.quantity;
+        const pnl = pos.unrealizedPnl;
+        const liqPrice = pos.liquidationPrice;
         
         await client.execute({
           sql: `INSERT INTO positions 

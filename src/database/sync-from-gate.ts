@@ -17,13 +17,13 @@
  */
 
 /**
- * 从 Gate.io 同步账户资金并重新初始化数据库
+ * 从交易所同步账户资金并重新初始化数据库
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { CREATE_TABLES_SQL } from "./schema";
 import { createPinoLogger } from "@voltagent/logger";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -34,39 +34,34 @@ const logger = createPinoLogger({
 
 async function syncFromGate() {
   try {
-    logger.info("🔄 从 Gate.io 同步账户信息...");
-    
-    // 1. 连接 Gate.io 获取当前账户余额
-    const gateClient = createGateClient();
-    const account = await gateClient.getFuturesAccount();
-    
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealizedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // Gate.io 的 account.total 不包含未实现盈亏
-    // 真实总资产 = account.total + unrealisedPnl
-    const currentBalance = accountTotal + unrealizedPnl;
-    
-    logger.info(`\n📊 Gate.io 当前账户状态:`);
-    logger.info(`   账户余额: ${accountTotal} USDT`);
-    logger.info(`   未实现盈亏: ${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl} USDT`);
+    logger.info("🔄 从交易所同步账户信息...");
+
+    // 1. 连接交易所获取当前账户余额
+    const exchangeClient = createExchangeClient();
+    const account = await exchangeClient.getFuturesAccount();
+
+    // Adapter already includes unrealized PnL in totalBalance
+    const currentBalance = account.totalBalance;
+    const availableBalance = account.availableBalance;
+    const unrealizedPnl = account.unrealisedPnl;
+
+    logger.info(`\n📊 交易所当前账户状态:`);
     logger.info(`   总资产(含盈亏): ${currentBalance} USDT`);
+    logger.info(`   未实现盈亏: ${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl} USDT`);
     logger.info(`   可用资金: ${availableBalance} USDT`);
-    
-    // 2. 获取持仓信息
-    const positions = await gateClient.getPositions();
-    const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
-    logger.info(`   当前持仓数: ${activePositions.length}`);
-    
-    if (activePositions.length > 0) {
+
+    // 2. 获取持仓信息 (adapter already filters non-zero positions)
+    const positions = await exchangeClient.getPositions();
+    logger.info(`   当前持仓数: ${positions.length}`);
+
+    if (positions.length > 0) {
       logger.info(`\n   持仓详情:`);
-      for (const pos of activePositions) {
-        const size = Number.parseInt(pos.size || "0");
-        const symbol = pos.contract.replace("_USDT", "");
-        const side = size > 0 ? "做多" : "做空";
-        const pnl = Number.parseFloat(pos.unrealisedPnl || "0");
-        logger.info(`     ${symbol}: ${Math.abs(size)} 张 (${side}) | 盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
+      for (const pos of positions) {
+        const symbol = pos.symbol;
+        const side = pos.side === 'long' ? "做多" : "做空";
+        const quantity = pos.quantity;
+        const pnl = pos.unrealizedPnl;
+        logger.info(`     ${symbol}: ${quantity} 张 (${side}) | 盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
       }
     }
     
@@ -120,21 +115,18 @@ async function syncFromGate() {
     });
     
     // 8. 同步持仓到数据库
-    if (activePositions.length > 0) {
-      logger.info(`\n🔄 同步 ${activePositions.length} 个持仓到数据库...`);
-      
-      for (const pos of activePositions) {
-        const size = Number.parseInt(pos.size || "0");
-        if (size === 0) continue;
-        
-        const symbol = pos.contract.replace("_USDT", "");
-        const entryPrice = Number.parseFloat(pos.entryPrice || "0");
-        const currentPrice = Number.parseFloat(pos.markPrice || "0");
-        const leverage = Number.parseInt(pos.leverage || "1");
-        const side = size > 0 ? "long" : "short";
-        const quantity = Math.abs(size);
-        const pnl = Number.parseFloat(pos.unrealisedPnl || "0");
-        const liqPrice = Number.parseFloat(pos.liqPrice || "0");
+    if (positions.length > 0) {
+      logger.info(`\n🔄 同步 ${positions.length} 个持仓到数据库...`);
+
+      for (const pos of positions) {
+        const symbol = pos.symbol;
+        const entryPrice = pos.entryPrice;
+        const currentPrice = pos.currentPrice;
+        const leverage = pos.leverage;
+        const side = pos.side;
+        const quantity = pos.quantity;
+        const pnl = pos.unrealizedPnl;
+        const liqPrice = pos.liquidationPrice;
         
         // 生成占位符 order_id
         const entryOrderId = `synced-${symbol}-${Date.now()}`;
@@ -206,7 +198,7 @@ async function syncFromGate() {
     logger.info(`   未实现盈亏: ${unrealizedPnl} USDT`);
     logger.info(`   已实现盈亏: 0 USDT`);
     logger.info(`   总收益率: 0%`);
-    logger.info(`   持仓数: ${activePositions.length}`);
+    logger.info(`   持仓数: ${positions.length}`);
     
     logger.info(`\n💡 提示:`);
     logger.info(`   1. 数据库已同步，初始资金: ${currentBalance.toFixed(2)} USDT`);

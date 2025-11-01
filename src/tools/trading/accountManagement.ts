@@ -21,7 +21,7 @@
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
-import { createGateClient } from "../../services/gateClient";
+import { createExchangeClient } from "../../services/exchange";
 import { createClient } from "@libsql/client";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
@@ -38,19 +38,19 @@ export const getAccountBalanceTool = createTool({
   description: "获取账户余额和资金信息",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const account = await client.getFuturesAccount();
-      
+
       return {
         currency: account.currency,
-        totalBalance: Number.parseFloat(account.total || "0"),
-        availableBalance: Number.parseFloat(account.available || "0"),
-        positionMargin: Number.parseFloat(account.positionMargin || "0"),
-        orderMargin: Number.parseFloat(account.orderMargin || "0"),
-        unrealisedPnl: Number.parseFloat(account.unrealisedPnl || "0"),
-        timestamp: new Date().toISOString(),
+        totalBalance: account.totalBalance,
+        availableBalance: account.availableBalance,
+        positionMargin: account.positionMargin,
+        orderMargin: account.orderMargin,
+        unrealisedPnl: account.unrealisedPnl,
+        timestamp: new Date(account.timestamp).toISOString(),
       };
     } catch (error: any) {
       return {
@@ -69,26 +69,24 @@ export const getPositionsTool = createTool({
   description: "获取当前所有持仓信息",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
-    
+    const client = createExchangeClient();
+
     try {
       const positions = await client.getPositions();
-      
-      const formattedPositions = positions
-        .filter((p: any) => Number.parseFloat(p.size || "0") !== 0)
-        .map((p: any) => ({
-          contract: p.contract,
-          size: Number.parseFloat(p.size || "0"),
-          leverage: Number.parseInt(p.leverage || "1"),
-          entryPrice: Number.parseFloat(p.entryPrice || "0"),
-          markPrice: Number.parseFloat(p.markPrice || "0"),
-          liquidationPrice: Number.parseFloat(p.liqPrice || "0"),
-          unrealisedPnl: Number.parseFloat(p.unrealisedPnl || "0"),
-          realisedPnl: Number.parseFloat(p.realisedPnl || "0"),
-          margin: Number.parseFloat(p.margin || "0"),
-          side: Number.parseFloat(p.size || "0") > 0 ? "long" : "short",
-        }));
-      
+
+      const formattedPositions = positions.map((p) => ({
+        contract: p.exchangeSymbol,
+        size: p.side === 'long' ? p.quantity : -p.quantity,
+        leverage: p.leverage,
+        entryPrice: p.entryPrice,
+        markPrice: p.currentPrice,
+        liquidationPrice: p.liquidationPrice,
+        unrealisedPnl: p.unrealizedPnl,
+        realisedPnl: p.realizedPnl,
+        margin: p.margin,
+        side: p.side,
+      }));
+
       return {
         positions: formattedPositions,
         count: formattedPositions.length,
@@ -113,24 +111,23 @@ export const getOpenOrdersTool = createTool({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选：仅获取指定币种的订单"),
   }),
   execute: async ({ symbol }) => {
-    const client = createGateClient();
-    
+    const client = createExchangeClient();
+
     try {
-      const contract = symbol ? `${symbol}_USDT` : undefined;
-      const orders = await client.getOpenOrders(contract);
-      
-      const formattedOrders = orders.map((o: any) => ({
-        orderId: o.id?.toString(),
-        contract: o.contract,
-        size: Number.parseInt(o.size || "0"),
-        price: Number.parseFloat(o.price || "0"),
-        left: Number.parseInt(o.left || "0"),
+      const orders = await client.getOpenOrders(symbol);
+
+      const formattedOrders = orders.map((o) => ({
+        orderId: o.id,
+        contract: client.normalizeSymbol(o.symbol),
+        size: o.side === 'long' ? o.quantity : -o.quantity,
+        price: o.price,
+        left: o.remaining,
         status: o.status,
-        side: Number.parseInt(o.size || "0") > 0 ? "long" : "short",
-        isReduceOnly: o.is_reduce_only,
-        createdAt: o.create_time,
+        side: o.side,
+        isReduceOnly: o.isReduceOnly,
+        createdAt: Math.floor(o.timestamp / 1000),
       }));
-      
+
       return {
         orders: formattedOrders,
         count: formattedOrders.length,
@@ -155,28 +152,28 @@ export const checkOrderStatusTool = createTool({
     orderId: z.string().describe("订单ID"),
   }),
   execute: async ({ orderId }) => {
-    const client = createGateClient();
-    
+    const client = createExchangeClient();
+
     try {
       const orderDetail = await client.getOrder(orderId);
-      
-      const totalSize = Math.abs(Number.parseInt(orderDetail.size || "0"));
-      const leftSize = Math.abs(Number.parseInt(orderDetail.left || "0"));
-      const filledSize = totalSize - leftSize;
-      const fillPrice = Number.parseFloat(orderDetail.fill_price || orderDetail.price || "0");
-      
+
+      const totalSize = orderDetail.quantity;
+      const filledSize = orderDetail.filled;
+      const leftSize = orderDetail.remaining;
+      const fillPrice = orderDetail.price;
+
       return {
         success: true,
-        orderId: orderDetail.id?.toString(),
-        contract: orderDetail.contract,
+        orderId: orderDetail.id,
+        contract: client.normalizeSymbol(orderDetail.symbol),
         status: orderDetail.status,
         totalSize,
         filledSize,
         leftSize,
         fillPrice,
-        price: Number.parseFloat(orderDetail.price || "0"),
-        createdAt: orderDetail.create_time,
-        finishedAt: orderDetail.finish_time,
+        price: orderDetail.price,
+        createdAt: Math.floor(orderDetail.timestamp / 1000),
+        finishedAt: orderDetail.status === 'finished' ? Math.floor(orderDetail.timestamp / 1000) : undefined,
         isFullyFilled: leftSize === 0,
         fillPercentage: totalSize > 0 ? (filledSize / totalSize * 100).toFixed(2) : "0",
         message: `订单 ${orderId} 状态: ${orderDetail.status}, 已成交 ${filledSize}/${totalSize} 张 (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), 成交价 ${fillPrice}`,
@@ -199,51 +196,48 @@ export const calculateRiskTool = createTool({
   description: "计算当前账户的风险敞口和仓位情况",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
-    
+    const client = createExchangeClient();
+
     try {
       const [account, positions] = await Promise.all([
         client.getFuturesAccount(),
         client.getPositions(),
       ]);
-      
-      // account.total 包含了未实现盈亏，需要减去以得到实际总资产
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = Number.parseFloat(account.total || "0") - unrealisedPnl;
-      const availableBalance = Number.parseFloat(account.available || "0");
+
+      const unrealisedPnl = account.unrealisedPnl;
+      const totalBalance = account.totalBalance;
+      const availableBalance = account.availableBalance;
       
       // 计算每个持仓的风险（需要异步获取合约乘数）
-      const activePositions = positions.filter((p: any) => Number.parseFloat(p.size || "0") !== 0);
-      
       const positionRisks = await Promise.all(
-        activePositions.map(async (p: any) => {
-          const size = Math.abs(Number.parseFloat(p.size || "0"));
-          const entryPrice = Number.parseFloat(p.entryPrice || "0");
-          const leverage = Number.parseInt(p.leverage || "1");
-          const liquidationPrice = Number.parseFloat(p.liqPrice || "0");
-          const currentPrice = Number.parseFloat(p.markPrice || "0");
-          const pnl = Number.parseFloat(p.unrealisedPnl || "0");
-          
+        positions.map(async (p) => {
+          const size = p.quantity;
+          const entryPrice = p.entryPrice;
+          const leverage = p.leverage;
+          const liquidationPrice = p.liquidationPrice;
+          const currentPrice = p.currentPrice;
+          const pnl = p.unrealizedPnl;
+
           // 获取合约乘数（修复：正确计算名义价值）
-          const quantoMultiplier = await getQuantoMultiplier(p.contract);
-          
+          const quantoMultiplier = await getQuantoMultiplier(p.exchangeSymbol);
+
           // 正确计算名义价值：张数 × 入场价格 × 合约乘数
           const notionalValue = size * entryPrice * quantoMultiplier;
           const margin = notionalValue / leverage;
-          
+
           // 计算风险百分比（到强平的距离）
-          const riskPercent = currentPrice > 0 
-            ? Math.abs((currentPrice - liquidationPrice) / currentPrice) * 100 
+          const riskPercent = currentPrice > 0
+            ? Math.abs((currentPrice - liquidationPrice) / currentPrice) * 100
             : 0;
-          
+
           return {
-            contract: p.contract,
+            contract: p.exchangeSymbol,
             notionalValue,
             margin,
             leverage,
             pnl,
             riskPercent,
-            side: Number.parseFloat(p.size || "0") > 0 ? "long" : "short",
+            side: p.side,
           };
         })
       );
@@ -301,46 +295,39 @@ export const syncPositionsTool = createTool({
   description: "同步交易所持仓数据到本地数据库",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
-    
+    const client = createExchangeClient();
+
     try {
       const positions = await client.getPositions();
-      
+
       // 清空本地持仓表
       await dbClient.execute("DELETE FROM positions");
-      
+
       // 插入当前持仓
       for (const p of positions) {
-        const pos = p as any;
-        const size = Number.parseFloat(pos.size || "0");
-        if (size === 0) continue;
-        
-        const symbol = pos.contract?.replace("_USDT", "") || "";
-        const side = size > 0 ? "long" : "short";
-        
         await dbClient.execute({
-          sql: `INSERT INTO positions 
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
+          sql: `INSERT INTO positions
+                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
                  leverage, side, entry_order_id, opened_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
-            symbol,
-            Math.abs(size),
-            Number.parseFloat(pos.entryPrice || "0"),
-            Number.parseFloat(pos.markPrice || "0"),
-            Number.parseFloat(pos.liqPrice || "0"),
-            Number.parseFloat(pos.unrealisedPnl || "0"),
-            Number.parseInt(pos.leverage || "1"),
-            side,
+            p.symbol,
+            p.quantity,
+            p.entryPrice,
+            p.currentPrice,
+            p.liquidationPrice,
+            p.unrealizedPnl,
+            p.leverage,
+            p.side,
             "synced",
             new Date().toISOString(),
           ],
         });
       }
-      
+
       return {
         success: true,
-        syncedCount: positions.filter((p: any) => Number.parseFloat(p.size || "0") !== 0).length,
+        syncedCount: positions.length,
         message: "持仓同步完成",
       };
     } catch (error: any) {

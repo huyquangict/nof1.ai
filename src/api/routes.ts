@@ -22,7 +22,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange";
 import { createPinoLogger } from "@voltagent/logger";
 
 const logger = createPinoLogger({
@@ -57,8 +57,8 @@ export function createApiRoutes() {
    */
   app.get("/api/account", async (c) => {
     try {
-      const gateClient = createGateClient();
-      const account = await gateClient.getFuturesAccount();
+      const exchangeClient = createExchangeClient();
+      const account = await exchangeClient.getFuturesAccount();
       
       // 从数据库获取初始资金
       const initialResult = await dbClient.execute(
@@ -68,21 +68,19 @@ export function createApiRoutes() {
         ? Number.parseFloat(initialResult.rows[0].total_value as string)
         : 100;
       
-      // Gate.io 的 account.total 不包含未实现盈亏
-      // 总资产（不含未实现盈亏）= account.total
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = Number.parseFloat(account.total || "0");
-      
+      // Adapter already includes unrealized PnL in totalBalance
+      const totalBalance = account.totalBalance;
+      const unrealisedPnl = account.unrealisedPnl;
+
       // 收益率 = (总资产 - 初始资金) / 初始资金 * 100
-      // 总资产不包含未实现盈亏，收益率反映已实现盈亏
       const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
       
       return c.json({
-        totalBalance,  // 总资产（不包含未实现盈亏）
-        availableBalance: Number.parseFloat(account.available || "0"),
-        positionMargin: Number.parseFloat(account.positionMargin || "0"),
+        totalBalance,
+        availableBalance: account.availableBalance,
+        positionMargin: account.positionMargin,
         unrealisedPnl,
-        returnPercent,  // 收益率（不包含未实现盈亏）
+        returnPercent,
         initialBalance,
         timestamp: new Date().toISOString(),
       });
@@ -96,42 +94,32 @@ export function createApiRoutes() {
    */
   app.get("/api/positions", async (c) => {
     try {
-      const gateClient = createGateClient();
-      const gatePositions = await gateClient.getPositions();
-      
+      const exchangeClient = createExchangeClient();
+      const exchangePositions = await exchangeClient.getPositions();
+
       // 从数据库获取止损止盈信息
       const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
-      
-      // 过滤并格式化持仓
-      const positions = gatePositions
-        .filter((p: any) => Number.parseInt(p.size || "0") !== 0)
-        .map((p: any) => {
-          const size = Number.parseInt(p.size || "0");
-          const symbol = p.contract.replace("_USDT", "");
-          const dbPos = dbPositionsMap.get(symbol);
-          const entryPrice = Number.parseFloat(p.entryPrice || "0");
-          const quantity = Math.abs(size);
-          const leverage = Number.parseInt(p.leverage || "1");
-          
-          // 开仓价值（保证金）: 从Gate.io API直接获取
-          const openValue = Number.parseFloat(p.margin || "0");
-          
+
+      // 格式化持仓 (positions are already filtered by adapter)
+      const positions = exchangePositions.map((p) => {
+          const dbPos = dbPositionsMap.get(p.symbol);
+
           return {
-            symbol,
-            quantity,
-            entryPrice,
-            currentPrice: Number.parseFloat(p.markPrice || "0"),
-            liquidationPrice: Number.parseFloat(p.liqPrice || "0"),
-            unrealizedPnl: Number.parseFloat(p.unrealisedPnl || "0"),
-            leverage,
-            side: size > 0 ? "long" : "short",
-            openValue,
+            symbol: p.symbol,
+            quantity: p.quantity,
+            entryPrice: p.entryPrice,
+            currentPrice: p.currentPrice,
+            liquidationPrice: p.liquidationPrice,
+            unrealizedPnl: p.unrealizedPnl,
+            leverage: p.leverage,
+            side: p.side,
+            openValue: p.margin,
             profitTarget: dbPos?.profit_target ? Number(dbPos.profit_target) : null,
             stopLoss: dbPos?.stop_loss ? Number(dbPos.stop_loss) : null,
-            openedAt: p.create_time || new Date().toISOString(),
+            openedAt: new Date(p.timestamp).toISOString(),
           };
         });
       
@@ -320,17 +308,16 @@ export function createApiRoutes() {
     try {
       const symbolsParam = c.req.query("symbols") || "BTC,ETH,SOL,BNB,DOGE,XRP";
       const symbols = symbolsParam.split(",").map(s => s.trim());
-      
-      const gateClient = createGateClient();
+
+      const exchangeClient = createExchangeClient();
       const prices: Record<string, number> = {};
-      
+
       // 并发获取所有币种价格
       await Promise.all(
         symbols.map(async (symbol) => {
           try {
-            const contract = `${symbol}_USDT`;
-            const ticker = await gateClient.getFuturesTicker(contract);
-            prices[symbol] = Number.parseFloat(ticker.last || "0");
+            const ticker = await exchangeClient.getFuturesTicker(symbol);
+            prices[symbol] = ticker.lastPrice;
           } catch (error: any) {
             logger.error(`获取 ${symbol} 价格失败:`, error);
             prices[symbol] = 0;
