@@ -794,8 +794,11 @@ class TradingMonitor {
         const historyData = await this.loadEquityHistory();
 
         if (!historyData || historyData.length === 0) {
+            console.log('[Equity Chart] No history data available');
             return;
         }
+
+        console.log(`[Equity Chart] Updating with ${historyData.length} data points`);
 
         // Update chart data
         this.equityChart.data.labels = historyData.map(d => {
@@ -815,7 +818,9 @@ class TradingMonitor {
         // Fixed to not show points
         this.equityChart.data.datasets[0].pointRadius = 0;
 
-        this.equityChart.update('none'); // Update without animation
+        // Force chart update and redraw
+        this.equityChart.update();
+        console.log('[Equity Chart] Chart updated successfully');
     }
 
     // Initialize timeframe selector (switching functionality disabled)
