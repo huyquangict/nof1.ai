@@ -1393,7 +1393,22 @@ async function executeTradingDecision() {
             const priceChangeCheck = side === "long"
               ? (finalPrice - pos.entry_price)
               : (pos.entry_price - finalPrice);
+
+            // Recalculate fees if they weren't set (when order status check failed)
+            if (totalFee === 0) {
+              const openFee = pos.entry_price * actualQuantity * quantoMultiplier * 0.0005;
+              const closeFee = finalPrice * actualQuantity * quantoMultiplier * 0.0005;
+              totalFee = openFee + closeFee;
+              logger.warn(`Order status check failed, recalculated totalFee=${totalFee.toFixed(4)} USDT`);
+            }
+
             const expectedPnl = priceChangeCheck * actualQuantity * quantoMultiplier - totalFee;
+
+            // Recalculate P&L if it's still 0 (when order status check failed)
+            if (pnl === 0 && expectedPnl !== 0) {
+              pnl = expectedPnl;
+              logger.warn(`Order status check failed, recalculated pnl=${pnl.toFixed(2)} USDT`);
+            }
 
             // Detect if P&L was incorrectly set to notional value
             if (Math.abs(pnl - notionalValue) < Math.abs(pnl - expectedPnl)) {
