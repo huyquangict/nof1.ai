@@ -1508,10 +1508,10 @@ async function executeTradingDecision() {
       // Does not affect main flow, continue execution
     }
 
-    // 7. Get trade history (last 10 records)
+    // 7. Get trade history (last 100 records to have enough for per-symbol analysis)
     let tradeHistory: any[] = [];
     try {
-      tradeHistory = await getTradeHistory(10);
+      tradeHistory = await getTradeHistory(100);
     } catch (error) {
       logger.warn("Failed to get trade history:", error as any);
       // Does not affect main flow, continue execution

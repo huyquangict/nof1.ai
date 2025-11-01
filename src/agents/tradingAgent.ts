@@ -382,7 +382,58 @@ Current Market Status for All Coins
 
   prompt += `Available Balance: ${accountInfo.availableBalance.toFixed(1)} USDT\n\n`;
   prompt += `Unrealized PnL: ${totalUnrealizedPnL.toFixed(2)} USDT (${totalUnrealizedPnL >= 0 ? '+' : ''}${((totalUnrealizedPnL / accountInfo.totalBalance) * 100).toFixed(2)}%)\n\n`;
-  
+
+  // Recent closed trades statistics and details (per coin and side)
+  if (tradeHistory && tradeHistory.length > 0) {
+    const closedTrades = tradeHistory.filter((trade: any) => trade.type === 'close' && trade.pnl !== null && trade.pnl !== undefined);
+
+    if (closedTrades.length > 0) {
+      // Group trades by symbol and side
+      const tradesBySymbolSide: { [key: string]: any[] } = {};
+      for (const trade of closedTrades) {
+        const key = `${trade.symbol}_${trade.side.toUpperCase()}`;
+        if (!tradesBySymbolSide[key]) {
+          tradesBySymbolSide[key] = [];
+        }
+        tradesBySymbolSide[key].push(trade);
+      }
+
+      prompt += `Recent Closed Positions Performance (Last 10 per Symbol & Side):\n\n`;
+
+      // Show stats and details per symbol-side combination
+      const sortedKeys = Object.keys(tradesBySymbolSide).sort();
+      for (const key of sortedKeys) {
+        const [symbol, side] = key.split('_');
+        const allTrades = tradesBySymbolSide[key];
+        const last10Trades = allTrades.slice(0, 10); // Get last 10
+
+        const winningTrades = last10Trades.filter((t: any) => t.pnl > 0);
+        const losingTrades = last10Trades.filter((t: any) => t.pnl < 0);
+        const winRate = (winningTrades.length / last10Trades.length) * 100;
+        const totalPnL = last10Trades.reduce((sum: number, t: any) => sum + t.pnl, 0);
+        const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum: number, t: any) => sum + t.pnl, 0) / winningTrades.length : 0;
+        const avgLoss = losingTrades.length > 0 ? losingTrades.reduce((sum: number, t: any) => sum + t.pnl, 0) / losingTrades.length : 0;
+
+        prompt += `${symbol} ${side} - Last ${last10Trades.length} Trades:\n`;
+        prompt += `  Win Rate: ${winRate.toFixed(0)}% (${winningTrades.length}W/${losingTrades.length}L) | Total P&L: ${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)} USDT\n`;
+        if (winningTrades.length > 0 || losingTrades.length > 0) {
+          prompt += `  Avg Win: +${avgWin.toFixed(2)} USDT | Avg Loss: ${avgLoss.toFixed(2)} USDT\n`;
+        }
+
+        // List individual trades
+        prompt += `  Recent Trades:\n`;
+        for (const trade of last10Trades) {
+          const pnlSign = trade.pnl >= 0 ? '+' : '';
+          const result = trade.pnl > 0 ? 'WIN' : trade.pnl < 0 ? 'LOSS' : 'BE';
+          const date = new Date(trade.timestamp);
+          const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
+          prompt += `    [${timeStr}] ${result} | ${trade.leverage}x @ $${trade.price.toFixed(2)} | P&L: ${pnlSign}${trade.pnl.toFixed(2)} USDT\n`;
+        }
+        prompt += `\n`;
+      }
+    }
+  }
+
   // Current positions and performance
   if (positions.length > 0) {
     prompt += `Here is your current position information. **Important Note**:\n`;
