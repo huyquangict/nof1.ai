@@ -1592,22 +1592,6 @@ async function executeTradingDecision() {
         ],
       });
 
-      // Fallback: Parse and execute decisions from text if LLM didn't use tools
-      try {
-        const { parseDecisions, executeDecisions } = await import('../utils/decisionParser');
-        const parsedDecisions = parseDecisions(decisionText);
-
-        if (parsedDecisions.length > 0) {
-          logger.info(`📋 Fallback parser found ${parsedDecisions.length} decision(s) in text`);
-          await executeDecisions(parsedDecisions);
-        } else {
-          logger.info('📋 Fallback parser: No executable decisions found in text');
-        }
-      } catch (parseError: any) {
-        logger.warn('Fallback parser error:', parseError.message);
-        // Don't fail the entire cycle if parser fails
-      }
-
       // Re-sync position data after Agent execution (Optimization: call API only once)
       const updatedRawPositions = await exchangeClient.getPositions();
       await syncPositionsFromGate(updatedRawPositions);

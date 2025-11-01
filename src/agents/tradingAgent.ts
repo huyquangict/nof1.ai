@@ -704,11 +704,6 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
    - Every trading decision MUST be followed by an actual tool call
    - Do NOT assume errors exist - TRY THE TOOL FIRST, then handle actual errors
 
-   **IF YOU WRITE INSTEAD OF USING TOOLS (NOT RECOMMENDED), USE THIS FORMAT:**
-   - For opening: "Execute LTC long position: Amount 10 USDT, Leverage 15x"
-   - For closing: "Close BTC position"
-   - This is a FALLBACK ONLY - tool usage is STRONGLY PREFERRED
-
 Available Tools (YOU MUST USE THESE):
 - Position management: openPosition (market order), closePosition (market order), cancelOrder
 - Account information: getAccountBalance, getPositions, getOpenOrders
