@@ -90,10 +90,16 @@ class TradingMonitor {
             // Displayed total assets need to add unrealized PnL to reflect position PnL in real time
             const totalBalanceWithPnl = data.totalBalance + data.unrealisedPnl;
 
+            // Calculate profit/loss for color coding
+            const totalPnl = totalBalanceWithPnl - data.initialBalance;
+            const isPositive = totalPnl >= 0;
+
             // Update total assets
         const accountValueEl = document.getElementById('account-value');
             if (accountValueEl) {
                 accountValueEl.textContent = totalBalanceWithPnl.toFixed(2);
+                // Apply color class based on profit/loss
+                accountValueEl.className = 'value-amount ' + (isPositive ? 'positive' : 'negative');
             }
 
             // Update available balance
@@ -116,16 +122,14 @@ class TradingMonitor {
 
             if (valueChangeEl && valuePercentEl) {
                 // Return rate = (total assets (including unrealized PnL) - initial capital) / initial capital * 100
-                const totalPnl = totalBalanceWithPnl - data.initialBalance;
                 const returnPercent = (totalPnl / data.initialBalance) * 100;
-                const isPositive = totalPnl >= 0;
 
                 valueChangeEl.textContent = `${isPositive ? '+' : ''}$${Math.abs(totalPnl).toFixed(2)}`;
                 valuePercentEl.textContent = `(${isPositive ? '+' : ''}${returnPercent.toFixed(2)}%)`;
 
                 // Update colors
-                valueChangeEl.className = 'change-amount ' + (isPositive ? '' : 'negative');
-                valuePercentEl.className = 'change-percent ' + (isPositive ? '' : 'negative');
+                valueChangeEl.className = 'change-amount ' + (isPositive ? 'positive' : 'negative');
+                valuePercentEl.className = 'change-percent ' + (isPositive ? 'positive' : 'negative');
             }
 
         } catch (error) {
@@ -327,14 +331,9 @@ class TradingMonitor {
                 // Update decision detailed content
                 if (decisionContent) {
                     const decision = log.decision || log.actionsTaken || 'No decision content';
-                    // Preserve line breaks and format, convert to HTML
-                    const formattedDecision = decision
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/\n/g, '<br>');
-
-                    decisionContent.innerHTML = `<div class="decision-text">${formattedDecision}</div>`;
+                    // Parse markdown to HTML using marked.js
+                    const htmlContent = marked.parse(decision);
+                    decisionContent.innerHTML = htmlContent;
                 }
             } else {
                 if (decisionContent) {
@@ -480,13 +479,16 @@ class TradingMonitor {
                     {
                         label: 'Total Assets (USDT)',
                         data: historyData.map(d => parseFloat(d.totalValue.toFixed(2))),
-                        borderColor: 'rgb(0, 255, 170)',
-                        backgroundColor: 'rgba(0, 255, 170, 0.1)',
-                        borderWidth: 2,
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
                         fill: true,
-                        tension: 0.4,
+                        tension: 0.1,
                         pointRadius: 0,
-                        pointHoverRadius: 0
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#3B82F6',
+                        pointHoverBorderColor: '#000000',
+                        pointHoverBorderWidth: 2
                     }
                 ]
             },
@@ -501,20 +503,38 @@ class TradingMonitor {
                     legend: {
                         display: true,
                         position: 'top',
+                        align: 'start',
                         labels: {
-                            color: '#fff',
+                            color: '#000000',
+                            font: {
+                                family: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                                size: 13,
+                                weight: '600'
+                            },
                             usePointStyle: true,
-                            padding: 15
+                            padding: 16,
+                            boxWidth: 12,
+                            boxHeight: 12
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: 'rgb(59, 130, 246)',
-                        borderWidth: 1,
+                        backgroundColor: '#FFFFFF',
+                        titleColor: '#000000',
+                        bodyColor: '#000000',
+                        borderColor: '#000000',
+                        borderWidth: 2,
                         padding: 12,
                         displayColors: true,
+                        titleFont: {
+                            family: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                            size: 13,
+                            weight: '600'
+                        },
+                        bodyFont: {
+                            family: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+                            size: 12,
+                            weight: '500'
+                        },
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
@@ -522,7 +542,10 @@ class TradingMonitor {
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    label += '$' + context.parsed.y;
+                                    label += '$' + context.parsed.y.toLocaleString('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    });
                                 }
                                 return label;
                             }
@@ -533,11 +556,17 @@ class TradingMonitor {
                     x: {
                         display: true,
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)',
-                            drawBorder: false
+                            color: '#E5E5E5',
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: '#000000',
+                            font: {
+                                family: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                                size: 11,
+                                weight: '500'
+                            },
                             maxRotation: 45,
                             minRotation: 0,
                             maxTicksLimit: 10
@@ -547,13 +576,22 @@ class TradingMonitor {
                         display: true,
                         position: 'left',
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)',
-                            drawBorder: false
+                            color: '#E5E5E5',
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: '#000000',
+                            font: {
+                                family: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+                                size: 11,
+                                weight: '500'
+                            },
                             callback: function(value) {
-                                return '$' + value.toFixed(2);
+                                return '$' + value.toLocaleString('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                });
                             }
                         }
                     }
