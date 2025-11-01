@@ -38,6 +38,18 @@ const dbClient = createClient({
 });
 
 /**
+ * Format price with appropriate decimal places based on value
+ * - For prices < $1: show 5 decimals (e.g., 0.20200 for DOGE)
+ * - For prices >= $1: show 2 decimals (e.g., 95000.42 for BTC)
+ */
+function formatPrice(price: number): string {
+  if (price < 1) {
+    return price.toFixed(5);
+  }
+  return price.toFixed(2);
+}
+
+/**
  * 开仓工具
  */
 export const openPositionTool = createTool({
@@ -456,7 +468,7 @@ export const openPositionTool = createTool({
         price: actualFillPrice,
         leverage,
         actualMargin,
-        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${actualFillPrice.toFixed(2)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
+        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
       };
     } catch (error: any) {
       return {
@@ -778,7 +790,7 @@ export const closePositionTool = createTool({
         pnl,                          // 净盈亏（已扣除手续费）
         fee: totalFee,                // 总手续费
         totalBalance,
-        message: `成功平仓 ${symbol} ${actualCloseSize} 张，入场价 ${entryPrice.toFixed(4)}，平仓价 ${actualExitPrice.toFixed(4)}，净盈亏 ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣手续费 ${totalFee.toFixed(2)} USDT)，当前总资产 ${totalBalance.toFixed(2)} USDT`,
+        message: `成功平仓 ${symbol} ${actualCloseSize} 张，入场价 ${formatPrice(entryPrice)}，平仓价 ${formatPrice(actualExitPrice)}，净盈亏 ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣手续费 ${totalFee.toFixed(2)} USDT)，当前总资产 ${totalBalance.toFixed(2)} USDT`,
       };
     } catch (error: any) {
       logger.error(`平仓失败: ${error.message}`, error);

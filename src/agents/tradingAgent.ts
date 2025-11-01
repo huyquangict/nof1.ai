@@ -200,6 +200,18 @@ const logger = createPinoLogger({
 });
 
 /**
+ * Format price with appropriate decimal places based on value
+ * - For prices < $1: show 5 decimals (e.g., 0.20200 for DOGE)
+ * - For prices >= $1: show 2 decimals (e.g., 95000.42 for BTC)
+ */
+function formatPrice(price: number): string {
+  if (price < 1) {
+    return price.toFixed(5);
+  }
+  return price.toFixed(2);
+}
+
+/**
  * Read trading strategy from environment variables
  */
 export function getTradingStrategy(): TradingStrategy {
@@ -247,7 +259,7 @@ Current Market Status for All Coins
     const data = dataRaw as any;
 
     prompt += `\nAll ${symbol} Data\n`;
-    prompt += `Current Price = ${data.price.toFixed(1)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${data.macd.toFixed(3)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
+    prompt += `Current Price = ${formatPrice(data.price)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${data.macd.toFixed(3)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
 
     // Funding rate
     if (data.fundingRate !== undefined) {
@@ -261,7 +273,7 @@ Current Market Status for All Coins
       prompt += `Intraday Series (by minute, oldest → newest):\n\n`;
 
       // Mid prices
-      prompt += `Mid Prices: [${series.midPrices.map((p: number) => p.toFixed(1)).join(", ")}]\n\n`;
+      prompt += `Mid Prices: [${series.midPrices.map((p: number) => formatPrice(p)).join(", ")}]\n\n`;
 
       // EMA indicators (20‑period)
       prompt += `EMA Indicators (20-period): [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
@@ -385,8 +397,8 @@ Current Market Status for All Coins
       prompt += `  Leverage: ${pos.leverage}x\n`;
       prompt += `  PnL Percentage: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (leverage considered)\n`;
       prompt += `  PnL Amount: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
-      prompt += `  Entry Price: ${pos.entry_price.toFixed(2)}\n`;
-      prompt += `  Current Price: ${pos.current_price.toFixed(2)}\n`;
+      prompt += `  Entry Price: ${formatPrice(pos.entry_price)}\n`;
+      prompt += `  Current Price: ${formatPrice(pos.current_price)}\n`;
       prompt += `  Opened At: ${formatChinaTime(pos.opened_at)}\n`;
       prompt += `  Holding Duration: ${holdingHours} hours (${holdingMinutes} minutes, ${holdingCycles} cycles)\n`;
       prompt += `  Until 36-hour Limit: ${remainingHours.toFixed(1)} hours (${remainingCycles} cycles)\n`;
@@ -422,7 +434,7 @@ Current Market Status for All Coins
 
       prompt += `Trade: ${trade.symbol} ${trade.type === 'open' ? 'OPEN' : 'CLOSE'} ${trade.side.toUpperCase()}\n`;
       prompt += `  Time: ${tradeTime}\n`;
-      prompt += `  Price: ${trade.price.toFixed(2)}, Quantity: ${trade.quantity.toFixed(4)}, Leverage: ${trade.leverage}x\n`;
+      prompt += `  Price: ${formatPrice(trade.price)}, Quantity: ${trade.quantity.toFixed(4)}, Leverage: ${trade.leverage}x\n`;
       prompt += `  Fee: ${trade.fee.toFixed(4)} USDT\n`;
 
       // For close trades, always display PnL amount
