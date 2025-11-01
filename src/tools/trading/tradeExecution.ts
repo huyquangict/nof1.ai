@@ -471,6 +471,7 @@ export const openPositionTool = createTool({
         message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
       };
     } catch (error: any) {
+      logger.error(`❌ 开仓失败 ${symbol} ${side}: ${error.message}`, error);
       return {
         success: false,
         error: error.message,

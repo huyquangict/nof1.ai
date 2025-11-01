@@ -251,40 +251,51 @@ export class BinanceAdapter implements IExchangeClient {
   async placeOrder(params: OrderParams): Promise<Order> {
     const ccxtSymbol = this.normalizeSymbol(params.symbol);
 
-    // Set leverage if specified
-    if (params.leverage) {
-      await this.setLeverage(params.symbol, params.leverage);
+    try {
+      // Set leverage if specified
+      if (params.leverage) {
+        await this.setLeverage(params.symbol, params.leverage);
+      }
+
+      // Set margin mode if needed
+      await this.setMarginMode(ccxtSymbol);
+
+      // Determine order type and side
+      const orderType = params.price ? 'limit' : 'market';
+      const side = params.side === 'long' ? 'buy' : 'sell';
+
+      const orderParams: any = {
+        reduceOnly: params.reduceOnly ?? params.isReduceOnly ?? false,
+      };
+
+      if (params.price) {
+        orderParams.price = params.price;
+      }
+
+      if (params.tif) {
+        orderParams.timeInForce = params.tif;
+      }
+
+      console.log(`[Binance] Placing ${orderType} ${side} order: ${params.quantity} ${ccxtSymbol} @ ${params.price || 'market'}`);
+
+      const order = await this.exchange.createOrder(
+        ccxtSymbol,
+        orderType,
+        side,
+        params.quantity,
+        params.price,
+        orderParams
+      );
+
+      console.log(`[Binance] Order placed successfully: ${order.id}`);
+      return this.mapOrder(order);
+    } catch (error: any) {
+      console.error(`[Binance] Order placement failed for ${ccxtSymbol}:`, error.message);
+      if (error.message?.includes('MIN_NOTIONAL') || error.message?.includes('notional')) {
+        throw new Error(`Binance minimum notional requirement not met. Order value too small (min ~20 USDT required for futures). ${error.message}`);
+      }
+      throw error;
     }
-
-    // Set margin mode if needed
-    await this.setMarginMode(ccxtSymbol);
-
-    // Determine order type and side
-    const orderType = params.price ? 'limit' : 'market';
-    const side = params.side === 'long' ? 'buy' : 'sell';
-
-    const orderParams: any = {
-      reduceOnly: params.reduceOnly ?? params.isReduceOnly ?? false,
-    };
-
-    if (params.price) {
-      orderParams.price = params.price;
-    }
-
-    if (params.tif) {
-      orderParams.timeInForce = params.tif;
-    }
-
-    const order = await this.exchange.createOrder(
-      ccxtSymbol,
-      orderType,
-      side,
-      params.quantity,
-      params.price,
-      orderParams
-    );
-
-    return this.mapOrder(order);
   }
 
   async cancelOrder(orderId: string): Promise<void> {

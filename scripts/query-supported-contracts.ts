@@ -21,7 +21,7 @@
  */
 
 import "dotenv/config";
-import { createGateClient } from "../src/services/gateClient";
+import { createExchangeClient } from "../src/services/exchange/ExchangeFactory";
 import { createPinoLogger } from "@voltagent/logger";
 
 const logger = createPinoLogger({
@@ -31,17 +31,18 @@ const logger = createPinoLogger({
 
 async function queryContracts() {
   try {
-    // 检查是否使用测试网
-    const isTestnet = process.env.GATE_USE_TESTNET === "true";
-    console.log(`\n🌐 当前环境: ${isTestnet ? "测试网" : "正式网"}`);
+    // 创建交易所客户端
+    const exchangeClient = createExchangeClient();
+    const exchangeName = exchangeClient.getExchangeName();
+    const isTestnet = exchangeClient.isTestnet();
+
+    console.log(`\n🌐 当前交易所: ${exchangeName}`);
+    console.log(`🌐 当前环境: ${isTestnet ? "测试网" : "正式网"}`);
     console.log("=====================================\n");
 
-    // 创建 Gate.io 客户端
-    const gateClient = createGateClient();
-    
     // 获取所有合约
     console.log("🔍 正在获取合约列表...\n");
-    const contracts = await gateClient.getAllContracts();
+    const contracts = await exchangeClient.getAllContracts();
     
     if (!contracts || contracts.length === 0) {
       console.log("⚠️  未找到任何合约");

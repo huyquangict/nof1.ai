@@ -22,7 +22,7 @@
  */
 import { createClient } from "@libsql/client";
 import { createPinoLogger } from "@voltagent/logger";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange/ExchangeFactory";
 import "dotenv/config";
 
 const logger = createPinoLogger({
@@ -101,12 +101,13 @@ CREATE TABLE IF NOT EXISTS trade_logs (
  * 平仓所有持仓
  */
 async function closeAllPositions(): Promise<void> {
-  const gateClient = createGateClient();
-  
+  const exchangeClient = createExchangeClient();
+  const exchangeName = exchangeClient.getExchangeName();
+
   try {
-    logger.info("📊 获取当前持仓...");
-    
-    const positions = await gateClient.getPositions();
+    logger.info(`📊 获取 ${exchangeName} 当前持仓...`);
+
+    const positions = await exchangeClient.getPositions();
     const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     
     if (activePositions.length === 0) {
@@ -125,13 +126,13 @@ async function closeAllPositions(): Promise<void> {
       
       try {
         logger.info(`🔄 平仓中: ${symbol} ${side} ${quantity}张`);
-        
-        await gateClient.placeOrder({
+
+        await exchangeClient.placeOrder({
           contract,
           size: -size, // 反向平仓
           price: 0, // 市价单
         });
-        
+
         logger.info(`✅ 已平仓: ${symbol} ${side} ${quantity}张`);
       } catch (error: any) {
         logger.error(`❌ 平仓失败: ${symbol} - ${error.message}`);
@@ -223,21 +224,22 @@ async function resetDatabase(): Promise<void> {
  * 同步持仓数据
  */
 async function syncPositions(): Promise<void> {
-  const gateClient = createGateClient();
+  const exchangeClient = createExchangeClient();
+  const exchangeName = exchangeClient.getExchangeName();
   const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
-  
+
   try {
-    logger.info("🔄 从 Gate.io 同步持仓...");
-    
+    logger.info(`🔄 从 ${exchangeName} 同步持仓...`);
+
     const client = createClient({
       url: dbUrl,
     });
-    
-    // 从 Gate.io 获取持仓
-    const positions = await gateClient.getPositions();
+
+    // 从交易所获取持仓
+    const positions = await exchangeClient.getPositions();
     const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
-    
-    logger.info(`📊 Gate.io 当前持仓数: ${activePositions.length}`);
+
+    logger.info(`📊 ${exchangeName} 当前持仓数: ${activePositions.length}`);
     
     // 清空本地持仓表
     await client.execute("DELETE FROM positions");
