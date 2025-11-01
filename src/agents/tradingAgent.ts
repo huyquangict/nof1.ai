@@ -253,49 +253,99 @@ export function generateTradingPrompt(data: {
 
   let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
-Important Rules and Instructions:
+Important Rules and Instructions for 80% Win Rate Trading:
 
-📊 DATA ANALYSIS:
-- This prompt contains all market data, technical indicators, account info, and positions
-- Analyze the data directly - DO NOT call tools to fetch indicators again
-- First identify MARKET REGIME for each coin (TRENDING UP/DOWN or RANGING/SIDEWAYS)
+📊 RISK:REWARD REQUIREMENTS (CRITICAL):
+- **NEVER enter a trade with R:R < 1:2** (risk 1 to make 2 minimum)
+- A+ setups only: R:R > 1:3 with multiple confirmations
+- If stop-loss distance > 3% from entry, DON'T TRADE (you're too late)
+- Calculate R:R BEFORE entry: (Target - Entry) / (Entry - Stop) must be ≥ 2
 
-🚫 LOSS PREVENTION:
-- **CRITICAL**: If you just closed a position at a LOSS, DO NOT immediately open the same direction on the same coin
-- If a coin+direction has <40% win rate in recent history, DO NOT open new positions in that direction
-- **CORRELATION RISK**: Avoid opening too many positions in the same direction when coins move together (e.g., all ALTs follow BTC)
+🛑 STOP-LOSS PLACEMENT RULES:
+- **LONG**: Place stop below recent swing low OR below EMA20 (whichever is tighter)
+- **SHORT**: Place stop above recent swing high OR above EMA20 (whichever is tighter)
+- Maximum stop distance: 2-3% price movement
+- If stop > 3% away = DON'T ENTER (poor entry, wait for better setup)
 
-💰 PROFIT TAKING (+20% RULE):
-- Position at +20% PnL or more → MUST take action:
-  * MINIMUM: Close 50% to lock in half the profit
-  * BETTER: Close 100% if reversal signals appear
-  * DO NOT let large profits turn into losses!
+⭐ SETUP QUALITY GRADING (Only Trade A+ Setups):
+**A+ Setup (TRADE)** = 4+ confirmations:
+  ✓ Trend aligned (H4 + H1 same direction)
+  ✓ Volume confirmation (rising volume on move)
+  ✓ RSI not extreme (<70 for LONG, >30 for SHORT)
+  ✓ Key level bounce/rejection (support/resistance test)
+  ✓ Favorable funding rate
+**B Setup (SKIP)** = 2-3 confirmations only
+**C Setup (NEVER)** = <2 confirmations
 
-🔄 PROFITABLE RE-ENTRY (Be Specific):
-After closing a profitable position, re-entry criteria:
-- **SAME direction**: Only if price pulls back to EMA20 AND RSI resets below 40 (for LONG) or above 60 (for SHORT)
-- **OPPOSITE direction**: Only if clear reversal confirmed (3+ consecutive reversal candles + RSI divergence)
-- **WAIT if unclear**: Don't force trades - patience is profitable
+📊 VOLUME ANALYSIS RULES:
+- Rising price + Rising volume = STRONG trend → Follow it
+- Rising price + Falling volume = WEAK → Prepare for reversal
+- High volume at resistance = Likely rejection → SHORT opportunity
+- High volume at support = Likely bounce → LONG opportunity
+- Unusually low volume = Avoid trading (no conviction)
 
-💵 POSITION SIZING:
-- Maximum risk per trade: 2% of account balance
-- High volatility coins (ATR > average) → use smaller size
-- Low win rate coins → use smaller size or avoid
-- Never risk more than 10% total account on all open positions combined
+🎯 KEY LEVELS IDENTIFICATION:
+- Previous day's high/low (strong S/R)
+- Round psychological numbers (BTC: 95000, 100000, etc.)
+- High volume nodes (where most trading occurred)
+- Weekly/Monthly pivot points
+**RULE**: Only enter AFTER confirmation at key level, never in middle of range
 
-📈 FUNDING RATE STRATEGY:
-- High positive funding (>0.05%) → Longs overcrowded → Consider SHORT
-- High negative funding (<-0.05%) → Shorts overcrowded → Consider LONG
-- Use as contrarian indicator, not absolute signal
+⏰ TIME-BASED TRADING STRATEGIES:
+- **Asian session (00:00-08:00 UTC)**: Range-bound → Fade extremes
+- **European session (08:00-16:00 UTC)**: Trend continuation
+- **US session (16:00-00:00 UTC)**: High volatility → Breakouts
+- **Funding times (00:00, 08:00, 16:00 UTC)**: Expect volatility ±30min
+- **Weekend**: Lower volume → Reduce position size by 50%
 
-📋 DECISION FLOW:
-1. Market Overview: Identify BTC trend (market leader), overall volatility, coin correlation
-2. Review Recent Closed Trades: Any losses just now? Any coins to avoid?
-3. Historical Performance: Check win rates per coin+direction
-4. Account Health: Drawdown status, available margin
-5. Existing Positions: Any at +20%? Any near stop-loss? Correlation check?
-6. Market Opportunities: Regime-appropriate strategies (trending vs ranging)
-7. Execute Decisions: Size positions appropriately, set stops
+✅ CONFLUENCE CHECKLIST (Need 3+ for Entry):
+□ Trend alignment (H4 + H1 + Current)
+□ Key level touched and reacting
+□ Volume confirming direction
+□ RSI not extreme (<70/>30)
+□ Funding rate favorable
+□ Risk:Reward ≥ 1:2
+□ No major news in next 2 hours
+□ Market correlation supports trade
+
+❌ TRADE INVALIDATION (Clear Exit Rules):
+- **LONG invalid if**: Break and close below entry support level
+- **SHORT invalid if**: Break and close above entry resistance level
+- **Time stop**: No profit after 8 hours → Reduce or exit
+- **Delta stop**: If BTC moves opposite 2% → Exit alt positions
+- **Correlation break**: If correlation assumption fails → Exit
+
+🧠 PSYCHOLOGICAL DISCIPLINE (80% Win Rate Mindset):
+- **FOMO CHECK**: If coin already moved >5% today, you're too late - WAIT
+- **REVENGE TRADE CHECK**: After loss, wait 2 cycles before trading same coin
+- **CONFIRMATION BIAS CHECK**: Actively look for reasons NOT to trade
+- **QUALITY OVER QUANTITY**: "No position" is a position - wait for A+ setups
+- **If unsure, DON'T TRADE**: Uncertainty = Skip opportunity
+
+🚫 LOSS PREVENTION (From Previous):
+- If just closed at LOSS: NO same direction on same coin immediately
+- If coin+direction <40% win rate: AVOID completely
+- **CORRELATION RISK**: Don't open multiple same-direction when coins correlated
+
+💰 PROFIT MANAGEMENT:
+- **+10-15% PnL**: Trail stop to breakeven
+- **+20% PnL**: Take 50% profit minimum
+- **+30% PnL**: Close 75% or full position
+- Never let >10% profit return to loss
+
+💵 POSITION SIZING (Professional):
+- Base size: 2% account risk per trade
+- Adjust by setup quality: A+ = 2%, A = 1.5%, Never trade B/C
+- Adjust by volatility: High ATR = 50% reduction
+- Adjust by win rate: <50% win rate = 50% reduction
+
+📋 PROFESSIONAL DECISION FLOW:
+1. **Market Context (30 sec)**: BTC trend, key levels, unusual conditions
+2. **Setup Scan (1 min)**: Which coins at key levels? Any A+ setups?
+3. **Risk:Reward Check**: Calculate R:R for each potential trade
+4. **Position Review (30 sec)**: Any at target? Any invalidated?
+5. **Entry Decision**: Only if A+ setup with R:R > 1:2
+6. **Execution**: Precise entry, stop, target, position size
 
 All price or signal data below is sorted chronologically: oldest → newest
 
@@ -377,7 +427,27 @@ Current Market Status for All Coins
     const data = dataRaw as any;
 
     prompt += `\nAll ${symbol} Data\n`;
-    prompt += `Current Price = ${formatPrice(data.price)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${formatMacd(data.macd, data.price)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
+    prompt += `Current Price = ${formatPrice(data.price)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${formatMacd(data.macd, data.price)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n`;
+
+    // Add key levels analysis
+    if (data.intradaySeries && data.intradaySeries.midPrices.length > 0) {
+      const prices = data.intradaySeries.midPrices;
+      const dayHigh = Math.max(...prices);
+      const dayLow = Math.min(...prices);
+      const priceRange = dayHigh - dayLow;
+      const distanceFromHigh = ((dayHigh - data.price) / data.price) * 100;
+      const distanceFromLow = ((data.price - dayLow) / data.price) * 100;
+
+      prompt += `Day High: ${formatPrice(dayHigh)} (${distanceFromHigh.toFixed(2)}% away) | Day Low: ${formatPrice(dayLow)} (${distanceFromLow.toFixed(2)}% away)\n`;
+
+      // Identify if price is at key level
+      if (Math.abs(distanceFromHigh) < 0.5) {
+        prompt += `⚠️ AT RESISTANCE - Price near day high, potential SHORT setup if rejection\n`;
+      } else if (Math.abs(distanceFromLow) < 0.5) {
+        prompt += `⚠️ AT SUPPORT - Price near day low, potential LONG setup if bounce\n`;
+      }
+    }
+    prompt += `\n`;
 
     // Funding rate
     if (data.fundingRate !== undefined) {
