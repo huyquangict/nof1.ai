@@ -208,16 +208,42 @@ export const openPositionTool = createTool({
       // adjustedAmountUsdt = (quantity * quantoMultiplier * currentPrice) / leverage
       // => quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice)
       let quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice);
-      
+
       // 向下取整到整数张数（合约必须是整数）
       quantity = Math.floor(quantity);
-      
+
       // 确保数量在允许范围内
       quantity = Math.max(quantity, minSize);
       quantity = Math.min(quantity, maxSize);
-      
+
+      // Binance-specific: Check minimum notional requirement (~20 USDT)
+      const exchangeType = process.env.EXCHANGE || 'binance';
+      if (exchangeType === 'binance') {
+        const MIN_NOTIONAL = 20; // Binance minimum notional in USDT
+        const notional = quantity * currentPrice;
+
+        if (notional < MIN_NOTIONAL) {
+          // Calculate minimum quantity needed to meet notional requirement
+          const minQuantityForNotional = Math.ceil((MIN_NOTIONAL / currentPrice) * 1000) / 1000;
+
+          // Check if we have enough balance to meet minimum notional
+          const requiredMargin = (minQuantityForNotional * quantoMultiplier * currentPrice) / leverage;
+
+          if (requiredMargin > adjustedAmountUsdt) {
+            return {
+              success: false,
+              message: `Binance要求最小订单价值20 USDT。${symbol}价格${currentPrice} USDT，最少需要${minQuantityForNotional.toFixed(3)}张合约（${MIN_NOTIONAL} USDT订单价值），需要保证金${requiredMargin.toFixed(2)} USDT（${leverage}x杠杆），但当前可用资金仅${adjustedAmountUsdt.toFixed(2)} USDT。建议增加仓位大小或选择价格更低的币种。`,
+            };
+          }
+
+          // Adjust quantity to meet minimum notional
+          quantity = minQuantityForNotional;
+          logger.info(`调整 ${symbol} 数量从 ${(notional / currentPrice).toFixed(3)} 到 ${quantity.toFixed(3)} 以满足Binance最小订单价值要求(20 USDT)`);
+        }
+      }
+
       let size = side === "long" ? quantity : -quantity;
-      
+
       // 最后验证：如果 size 为 0 或者太小，放弃开仓
       if (Math.abs(size) < minSize) {
         const minMargin = (minSize * quantoMultiplier * currentPrice) / leverage;
