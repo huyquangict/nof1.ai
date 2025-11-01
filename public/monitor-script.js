@@ -23,10 +23,17 @@ class TradingMonitor {
         this.accountData = null;
         this.equityChart = null;
         this.chartTimeframe = '24'; // Fixed to 24 hours
+        this.token = localStorage.getItem('jwt_token');
         this.init();
     }
 
     async init() {
+        // Check authentication first
+        if (!this.token || !(await this.verifyToken())) {
+            this.showLoginForm();
+            return;
+        }
+
         await this.loadInitialData();
         this.initEquityChart();
         this.initTimeframeSelector();
@@ -35,6 +42,101 @@ class TradingMonitor {
         this.initChat();
         this.duplicateTicker();
         this.loadGitHubStars(); // Load GitHub star count
+    }
+
+    // Verify JWT token
+    async verifyToken() {
+        try {
+            const response = await fetch('/api/auth/verify', {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // Show login form
+    showLoginForm() {
+        const loginHTML = `
+            <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+                <div style="background: white; padding: 2rem; border: 3px solid black; max-width: 400px; width: 90%;">
+                    <h2 style="margin: 0 0 1.5rem 0; font-family: 'Inter', sans-serif; text-transform: uppercase;">Login Required</h2>
+                    <form id="login-form">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Username:</label>
+                            <input type="text" id="username" required style="width: 100%; padding: 0.5rem; border: 2px solid black; font-family: 'Inter', sans-serif;">
+                        </div>
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Password:</label>
+                            <input type="password" id="password" required style="width: 100%; padding: 0.5rem; border: 2px solid black; font-family: 'Inter', sans-serif;">
+                        </div>
+                        <button type="submit" style="width: 100%; padding: 0.75rem; background: black; color: white; border: none; font-weight: 700; cursor: pointer; text-transform: uppercase; font-family: 'Inter', sans-serif;">Login</button>
+                        <div id="login-error" style="margin-top: 1rem; color: #EF4444; display: none; font-weight: 600;"></div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loginHTML);
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleLogin();
+        });
+    }
+
+    // Handle login
+    async handleLogin() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorEl = document.getElementById('login-error');
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.token) {
+                this.token = data.token;
+                localStorage.setItem('jwt_token', data.token);
+                document.getElementById('login-overlay').remove();
+                await this.init();
+            } else {
+                errorEl.textContent = data.error || 'Login failed';
+                errorEl.style.display = 'block';
+            }
+        } catch (error) {
+            errorEl.textContent = 'Login failed. Please try again.';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    // Fetch with authentication
+    async authenticatedFetch(url, options = {}) {
+        const headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${this.token}`
+        };
+
+        const response = await fetch(url, { ...options, headers });
+
+        // Handle 401 Unauthorized
+        if (response.status === 401) {
+            localStorage.removeItem('jwt_token');
+            this.token = null;
+            this.showLoginForm();
+            throw new Error('Unauthorized');
+        }
+
+        return response;
     }
 
     // Load initial data
@@ -75,7 +177,7 @@ class TradingMonitor {
     // Load account data
     async loadAccountData() {
         try {
-            const response = await fetch('/api/account');
+            const response = await this.authenticatedFetch('/api/account');
             const data = await response.json();
 
             if (data.error) {
@@ -140,7 +242,7 @@ class TradingMonitor {
     // Load positions data
     async loadPositionsData() {
         try {
-            const response = await fetch('/api/positions');
+            const response = await this.authenticatedFetch('/api/positions');
             const data = await response.json();
 
             if (data.error) {
@@ -223,7 +325,7 @@ class TradingMonitor {
     // Load trades data - using the same layout as index.html
     async loadTradesData() {
         try {
-            const response = await fetch('/api/trades?limit=100');
+            const response = await this.authenticatedFetch('/api/trades?limit=100');
             const data = await response.json();
 
             if (data.error) {
@@ -297,7 +399,7 @@ class TradingMonitor {
     // Load AI decision logs - display the latest complete entry
     async loadLogsData() {
         try {
-            const response = await fetch('/api/logs?limit=1');
+            const response = await this.authenticatedFetch('/api/logs?limit=1');
             const data = await response.json();
 
             if (data.error) {
@@ -356,7 +458,7 @@ class TradingMonitor {
     // Load top ticker prices (from API)
     async loadTickerPrices() {
         try {
-            const response = await fetch('/api/prices?symbols=BTC,ETH,SOL,BNB,DOGE,XRP');
+            const response = await this.authenticatedFetch('/api/prices?symbols=BTC,ETH,SOL,BNB,DOGE,XRP');
             const data = await response.json();
 
             if (data.error) {
@@ -604,7 +706,7 @@ class TradingMonitor {
     async loadEquityHistory() {
         try {
             // Get all historical data
-            const response = await fetch(`/api/history`);
+            const response = await this.authenticatedFetch(`/api/history`);
             const data = await response.json();
 
             if (data.error) {

@@ -24,6 +24,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
 import { createExchangeClient } from "../services/exchange";
 import { createPinoLogger } from "@voltagent/logger";
+import { jwtAuth, generateToken } from "../middleware/auth";
 
 const logger = createPinoLogger({
   name: "api-routes",
@@ -34,11 +35,62 @@ const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
 });
 
+// Admin credentials from environment variables
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-this-password";
+
 export function createApiRoutes() {
   const app = new Hono();
 
   // 静态文件服务 - 需要使用绝对路径
   app.use("/*", serveStatic({ root: "./public" }));
+
+  /**
+   * Login endpoint - Generate JWT token
+   */
+  app.post("/api/auth/login", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { username, password } = body;
+
+      // Validate credentials
+      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        const token = generateToken(username);
+
+        return c.json({
+          success: true,
+          token,
+          expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+          message: "Login successful",
+        });
+      }
+
+      return c.json({ error: "Invalid credentials" }, 401);
+    } catch (error: any) {
+      return c.json({ error: "Invalid request" }, 400);
+    }
+  });
+
+  /**
+   * Verify token endpoint
+   */
+  app.get("/api/auth/verify", jwtAuth, async (c) => {
+    const userId = c.get("userId") as string;
+    return c.json({
+      valid: true,
+      userId,
+      message: "Token is valid",
+    });
+  });
+
+  // Apply JWT authentication to all API routes (except auth endpoints)
+  app.use("/api/*", async (c, next) => {
+    // Skip auth for login and verify endpoints
+    if (c.req.path.startsWith("/api/auth/")) {
+      return next();
+    }
+    return jwtAuth(c, next);
+  });
 
   /**
    * 获取账户总览
