@@ -72,40 +72,56 @@ export async function getQuantoMultiplier(
     logger.debug(`使用缓存的 ${contract} 合约乘数: ${cached}`);
     return cached;
   }
-  
+
+  // Check exchange type - Binance uses 1:1 ratio, no need for API call
+  const exchange = process.env.EXCHANGE || 'binance';
+  if (exchange === 'binance') {
+    const symbol = contract.replace("_USDT", "");
+    const multiplier = DEFAULT_MULTIPLIERS[symbol] || 1;
+    logger.debug(`Binance ${contract} contract multiplier: ${multiplier} (1:1 ratio)`);
+
+    // Cache result
+    if (useCache) {
+      quantoMultiplierCache.set(contract, multiplier);
+    }
+
+    return multiplier;
+  }
+
+  // For Gate.io, fetch from API
   try {
     const client = createGateClient();
     const contractInfo = await client.getContractInfo(contract);
     const multiplier = Number.parseFloat(contractInfo.quantoMultiplier || "0");
-    
+
     // 验证乘数有效性
     if (!Number.isFinite(multiplier) || multiplier <= 0) {
       throw new Error(`Invalid quanto multiplier: ${multiplier}`);
     }
-    
+
     logger.debug(`从API获取 ${contract} 合约乘数: ${multiplier}`);
-    
+
     // 缓存结果
     if (useCache) {
       quantoMultiplierCache.set(contract, multiplier);
     }
-    
+
     return multiplier;
-    
+
   } catch (error: any) {
     logger.warn(`获取 ${contract} 合约信息失败: ${error.message}，使用默认值`);
-    
+
     // 使用默认值
     const symbol = contract.replace("_USDT", "");
     const defaultValue = DEFAULT_MULTIPLIERS[symbol] || 0.01;
-    
+
     logger.info(`使用 ${contract} 默认合约乘数: ${defaultValue}`);
-    
+
     // 缓存默认值（避免重复尝试失败的API调用）
     if (useCache) {
       quantoMultiplierCache.set(contract, defaultValue);
     }
-    
+
     return defaultValue;
   }
 }
