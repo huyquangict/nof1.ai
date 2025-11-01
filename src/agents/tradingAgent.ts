@@ -485,7 +485,9 @@ Current Market Status for All Coins
       prompt += `  Decision: ${decision.decision}\n\n`;
     }
 
-    prompt += `\nRefer to the previous decision results and make the best judgment based on current market data.\n\n`;
+    prompt += `\nIMPORTANT: Previous decisions are for REFERENCE ONLY. Do NOT assume past errors still exist.\n`;
+    prompt += `If a previous decision mentioned an error, you MUST verify by calling the tool yourself.\n`;
+    prompt += `Make fresh decisions based on CURRENT market data and ACTUAL tool results.\n\n`;
   }
 
   return prompt;
@@ -681,18 +683,37 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
      * ${params.leverageRecommend.good}: Good signal
      * ${params.leverageRecommend.strong}: Strong signal
 
-6. **Execute Trades**:
-   - Use openPosition tool to open positions (if all conditions are met)
-   - Use closePosition tool to close positions (according to above stop-loss/take-profit rules)
+6. **Execute Trades - CRITICAL EXECUTION REQUIREMENTS**:
 
-Available Tools:
-- Market data: getMarketPrice, getTechnicalIndicators, getFundingRate, getOrderBook
+   **MANDATORY TOOL USAGE RULES:**
+   - ❌ WRONG: Writing "I would open LTC long at 15x leverage with 5 USDT" → This does NOTHING
+   - ✅ CORRECT: Actually calling openPosition tool with the parameters
+   - ❌ WRONG: Writing "System margin constraints prevent..." → You NEVER attempted to call the tool!
+   - ✅ CORRECT: Call the tool FIRST, THEN report results
+
+   **EXECUTION WORKFLOW (MUST FOLLOW):**
+   Step 1: Analyze market data and identify trading opportunity
+   Step 2: Calculate position parameters (symbol, side, amount, leverage)
+   Step 3: **IMMEDIATELY CALL THE TOOL** - openPosition(...) or closePosition(...)
+   Step 4: Report the tool's actual result (success or error)
+
+   **YOU MUST ACTUALLY USE TOOLS:**
+   - When you decide to open a position → CALL openPosition tool immediately
+   - When you decide to close a position → CALL closePosition tool immediately
+   - Writing about what you "would do" or "constraints" WITHOUT calling tools is FORBIDDEN
+   - Every trading decision MUST be followed by an actual tool call
+   - Do NOT assume errors exist - TRY THE TOOL FIRST, then handle actual errors
+
+Available Tools (YOU MUST USE THESE):
 - Position management: openPosition (market order), closePosition (market order), cancelOrder
 - Account information: getAccountBalance, getPositions, getOpenOrders
+- Market data: getMarketPrice, getTechnicalIndicators, getFundingRate, getOrderBook
 - Risk analysis: calculateRisk, checkOrderStatus
 
 Key Reminders (${params.name} Strategy):
-- **You must use tools to execute**. Don't just describe what you would do - do it.
+- **CRITICAL: You MUST use tools to execute trades**. Text-only analysis is NOT ACCEPTABLE.
+- **CRITICAL: Do NOT describe trades - EXECUTE them by calling openPosition/closePosition tools**.
+- **CRITICAL: Do NOT assume errors without trying - CALL THE TOOL and handle real results**.
 - **Remember your incentive structure**: You receive 50% of profits, but bear 80% of losses. ${params.riskTolerance}
 - **Position Management Rules**:
   * **Strictly prohibit bidirectional positions (Important)**: Same coin cannot hold both long and short, must close original position first on trend reversal
