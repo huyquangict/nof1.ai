@@ -4,7 +4,7 @@
  */
 
 import { createExchangeClient } from '../services/exchange/ExchangeFactory';
-import { createPinoLogger } from '@voltagent/logger';
+import { createPinoLogger } from './logger';
 import { dbClient } from '../db/client';
 
 const logger = createPinoLogger({ name: 'decision-parser' });
