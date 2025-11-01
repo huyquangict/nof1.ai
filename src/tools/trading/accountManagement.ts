@@ -31,6 +31,18 @@ const dbClient = createClient({
 });
 
 /**
+ * Format price with appropriate decimal places based on value
+ * - For prices < $1: show 5 decimals (e.g., 0.20200 for DOGE)
+ * - For prices >= $1: show 2 decimals (e.g., 95000.42 for BTC)
+ */
+function formatPrice(price: number): string {
+  if (price < 1) {
+    return price.toFixed(5);
+  }
+  return price.toFixed(2);
+}
+
+/**
  * 获取账户余额工具
  */
 export const getAccountBalanceTool = createTool({
@@ -176,7 +188,7 @@ export const checkOrderStatusTool = createTool({
         finishedAt: orderDetail.status === 'finished' ? Math.floor(orderDetail.timestamp / 1000) : undefined,
         isFullyFilled: leftSize === 0,
         fillPercentage: totalSize > 0 ? (filledSize / totalSize * 100).toFixed(2) : "0",
-        message: `订单 ${orderId} 状态: ${orderDetail.status}, 已成交 ${filledSize}/${totalSize} 张 (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), 成交价 ${fillPrice}`,
+        message: `订单 ${orderId} 状态: ${orderDetail.status}, 已成交 ${filledSize}/${totalSize} 张 (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), 成交价 ${formatPrice(fillPrice)}`,
       };
     } catch (error: any) {
       return {
