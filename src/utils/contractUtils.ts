@@ -35,13 +35,18 @@ const quantoMultiplierCache = new Map<string, number>();
  * 从 Gate.io API 获取失败时使用
  */
 const DEFAULT_MULTIPLIERS: Record<string, number> = {
-  'BTC': 0.0001,  // 1张 = 0.0001 BTC
-  'ETH': 0.01,    // 1张 = 0.01 ETH
-  'SOL': 1,       // 1张 = 1 SOL
-  'XRP': 10,      // 1张 = 10 XRP
-  'BNB': 0.001,   // 1张 = 0.001 BNB (修复：原来错误地配置为0.01)
-  'BCH': 0.01,    // 1张 = 0.01 BCH
-  'POL': 1,       // 1张 = 1 POL
+  // Binance USDT-margined perpetual contracts: 1 contract = 1 coin (1:1)
+  // Note: Gate.io uses fractional sizes, but this fallback is primarily for Binance
+  'BTC': 1,       // 1 contract = 1 BTC
+  'ETH': 1,       // 1 contract = 1 ETH
+  'SOL': 1,       // 1 contract = 1 SOL
+  'XRP': 1,       // 1 contract = 1 XRP
+  'BNB': 1,       // 1 contract = 1 BNB
+  'BCH': 1,       // 1 contract = 1 BCH
+  'DOGE': 1,      // 1 contract = 1 DOGE
+  'LTC': 1,       // 1 contract = 1 LTC
+  'HBAR': 1,      // 1 contract = 1 HBAR
+  'POL': 1,       // 1 contract = 1 POL
 };
 
 /**
