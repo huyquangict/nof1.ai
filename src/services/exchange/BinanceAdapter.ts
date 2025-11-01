@@ -217,7 +217,8 @@ export class BinanceAdapter implements IExchangeClient {
       })
       .map((pos: any) => {
         const contracts = parseFloat(pos.contracts ?? '0');
-        const side = pos.side === 'long' || contracts > 0 ? 'long' : 'short';
+        // Use CCXT's side detection - it handles negative positionAmt correctly
+        const side = pos.side === 'long' ? 'long' : 'short';
         const quantity = Math.abs(contracts);
 
         // Calculate leverage from initialMarginPercentage or notional/initialMargin
