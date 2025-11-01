@@ -263,8 +263,10 @@ Current Market Status for All Coins
 
     // Funding rate
     if (data.fundingRate !== undefined) {
+      const fundingRatePercent = (data.fundingRate * 100).toFixed(4);
+      const direction = data.fundingRate >= 0 ? 'longs pay shorts' : 'shorts pay longs';
       prompt += `Additionally, here is the latest funding rate for ${symbol} perpetual contract (the contract type you trade):\n\n`;
-      prompt += `Funding Rate: ${data.fundingRate.toExponential(2)}\n\n`;
+      prompt += `Funding Rate: ${fundingRatePercent}% (${direction})\n\n`;
     }
 
     // Intraday time series data (3-minute level)
