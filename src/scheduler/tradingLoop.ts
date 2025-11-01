@@ -313,10 +313,60 @@ function calculateLongerTermContext(candles: any[]) {
     };
   }
 
-  const closes = candles.map((c) => Number.parseFloat(c.c || "0")).filter(n => Number.isFinite(n));
-  const highs = candles.map((c) => Number.parseFloat(c.h || "0")).filter(n => Number.isFinite(n));
-  const lows = candles.map((c) => Number.parseFloat(c.l || "0")).filter(n => Number.isFinite(n));
-  const volumes = candles.map((c) => Number.parseFloat(c.v || "0")).filter(n => Number.isFinite(n));
+  const closes = candles.map((c) => {
+    // Standard Candle format (Binance, CCXT)
+    if (c && typeof c === 'object' && 'close' in c) {
+      return Number.parseFloat(c.close);
+    }
+    // Gate.io format (FuturesCandlestick)
+    if (c && typeof c === 'object' && 'c' in c) {
+      return Number.parseFloat(c.c);
+    }
+    // Array format (for backward compatibility)
+    if (Array.isArray(c)) {
+      return Number.parseFloat(c[4]); // Index 4 for close price
+    }
+    return NaN;
+  }).filter(n => Number.isFinite(n));
+
+  const highs = candles.map((c) => {
+    if (c && typeof c === 'object' && 'high' in c) {
+      return Number.parseFloat(c.high);
+    }
+    if (c && typeof c === 'object' && 'h' in c) {
+      return Number.parseFloat(c.h);
+    }
+    if (Array.isArray(c)) {
+      return Number.parseFloat(c[2]); // Index 2 for high price
+    }
+    return NaN;
+  }).filter(n => Number.isFinite(n));
+
+  const lows = candles.map((c) => {
+    if (c && typeof c === 'object' && 'low' in c) {
+      return Number.parseFloat(c.low);
+    }
+    if (c && typeof c === 'object' && 'l' in c) {
+      return Number.parseFloat(c.l);
+    }
+    if (Array.isArray(c)) {
+      return Number.parseFloat(c[3]); // Index 3 for low price
+    }
+    return NaN;
+  }).filter(n => Number.isFinite(n));
+
+  const volumes = candles.map((c) => {
+    if (c && typeof c === 'object' && 'volume' in c) {
+      return Number.parseFloat(c.volume);
+    }
+    if (c && typeof c === 'object' && 'v' in c) {
+      return Number.parseFloat(c.v);
+    }
+    if (Array.isArray(c)) {
+      return Number.parseFloat(c[5]); // Index 5 for volume
+    }
+    return NaN;
+  }).filter(n => Number.isFinite(n));
 
   // Calculate EMA
   const ema20 = calcEMA(closes, 20);
