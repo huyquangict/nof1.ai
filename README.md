@@ -20,6 +20,8 @@ open-nof1.ai is an AI-powered cryptocurrency automated trading system that deepl
 
 The system follows a **minimal human intervention** design philosophy, abandoning traditional hardcoded trading rules and allowing AI models to autonomously learn and make decisions based on raw market data. It integrates with Gate.io exchange (supporting both testnet and mainnet), provides complete perpetual contract trading capabilities, covers mainstream cryptocurrencies such as BTC, ETH, SOL, and supports full automation from data collection, intelligent analysis, risk management to trade execution.
 
+**Language**: The entire system (UI, logs, AI prompts and responses) is fully localized in English for maximum accessibility and clarity.
+
 ![open-nof1.ai](./public/image.png)
 
 ## Table of Contents

@@ -1,29 +1,28 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * Account Recorder - Record account assets every 10 minutes
- * 账户资产记录器 - 每10分钟记录一次账户资产（包含未实现盈亏）
+ * Account Recorder - Record account assets every 10 minutes (including unrealized PnL)
  */
 import cron from "node-cron";
 import { createPinoLogger } from "@voltagent/logger";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange";
 import { getChinaTimeISO } from "../utils/timeUtils";
 
 const logger = createPinoLogger({
@@ -37,24 +36,18 @@ const dbClient = createClient({
 
 /**
  * Record account assets including unrealized PnL
- * 记录账户资产（包含未实现盈亏）
  */
 async function recordAccountAssets() {
   try {
-    const gateClient = createGateClient();
-    
-    // Get account information from Gate.io
-    const account = await gateClient.getFuturesAccount();
-    
-    // Extract account data
-    // Gate.io 的 account.total 不包含未实现盈亏
-    // 需要主动加上 unrealisedPnl 才是真实的总资产
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // Total balance = account.total + unrealisedPnl (包含未实现盈亏的总资产)
-    const totalBalance = accountTotal + unrealisedPnl;
+    const exchangeClient = createExchangeClient();
+
+    // Get account information from exchange
+    const account = await exchangeClient.getFuturesAccount();
+
+    // Extract account data (adapter already includes unrealized PnL in totalBalance)
+    const totalBalance = account.totalBalance;
+    const availableBalance = account.availableBalance;
+    const unrealisedPnl = account.unrealisedPnl;
     
     // Get initial balance from database
     const initialResult = await dbClient.execute(
@@ -98,7 +91,6 @@ async function recordAccountAssets() {
 
 /**
  * Start account recorder
- * 启动账户资产记录器
  */
 export function startAccountRecorder() {
   const intervalMinutes = Number.parseInt(

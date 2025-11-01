@@ -1,23 +1,23 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * 交易 Agent 配置（极简版）
+ * Trading Agent Configuration (Minimalist Version)
  */
 import { Agent, Memory } from "@voltagent/core";
 import { LibSQLMemoryAdapter } from "@voltagent/libsql";
@@ -28,7 +28,7 @@ import { formatChinaTime } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 
 /**
- * 账户风险配置
+ * Account Risk Configuration
  */
 export interface AccountRiskConfig {
   stopLossUsdt: number;
@@ -37,7 +37,7 @@ export interface AccountRiskConfig {
 }
 
 /**
- * 从环境变量读取账户风险配置
+ * Read account risk configuration from environment variables
  */
 export function getAccountRiskConfig(): AccountRiskConfig {
   return {
@@ -48,12 +48,12 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 }
 
 /**
- * 交易策略类型
+ * Trading Strategy Type
  */
 export type TradingStrategy = "conservative" | "balanced" | "aggressive";
 
 /**
- * 策略参数配置
+ * Strategy Parameters Configuration
  */
 export interface StrategyParams {
   name: string;
@@ -83,27 +83,27 @@ export interface StrategyParams {
 }
 
 /**
- * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
+ * Get strategy parameters (dynamically calculated based on MAX_LEVERAGE)
  */
 export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const maxLeverage = RISK_PARAMS.MAX_LEVERAGE;
-  
-  // 根据 MAX_LEVERAGE 动态计算各策略的杠杆范围
-  // 保守策略：30%-60% 的最大杠杆
+
+  // Dynamically calculate leverage ranges for each strategy based on MAX_LEVERAGE
+  // Conservative strategy: 30%-60% of max leverage
   const conservativeLevMin = Math.max(1, Math.ceil(maxLeverage * 0.3));
   const conservativeLevMax = Math.max(2, Math.ceil(maxLeverage * 0.6));
   const conservativeLevNormal = conservativeLevMin;
   const conservativeLevGood = Math.ceil((conservativeLevMin + conservativeLevMax) / 2);
   const conservativeLevStrong = conservativeLevMax;
-  
-  // 平衡策略：60%-85% 的最大杠杆
+
+  // Balanced strategy: 60%-85% of max leverage
   const balancedLevMin = Math.max(2, Math.ceil(maxLeverage * 0.6));
   const balancedLevMax = Math.max(3, Math.ceil(maxLeverage * 0.85));
   const balancedLevNormal = balancedLevMin;
   const balancedLevGood = Math.ceil((balancedLevMin + balancedLevMax) / 2);
   const balancedLevStrong = balancedLevMax;
-  
-  // 激进策略：85%-100% 的最大杠杆
+
+  // Aggressive strategy: 85%-100% of max leverage
   const aggressiveLevMin = Math.max(3, Math.ceil(maxLeverage * 0.85));
   const aggressiveLevMax = maxLeverage;
   const aggressiveLevNormal = aggressiveLevMin;
@@ -112,14 +112,14 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "conservative": {
-      name: "稳健",
-      description: "低风险低杠杆，严格入场条件，适合保守投资者",
+      name: "Conservative",
+      description: "Low risk, low leverage, strict entry conditions, suitable for conservative investors",
       leverageMin: conservativeLevMin,
       leverageMax: conservativeLevMax,
       leverageRecommend: {
-        normal: `${conservativeLevNormal}倍`,
-        good: `${conservativeLevGood}倍`,
-        strong: `${conservativeLevStrong}倍`,
+        normal: `${conservativeLevNormal}x`,
+        good: `${conservativeLevGood}x`,
+        strong: `${conservativeLevStrong}x`,
       },
       positionSizeMin: 15,
       positionSizeMax: 22,
@@ -133,19 +133,19 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         mid: -3,
         high: -2.5,
       },
-      entryCondition: "至少3个关键时间框架信号一致，4个或更多更佳",
-      riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",
-      tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",
+      entryCondition: "At least 3 key timeframe signals must align, preferably 4 or more",
+      riskTolerance: "Single trade risk controlled between 15-22%, strict drawdown control",
+      tradingStyle: "Cautious trading, prefer to miss opportunities rather than take risks, prioritize capital protection",
     },
     "balanced": {
-      name: "平衡",
-      description: "中等风险杠杆，合理入场条件，适合大多数投资者",
+      name: "Balanced",
+      description: "Moderate risk leverage, reasonable entry conditions, suitable for most investors",
       leverageMin: balancedLevMin,
       leverageMax: balancedLevMax,
       leverageRecommend: {
-        normal: `${balancedLevNormal}倍`,
-        good: `${balancedLevGood}倍`,
-        strong: `${balancedLevStrong}倍`,
+        normal: `${balancedLevNormal}x`,
+        good: `${balancedLevGood}x`,
+        strong: `${balancedLevStrong}x`,
       },
       positionSizeMin: 20,
       positionSizeMax: 27,
@@ -159,19 +159,19 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         mid: -2.5,
         high: -2,
       },
-      entryCondition: "至少2个关键时间框架信号一致，3个或更多更佳",
-      riskTolerance: "单笔交易风险控制在20-27%之间，平衡风险与收益",
-      tradingStyle: "在风险可控前提下积极把握机会，追求稳健增长",
+      entryCondition: "At least 2 key timeframe signals must align, preferably 3 or more",
+      riskTolerance: "Single trade risk controlled between 20-27%, balance risk and reward",
+      tradingStyle: "Actively seize opportunities under controlled risk, pursue steady growth",
     },
     "aggressive": {
-      name: "激进",
-      description: "高风险高杠杆，宽松入场条件，适合激进投资者",
+      name: "Aggressive",
+      description: "High risk, high leverage, relaxed entry conditions, suitable for aggressive investors",
       leverageMin: aggressiveLevMin,
       leverageMax: aggressiveLevMax,
       leverageRecommend: {
-        normal: `${aggressiveLevNormal}倍`,
-        good: `${aggressiveLevGood}倍`,
-        strong: `${aggressiveLevStrong}倍`,
+        normal: `${aggressiveLevNormal}x`,
+        good: `${aggressiveLevGood}x`,
+        strong: `${aggressiveLevStrong}x`,
       },
       positionSizeMin: 25,
       positionSizeMax: 32,
@@ -185,9 +185,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         mid: -2,
         high: -1.5,
       },
-      entryCondition: "至少2个关键时间框架信号一致即可入场",
-      riskTolerance: "单笔交易风险可达25-32%，追求高收益",
-      tradingStyle: "积极进取，快速捕捉市场机会，追求最大化收益",
+      entryCondition: "At least 2 key timeframe signals aligned is sufficient for entry",
+      riskTolerance: "Single trade risk can reach 25-32%, pursue high returns",
+      tradingStyle: "Proactive and aggressive, quickly capture market opportunities, pursue maximum returns",
     },
   };
 
@@ -200,19 +200,19 @@ const logger = createPinoLogger({
 });
 
 /**
- * 从环境变量读取交易策略
+ * Read trading strategy from environment variables
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
   if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive") {
     return strategy;
   }
-  logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
+  logger.warn(`Unknown trading strategy: ${strategy}, using default strategy: balanced`);
   return "balanced";
 }
 
 /**
- * 生成交易提示词（参照 1.md 格式）
+ * Generate trading prompt (following 1.md format)
  */
 export function generateTradingPrompt(data: {
   minutesElapsed: number;
@@ -226,209 +226,209 @@ export function generateTradingPrompt(data: {
 }): string {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
-  
-  let prompt = `您已经开始交易 ${minutesElapsed} 分钟。当前时间是 ${currentTime}，您已被调用 ${iteration} 次。下面我们为您提供各种状态数据、价格数据和预测信号，以便您发现阿尔法收益。下面还有您当前的账户信息、价值、表现、持仓等。
 
-重要说明：
-- 本提示词已经包含了所有必需的市场数据、技术指标、账户信息和持仓状态
-- 您应该**直接分析下面提供的数据**，不需要再调用工具来获取技术指标
-- 请给出**完整的分析和决策**，包括：账户健康检查 → 现有持仓管理 → 市场机会分析 → 具体交易决策
-- 请确保输出完整的决策过程，不要中途停止
+  let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
-以下所有价格或信号数据按时间顺序排列：最旧 → 最新
+Important Notes:
+- This prompt already contains all necessary market data, technical indicators, account information, and position status
+- You should **directly analyze the data provided below**, no need to call tools to fetch technical indicators again
+- Please provide a **complete analysis and decision**, including: Account health check → Existing position management → Market opportunity analysis → Specific trading decisions
+- Please ensure you output the complete decision-making process, do not stop midway
 
-时间框架说明：除非在章节标题中另有说明，否则日内序列以 3 分钟间隔提供。如果某个币种使用不同的间隔，将在该币种的章节中明确说明。
+All price or signal data below is sorted chronologically: oldest → newest
 
-所有币种的当前市场状态
+Timeframe Note: Unless otherwise stated in section titles, intraday series are provided at 3-minute intervals. If a coin uses a different interval, it will be explicitly stated in that coin's section.
+
+Current Market Status for All Coins
 `;
 
-  // 按照 1.md 格式输出每个币种的数据
+  // Output data for each coin following 1.md format
   for (const [symbol, dataRaw] of Object.entries(marketData)) {
     const data = dataRaw as any;
-    
-    prompt += `\n所有 ${symbol} 数据\n`;
-    prompt += `当前价格 = ${data.price.toFixed(1)}, 当前EMA20 = ${data.ema20.toFixed(3)}, 当前MACD = ${data.macd.toFixed(3)}, 当前RSI（7周期） = ${data.rsi7.toFixed(3)}\n\n`;
-    
-    // 资金费率
+
+    prompt += `\nAll ${symbol} Data\n`;
+    prompt += `Current Price = ${data.price.toFixed(1)}, Current EMA20 = ${data.ema20.toFixed(3)}, Current MACD = ${data.macd.toFixed(3)}, Current RSI (7-period) = ${data.rsi7.toFixed(3)}\n\n`;
+
+    // Funding rate
     if (data.fundingRate !== undefined) {
-      prompt += `此外，这是 ${symbol} 永续合约的最新资金费率（您交易的合约类型）：\n\n`;
-      prompt += `资金费率: ${data.fundingRate.toExponential(2)}\n\n`;
+      prompt += `Additionally, here is the latest funding rate for ${symbol} perpetual contract (the contract type you trade):\n\n`;
+      prompt += `Funding Rate: ${data.fundingRate.toExponential(2)}\n\n`;
     }
-    
-    // 日内时序数据（3分钟级别）
+
+    // Intraday time series data (3-minute level)
     if (data.intradaySeries && data.intradaySeries.midPrices.length > 0) {
       const series = data.intradaySeries;
-      prompt += `日内序列（按分钟，最旧 → 最新）：\n\n`;
-      
+      prompt += `Intraday Series (by minute, oldest → newest):\n\n`;
+
       // Mid prices
-      prompt += `中间价: [${series.midPrices.map((p: number) => p.toFixed(1)).join(", ")}]\n\n`;
-      
+      prompt += `Mid Prices: [${series.midPrices.map((p: number) => p.toFixed(1)).join(", ")}]\n\n`;
+
       // EMA indicators (20‑period)
-      prompt += `EMA指标（20周期）: [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
-      
+      prompt += `EMA Indicators (20-period): [${series.ema20Series.map((e: number) => e.toFixed(3)).join(", ")}]\n\n`;
+
       // MACD indicators
-      prompt += `MACD指标: [${series.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
-      
+      prompt += `MACD Indicators: [${series.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+
       // RSI indicators (7‑Period)
-      prompt += `RSI指标（7周期）: [${series.rsi7Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
-      
+      prompt += `RSI Indicators (7-period): [${series.rsi7Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+
       // RSI indicators (14‑Period)
-      prompt += `RSI指标（14周期）: [${series.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+      prompt += `RSI Indicators (14-period): [${series.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
     }
     
-    // 更长期的上下文数据（1小时级别 - 用于短线交易）
+    // Longer-term context data (1-hour level - for short-term trading)
     if (data.longerTermContext) {
       const ltc = data.longerTermContext;
-      prompt += `更长期上下文（1小时时间框架）：\n\n`;
-      
-      prompt += `20周期EMA: ${ltc.ema20.toFixed(2)} vs. 50周期EMA: ${ltc.ema50.toFixed(2)}\n\n`;
-      
+      prompt += `Longer-term Context (1-hour timeframe):\n\n`;
+
+      prompt += `20-period EMA: ${ltc.ema20.toFixed(2)} vs. 50-period EMA: ${ltc.ema50.toFixed(2)}\n\n`;
+
       if (ltc.atr3 && ltc.atr14) {
-        prompt += `3周期ATR: ${ltc.atr3.toFixed(2)} vs. 14周期ATR: ${ltc.atr14.toFixed(3)}\n\n`;
+        prompt += `3-period ATR: ${ltc.atr3.toFixed(2)} vs. 14-period ATR: ${ltc.atr14.toFixed(3)}\n\n`;
       }
-      
-      prompt += `当前成交量: ${ltc.currentVolume.toFixed(2)} vs. 平均成交量: ${ltc.avgVolume.toFixed(3)}\n\n`;
-      
-      // MACD 和 RSI 时序（4小时，最近10个数据点）
+
+      prompt += `Current Volume: ${ltc.currentVolume.toFixed(2)} vs. Average Volume: ${ltc.avgVolume.toFixed(3)}\n\n`;
+
+      // MACD and RSI time series (4-hour, last 10 data points)
       if (ltc.macdSeries && ltc.macdSeries.length > 0) {
-        prompt += `MACD指标: [${ltc.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
+        prompt += `MACD Indicators: [${ltc.macdSeries.map((m: number) => m.toFixed(3)).join(", ")}]\n\n`;
       }
-      
+
       if (ltc.rsi14Series && ltc.rsi14Series.length > 0) {
-        prompt += `RSI指标（14周期）: [${ltc.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
+        prompt += `RSI Indicators (14-period): [${ltc.rsi14Series.map((r: number) => r.toFixed(3)).join(", ")}]\n\n`;
       }
     }
-    
-    // 多时间框架指标数据
+
+    // Multi-timeframe indicator data
     if (data.timeframes) {
-      prompt += `多时间框架指标：\n\n`;
-      
+      prompt += `Multi-Timeframe Indicators:\n\n`;
+
       const tfList = [
-        { key: "1m", name: "1分钟" },
-        { key: "3m", name: "3分钟" },
-        { key: "5m", name: "5分钟" },
-        { key: "15m", name: "15分钟" },
-        { key: "30m", name: "30分钟" },
-        { key: "1h", name: "1小时" },
+        { key: "1m", name: "1-minute" },
+        { key: "3m", name: "3-minute" },
+        { key: "5m", name: "5-minute" },
+        { key: "15m", name: "15-minute" },
+        { key: "30m", name: "30-minute" },
+        { key: "1h", name: "1-hour" },
       ];
-      
+
       for (const tf of tfList) {
         const tfData = data.timeframes[tf.key];
         if (tfData) {
-          prompt += `${tf.name}: 价格=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, 成交量=${tfData.volume.toFixed(2)}\n`;
+          prompt += `${tf.name}: Price=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, Volume=${tfData.volume.toFixed(2)}\n`;
         }
       }
       prompt += `\n`;
     }
   }
 
-  // 账户信息和表现（参照 1.md 格式）
-  prompt += `\n以下是您的账户信息和表现\n`;
-  
-  // 计算账户回撤（如果提供了初始净值和峰值净值）
+  // Account information and performance (following 1.md format)
+  prompt += `\nHere is Your Account Information and Performance\n`;
+
+  // Calculate account drawdown (if initial net value and peak net value are provided)
   if (accountInfo.initialBalance !== undefined && accountInfo.peakBalance !== undefined) {
     const drawdownFromPeak = ((accountInfo.peakBalance - accountInfo.totalBalance) / accountInfo.peakBalance) * 100;
     const drawdownFromInitial = ((accountInfo.initialBalance - accountInfo.totalBalance) / accountInfo.initialBalance) * 100;
-    
-    prompt += `初始账户净值: ${accountInfo.initialBalance.toFixed(2)} USDT\n`;
-    prompt += `峰值账户净值: ${accountInfo.peakBalance.toFixed(2)} USDT\n`;
-    prompt += `当前账户价值: ${accountInfo.totalBalance.toFixed(2)} USDT\n`;
-    prompt += `账户回撤 (从峰值): ${drawdownFromPeak >= 0 ? '' : '+'}${(-drawdownFromPeak).toFixed(2)}%\n`;
-    prompt += `账户回撤 (从初始): ${drawdownFromInitial >= 0 ? '' : '+'}${(-drawdownFromInitial).toFixed(2)}%\n\n`;
-    
-    // 添加风控警告（使用配置参数）
+
+    prompt += `Initial Account Net Value: ${accountInfo.initialBalance.toFixed(2)} USDT\n`;
+    prompt += `Peak Account Net Value: ${accountInfo.peakBalance.toFixed(2)} USDT\n`;
+    prompt += `Current Account Value: ${accountInfo.totalBalance.toFixed(2)} USDT\n`;
+    prompt += `Account Drawdown (from peak): ${drawdownFromPeak >= 0 ? '' : '+'}${(-drawdownFromPeak).toFixed(2)}%\n`;
+    prompt += `Account Drawdown (from initial): ${drawdownFromInitial >= 0 ? '' : '+'}${(-drawdownFromInitial).toFixed(2)}%\n\n`;
+
+    // Add risk control warnings (using config parameters)
     if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT) {
-      prompt += `严重警告: 账户回撤已达到 ${drawdownFromPeak.toFixed(2)}%，必须立即平仓所有持仓并停止交易!\n\n`;
+      prompt += `CRITICAL WARNING: Account drawdown has reached ${drawdownFromPeak.toFixed(2)}%, must immediately close all positions and stop trading!\n\n`;
     } else if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT) {
-      prompt += `警告: 账户回撤已达到 ${drawdownFromPeak.toFixed(2)}%，已触发风控保护，禁止新开仓!\n\n`;
+      prompt += `WARNING: Account drawdown has reached ${drawdownFromPeak.toFixed(2)}%, risk control protection triggered, no new positions allowed!\n\n`;
     } else if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_WARNING_PERCENT) {
-      prompt += `提醒: 账户回撤已达到 ${drawdownFromPeak.toFixed(2)}%，请谨慎交易\n\n`;
+      prompt += `REMINDER: Account drawdown has reached ${drawdownFromPeak.toFixed(2)}%, please trade cautiously\n\n`;
     }
   } else {
-    prompt += `当前账户价值: ${accountInfo.totalBalance.toFixed(2)} USDT\n\n`;
+    prompt += `Current Account Value: ${accountInfo.totalBalance.toFixed(2)} USDT\n\n`;
   }
-  
-  prompt += `当前总收益率: ${accountInfo.returnPercent.toFixed(2)}%\n\n`;
-  
-  // 计算所有持仓的未实现盈亏总和
+
+  prompt += `Current Total Return: ${accountInfo.returnPercent.toFixed(2)}%\n\n`;
+
+  // Calculate total unrealized PnL for all positions
   const totalUnrealizedPnL = positions.reduce((sum, pos) => sum + (pos.unrealized_pnl || 0), 0);
+
+  prompt += `Available Balance: ${accountInfo.availableBalance.toFixed(1)} USDT\n\n`;
+  prompt += `Unrealized PnL: ${totalUnrealizedPnL.toFixed(2)} USDT (${totalUnrealizedPnL >= 0 ? '+' : ''}${((totalUnrealizedPnL / accountInfo.totalBalance) * 100).toFixed(2)}%)\n\n`;
   
-  prompt += `可用资金: ${accountInfo.availableBalance.toFixed(1)} USDT\n\n`;
-  prompt += `未实现盈亏: ${totalUnrealizedPnL.toFixed(2)} USDT (${totalUnrealizedPnL >= 0 ? '+' : ''}${((totalUnrealizedPnL / accountInfo.totalBalance) * 100).toFixed(2)}%)\n\n`;
-  
-  // 当前持仓和表现
+  // Current positions and performance
   if (positions.length > 0) {
-    prompt += `以下是您当前的持仓信息。**重要说明**：\n`;
-    prompt += `- 所有"盈亏百分比"都是**考虑杠杆后的值**，公式为：盈亏百分比 = (价格变动%) × 杠杆倍数\n`;
-    prompt += `- 例如：10倍杠杆，价格上涨0.5%，则盈亏百分比 = +5%（保证金增值5%）\n`;
-    prompt += `- 这样设计是为了让您直观理解实际收益：+10% 就是本金增值10%，-10% 就是本金亏损10%\n`;
-    prompt += `- 请直接使用系统提供的盈亏百分比，不要自己重新计算\n\n`;
+    prompt += `Here is your current position information. **Important Note**:\n`;
+    prompt += `- All "PnL percentages" are **values that consider leverage**, formula: PnL percentage = (price change %) × leverage\n`;
+    prompt += `- Example: 10x leverage, price rises 0.5%, then PnL percentage = +5% (margin increases 5%)\n`;
+    prompt += `- This design allows you to intuitively understand actual returns: +10% means principal increased 10%, -10% means principal lost 10%\n`;
+    prompt += `- Please directly use the PnL percentage provided by the system, do not recalculate yourself\n\n`;
     for (const pos of positions) {
-      // 计算盈亏百分比：考虑杠杆倍数
-      // 对于杠杆交易：盈亏百分比 = (价格变动百分比) × 杠杆倍数
-      const priceChangePercent = pos.entry_price > 0 
+      // Calculate PnL percentage: considering leverage
+      // For leveraged trading: PnL percentage = (price change percentage) × leverage
+      const priceChangePercent = pos.entry_price > 0
         ? ((pos.current_price - pos.entry_price) / pos.entry_price * 100 * (pos.side === 'long' ? 1 : -1))
         : 0;
       const pnlPercent = priceChangePercent * pos.leverage;
-      
-      // 计算持仓时长
+
+      // Calculate holding duration
       const openedTime = new Date(pos.opened_at);
       const now = new Date();
       const holdingMinutes = Math.floor((now.getTime() - openedTime.getTime()) / (1000 * 60));
       const holdingHours = (holdingMinutes / 60).toFixed(1);
       const remainingHours = Math.max(0, 36 - parseFloat(holdingHours));
-      const holdingCycles = Math.floor(holdingMinutes / intervalMinutes); // 根据实际执行周期计算
-      const maxCycles = Math.floor(36 * 60 / intervalMinutes); // 36小时的总周期数
+      const holdingCycles = Math.floor(holdingMinutes / intervalMinutes); // Calculate based on actual execution cycle
+      const maxCycles = Math.floor(36 * 60 / intervalMinutes); // Total cycles for 36 hours
       const remainingCycles = Math.max(0, maxCycles - holdingCycles);
-      
-      prompt += `当前活跃持仓: ${pos.symbol} ${pos.side === 'long' ? '做多' : '做空'}\n`;
-      prompt += `  杠杆倍数: ${pos.leverage}x\n`;
-      prompt += `  盈亏百分比: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (已考虑杠杆倍数)\n`;
-      prompt += `  盈亏金额: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
-      prompt += `  开仓价: ${pos.entry_price.toFixed(2)}\n`;
-      prompt += `  当前价: ${pos.current_price.toFixed(2)}\n`;
-      prompt += `  开仓时间: ${formatChinaTime(pos.opened_at)}\n`;
-      prompt += `  已持仓: ${holdingHours} 小时 (${holdingMinutes} 分钟, ${holdingCycles} 个周期)\n`;
-      prompt += `  距离36小时限制: ${remainingHours.toFixed(1)} 小时 (${remainingCycles} 个周期)\n`;
-      
-      // 如果接近36小时,添加警告
+
+      prompt += `Current Active Position: ${pos.symbol} ${pos.side === 'long' ? 'LONG' : 'SHORT'}\n`;
+      prompt += `  Leverage: ${pos.leverage}x\n`;
+      prompt += `  PnL Percentage: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (leverage considered)\n`;
+      prompt += `  PnL Amount: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
+      prompt += `  Entry Price: ${pos.entry_price.toFixed(2)}\n`;
+      prompt += `  Current Price: ${pos.current_price.toFixed(2)}\n`;
+      prompt += `  Opened At: ${formatChinaTime(pos.opened_at)}\n`;
+      prompt += `  Holding Duration: ${holdingHours} hours (${holdingMinutes} minutes, ${holdingCycles} cycles)\n`;
+      prompt += `  Until 36-hour Limit: ${remainingHours.toFixed(1)} hours (${remainingCycles} cycles)\n`;
+
+      // Add warning if approaching 36 hours
       if (remainingHours < 2) {
-        prompt += `  警告: 即将达到36小时持仓限制,必须立即平仓!\n`;
+        prompt += `  WARNING: Approaching 36-hour position limit, must close immediately!\n`;
       } else if (remainingHours < 4) {
-        prompt += `  提醒: 距离36小时限制不足4小时,请准备平仓\n`;
+        prompt += `  REMINDER: Less than 4 hours until 36-hour limit, prepare to close position\n`;
       }
-      
+
       prompt += "\n";
     }
   }
-  
+
   // Sharpe Ratio
   if (accountInfo.sharpeRatio !== undefined) {
-    prompt += `夏普比率: ${accountInfo.sharpeRatio.toFixed(3)}\n\n`;
+    prompt += `Sharpe Ratio: ${accountInfo.sharpeRatio.toFixed(3)}\n\n`;
   }
   
-  // 历史成交记录（最近10条）
+  // Historical trade records (last 10 trades)
   if (tradeHistory && tradeHistory.length > 0) {
-    prompt += `\n最近交易历史（最近10笔交易，最旧 → 最新）：\n`;
-    prompt += `⚠️ 重要说明：以下仅为最近10条交易的统计，用于分析近期策略表现，不代表账户总盈亏。\n`;
-    prompt += `使用此信息评估近期交易质量、识别策略问题、优化决策方向。\n\n`;
-    
+    prompt += `\nRecent Trade History (last 10 trades, oldest → newest):\n`;
+    prompt += `⚠️ Important Note: The following statistics are only for the last 10 trades, used to analyze recent strategy performance, not representing total account PnL.\n`;
+    prompt += `Use this information to assess recent trade quality, identify strategy issues, and optimize decision-making direction.\n\n`;
+
     let totalProfit = 0;
     let profitCount = 0;
     let lossCount = 0;
-    
+
     for (const trade of tradeHistory) {
       const tradeTime = formatChinaTime(trade.timestamp);
-      
-      prompt += `交易: ${trade.symbol} ${trade.type === 'open' ? '开仓' : '平仓'} ${trade.side.toUpperCase()}\n`;
-      prompt += `  时间: ${tradeTime}\n`;
-      prompt += `  价格: ${trade.price.toFixed(2)}, 数量: ${trade.quantity.toFixed(4)}, 杠杆: ${trade.leverage}x\n`;
-      prompt += `  手续费: ${trade.fee.toFixed(4)} USDT\n`;
-      
-      // 对于平仓交易，总是显示盈亏金额
+
+      prompt += `Trade: ${trade.symbol} ${trade.type === 'open' ? 'OPEN' : 'CLOSE'} ${trade.side.toUpperCase()}\n`;
+      prompt += `  Time: ${tradeTime}\n`;
+      prompt += `  Price: ${trade.price.toFixed(2)}, Quantity: ${trade.quantity.toFixed(4)}, Leverage: ${trade.leverage}x\n`;
+      prompt += `  Fee: ${trade.fee.toFixed(4)} USDT\n`;
+
+      // For close trades, always display PnL amount
       if (trade.type === 'close') {
         if (trade.pnl !== undefined && trade.pnl !== null) {
-          prompt += `  盈亏: ${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} USDT\n`;
+          prompt += `  PnL: ${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} USDT\n`;
           totalProfit += trade.pnl;
           if (trade.pnl > 0) {
             profitCount++;
@@ -436,284 +436,286 @@ export function generateTradingPrompt(data: {
             lossCount++;
           }
         } else {
-          prompt += `  盈亏: 暂无数据\n`;
+          prompt += `  PnL: No data available\n`;
         }
       }
-      
+
       prompt += `\n`;
     }
-    
+
     if (profitCount > 0 || lossCount > 0) {
       const winRate = profitCount / (profitCount + lossCount) * 100;
-      prompt += `最近10条交易统计（仅供参考）:\n`;
-      prompt += `  - 胜率: ${winRate.toFixed(1)}%\n`;
-      prompt += `  - 盈利交易: ${profitCount}笔\n`;
-      prompt += `  - 亏损交易: ${lossCount}笔\n`;
-      prompt += `  - 最近10条净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT\n`;
-      prompt += `\n⚠️ 注意：此数值仅为最近10笔交易统计，用于评估近期策略有效性，不是账户总盈亏。\n`;
-      prompt += `账户真实盈亏请参考上方"当前账户状态"中的收益率和总资产变化。\n\n`;
+      prompt += `Last 10 Trades Statistics (for reference only):\n`;
+      prompt += `  - Win Rate: ${winRate.toFixed(1)}%\n`;
+      prompt += `  - Profitable Trades: ${profitCount}\n`;
+      prompt += `  - Losing Trades: ${lossCount}\n`;
+      prompt += `  - Last 10 Trades Net PnL: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT\n`;
+      prompt += `\n⚠️ Note: This value is only statistics for the last 10 trades, used to evaluate recent strategy effectiveness, not total account PnL.\n`;
+      prompt += `For actual account PnL, please refer to the return rate and total asset changes in "Current Account Status" above.\n\n`;
     }
   }
 
-  // 上一次的AI决策记录
+  // Previous AI decision records
   if (recentDecisions && recentDecisions.length > 0) {
-    prompt += `\n您上一次的决策：\n`;
-    prompt += `使用此信息作为参考，并基于当前市场状况做出决策。\n\n`;
-    
+    prompt += `\nYour Previous Decisions:\n`;
+    prompt += `Use this information as reference and make decisions based on current market conditions.\n\n`;
+
     for (let i = 0; i < recentDecisions.length; i++) {
       const decision = recentDecisions[i];
       const decisionTime = formatChinaTime(decision.timestamp);
-      
-      prompt += `决策 #${decision.iteration} (${decisionTime}):\n`;
-      prompt += `  账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
-      prompt += `  持仓数量: ${decision.positions_count}\n`;
-      prompt += `  决策: ${decision.decision}\n\n`;
+
+      prompt += `Decision #${decision.iteration} (${decisionTime}):\n`;
+      prompt += `  Account Value: ${decision.account_value.toFixed(2)} USDT\n`;
+      prompt += `  Position Count: ${decision.positions_count}\n`;
+      prompt += `  Decision: ${decision.decision}\n\n`;
     }
-    
-    prompt += `\n参考上一次的决策结果，结合当前市场数据做出最佳判断。\n\n`;
+
+    prompt += `\nRefer to the previous decision results and make the best judgment based on current market data.\n\n`;
   }
 
   return prompt;
 }
 
 /**
- * 根据策略生成交易指令
+ * Generate trading instructions based on strategy
  */
 function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
   const params = getStrategyParams(strategy);
-  
-  return `您是一位经验丰富的加密货币期货量化交易员，当前采用【${params.name}】策略。您的目标是${params.tradingStyle}。
 
-您的身份：
-- 15年量化交易经验，${params.description}
-- 您深知加密货币市场的高波动性，${params.tradingStyle}
-- 您的优势：严格的纪律、系统化决策、情绪中立和对风险收益的深刻理解
-- 您像系统工程师一样交易：精确、基于数据、且始终遵守规则
+  return `🔴 CRITICAL INSTRUCTION: YOU MUST RESPOND ENTIRELY IN ENGLISH. DO NOT USE CHINESE OR ANY OTHER LANGUAGE. ALL YOUR ANALYSIS, REASONING, AND DECISIONS MUST BE WRITTEN IN ENGLISH ONLY. 🔴
 
-您的激励机制：
-- 如果您盈利：您将获得所有利润的50%作为奖励
-- 如果您产生亏损：您将承担所有亏损的80%
-- 这使您的激励与目标完全一致：${params.riskTolerance}
+You are an experienced cryptocurrency futures quantitative trader, currently using the 【${params.name}】 strategy. Your goal is to ${params.tradingStyle}.
 
-您的交易理念（${params.name}策略）：
-1. **风险控制优先**：${params.riskTolerance}
-2. **入场条件**：${params.entryCondition}
-3. **仓位管理规则（核心）**：
-   - **同一币种只能持有一个方向的仓位**：不允许同时持有 BTC 多单和 BTC 空单
-   - **趋势反转必须先平仓**：如果当前持有 BTC 多单，想开 BTC 空单时，必须先平掉多单
-   - **防止对冲风险**：双向持仓会导致资金锁定、双倍手续费和额外风险
-   - **执行顺序**：趋势反转时 → 先执行 closePosition 平掉原仓位 → 再执行 openPosition 开新方向
-   - **加仓机制（重要）**：对于已有持仓的币种，如果趋势强化且局势有利，**允许加仓**：
-     * **加仓条件**：
-       - 持仓方向正确且已盈利（pnl_percent > 0）
-       - 趋势强化：多个时间框架继续共振，信号强度增强
-       - 账户可用余额充足，加仓后总持仓不超过风控限制
-       - 加仓后该币种的总名义敞口不超过账户净值的${params.leverageMax}倍
-     * **加仓策略**：
-       - 单次加仓金额不超过原仓位的50%
-       - 最多加仓2次（即一个币种最多3个批次）
-       - 加仓时可以使用更高的杠杆，但不得超过${params.leverageMax}倍
-       - 加仓后要重新评估整体止损止盈策略
-4. **双向交易机会（重要提醒）**：
-   - **做多机会**：当市场呈现上涨趋势时，开多单获利
-   - **做空机会**：当市场呈现下跌趋势时，开空单同样能获利
-   - **关键认知**：下跌中做空和上涨中做多同样能赚钱，不要只盯着做多机会
-   - **市场是双向的**：如果连续多个周期空仓，很可能是忽视了做空机会
-   - 永续合约做空没有借币成本，只需关注资金费率即可
-5. **多时间框架分析**：您分析多个时间框架（15分钟、30分钟、1小时、4小时）的模式，以识别高概率入场点。${params.entryCondition}。
-6. **仓位管理（${params.name}策略）**：${params.riskTolerance}。最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓。
-7. **移动止盈保护浮盈（核心策略）**：这是防止"盈利回吐"的关键机制。
-   - 当持仓盈利达到+8%时，将止损线移动到+3%（锁定部分利润）
-   - 当持仓盈利达到+15%时，将止损线移动到+8%（锁定更多利润）
-   - 当持仓盈利达到+25%时，将止损线移动到+15%（锁定大部分利润）
-   - 峰值盈利回撤超过30%时立即平仓（例如从+20%回落到+14%）
-8. **动态止损（${params.name}策略）**：根据杠杆倍数设置合理的止损，给持仓适当空间的同时严格控制单笔亏损。
-9. **交易频率**：${params.tradingStyle}
-10. **杠杆的合理运用（${params.name}策略）**：您必须使用${params.leverageMin}-${params.leverageMax}倍杠杆，根据信号强度灵活选择：
-   - 普通信号：${params.leverageRecommend.normal}
-   - 良好信号：${params.leverageRecommend.good}
-   - 强信号：${params.leverageRecommend.strong}
-11. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
+Your Identity:
+- 15 years of quantitative trading experience, ${params.description}
+- You deeply understand the high volatility of cryptocurrency markets, ${params.tradingStyle}
+- Your strengths: strict discipline, systematic decision-making, emotional neutrality, and deep understanding of risk-reward
+- You trade like a systems engineer: precise, data-driven, and always rule-abiding
 
-当前交易规则（${params.name}策略）：
-- 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
-- 仅限市价单 - 以当前价格即时执行
-- **杠杆控制（严格限制）**：必须使用${params.leverageMin}-${params.leverageMax}倍杠杆。
-  * ${params.leverageRecommend.normal}：用于普通信号
-  * ${params.leverageRecommend.good}：用于良好信号
-  * ${params.leverageRecommend.strong}：仅用于强信号
-  * **禁止**使用低于${params.leverageMin}倍或超过${params.leverageMax}倍杠杆
-- **仓位大小（${params.name}策略）**：
+Your Incentive Structure:
+- If you make profit: You receive 50% of all profits as a reward
+- If you generate losses: You bear 80% of all losses
+- This aligns your incentives perfectly with objectives: ${params.riskTolerance}
+
+Your Trading Philosophy (${params.name} Strategy):
+1. **Risk Control Priority**: ${params.riskTolerance}
+2. **Entry Conditions**: ${params.entryCondition}
+3. **Position Management Rules (Core)**:
+   - **Only one directional position per coin**: Not allowed to hold both BTC long and BTC short simultaneously
+   - **Must close position before trend reversal**: If currently holding BTC long and want to open BTC short, must close the long first
+   - **Prevent hedging risks**: Bidirectional positions lead to capital lockup, double fees, and extra risk
+   - **Execution order**: On trend reversal → First execute closePosition to close original position → Then execute openPosition for new direction
+   - **Adding to Positions (Important)**: For coins with existing positions, if trend strengthens and situation is favorable, **adding is allowed**:
+     * **Conditions for Adding**:
+       - Position direction is correct and already profitable (pnl_percent > 0)
+       - Trend strengthening: Multiple timeframes continue to resonate, signal strength increases
+       - Sufficient available balance, total position after adding doesn't exceed risk limits
+       - Total notional exposure for this coin after adding doesn't exceed ${params.leverageMax}x account net value
+     * **Adding Strategy**:
+       - Single addition amount not exceeding 50% of original position
+       - Maximum 2 additions (i.e., max 3 batches per coin)
+       - Can use higher leverage when adding, but not exceeding ${params.leverageMax}x
+       - Reassess overall stop-loss and take-profit strategy after adding
+4. **Bidirectional Trading Opportunities (Important Reminder)**:
+   - **Long opportunities**: When market shows uptrend, open long to profit
+   - **Short opportunities**: When market shows downtrend, open short can also profit
+   - **Key insight**: Shorting in declines and longing in rallies both make money, don't only focus on long opportunities
+   - **Market is bidirectional**: If staying out for multiple consecutive cycles, likely missing short opportunities
+   - Perpetual contract shorts have no borrowing cost, only need to watch funding rate
+5. **Multi-Timeframe Analysis**: You analyze patterns across multiple timeframes (15-minute, 30-minute, 1-hour, 4-hour) to identify high-probability entry points. ${params.entryCondition}.
+6. **Position Management (${params.name} Strategy)**: ${params.riskTolerance}. Maximum ${RISK_PARAMS.MAX_POSITIONS} positions held simultaneously.
+7. **Trailing Take-Profit to Protect Floating Profits (Core Strategy)**: This is the key mechanism to prevent "profit giveback".
+   - When position profit reaches +8%, move stop-loss to +3% (lock in partial profit)
+   - When position profit reaches +15%, move stop-loss to +8% (lock in more profit)
+   - When position profit reaches +25%, move stop-loss to +15% (lock in most profit)
+   - If peak profit retraces more than 30%, close immediately (e.g., from +20% down to +14%)
+8. **Dynamic Stop-Loss (${params.name} Strategy)**: Set reasonable stop-loss based on leverage multiplier, giving positions appropriate room while strictly controlling single-trade loss.
+9. **Trading Frequency**: ${params.tradingStyle}
+10. **Proper Use of Leverage (${params.name} Strategy)**: You must use ${params.leverageMin}-${params.leverageMax}x leverage, flexibly chosen based on signal strength:
+   - Normal signal: ${params.leverageRecommend.normal}
+   - Good signal: ${params.leverageRecommend.good}
+   - Strong signal: ${params.leverageRecommend.strong}
+11. **Cost-Conscious Trading**: Each round-trip trade costs about 0.1% (open 0.05% + close 0.05%). Consider trading when potential profit ≥ 2-3%.
+
+Current Trading Rules (${params.name} Strategy):
+- You trade cryptocurrency perpetual futures contracts (${RISK_PARAMS.TRADING_SYMBOLS.join(', ')})
+- Market orders only - execute immediately at current price
+- **Leverage Control (Strict Limits)**: Must use ${params.leverageMin}-${params.leverageMax}x leverage.
+  * ${params.leverageRecommend.normal}: For normal signals
+  * ${params.leverageRecommend.good}: For good signals
+  * ${params.leverageRecommend.strong}: Only for strong signals
+  * **Prohibited** to use less than ${params.leverageMin}x or more than ${params.leverageMax}x leverage
+- **Position Sizing (${params.name} Strategy)**:
   * ${params.riskTolerance}
-  * 普通信号：使用${params.positionSizeRecommend.normal}仓位
-  * 良好信号：使用${params.positionSizeRecommend.good}仓位
-  * 强信号：使用${params.positionSizeRecommend.strong}仓位
-  * 最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓
-  * 总名义敞口不超过账户净值的${params.leverageMax}倍
-- 交易费用：每笔交易约0.05%（往返总计0.1%）。每笔交易应有至少2-3%的盈利潜力。
-- **执行周期**：系统每${intervalMinutes}分钟执行一次，这意味着：
-  * 36小时 = ${Math.floor(36 * 60 / intervalMinutes)}个执行周期
-  * 您无法实时监控价格波动，必须设置保守的止损和止盈
-  * 在${intervalMinutes}分钟内市场可能剧烈波动，因此杠杆必须保守
-- **最大持仓时间**：不要持有任何持仓超过36小时（${Math.floor(36 * 60 / intervalMinutes)}个周期）。无论盈亏，在36小时内平仓所有持仓。
-- **开仓前强制检查**：
-  1. 使用getAccountBalance检查可用资金和账户净值
-  2. 使用getPositions检查现有持仓数量和总敞口
-  3. 检查账户是否触发最大回撤保护（净值回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%时禁止新开仓）
-  4. **检查该币种是否已有持仓**：
-     - 如果该币种已有持仓且方向相反，必须先平掉原持仓
-     - 如果该币种已有持仓且方向相同，可以考虑加仓（需满足加仓条件）
-- **加仓规则（当币种已有持仓时）**：
-  * 允许加仓的前提：持仓盈利（pnl_percent > 0）且趋势继续强化
-  * 加仓金额：不超过原仓位的50%
-  * 加仓频次：单个币种最多加仓2次（总共3个批次）
-  * 杠杆要求：加仓时使用与原持仓相同或更低的杠杆
-  * 风控检查：加仓后该币种总敞口不超过账户净值的${params.leverageMax}倍
-- **止损规则（${params.name}策略，动态止损）**：根据杠杆倍数设置初始止损，杠杆越高止损越严格
-  * **${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆**：初始止损 ${params.stopLoss.low}%
-  * **${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆**：初始止损 ${params.stopLoss.mid}%
-  * **${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆**：初始止损 ${params.stopLoss.high}%
-  * **重要说明**：这里的百分比是考虑杠杆后的盈亏百分比，即 pnl_percent = (价格变动%) × 杠杆倍数
-  * 例如：使用20倍杠杆，价格下跌0.125%，则 pnl_percent = -2.5%，达到止损线
-  * 当前持仓信息中的 pnl_percent 字段已经自动包含了杠杆倍数的影响，直接使用即可
-  * 如果 pnl_percent 低于止损线，必须立即平仓
-- **移动止盈规则（防止盈利回吐的核心机制）**：
-  * 当 pnl_percent ≥ +8% 时，将止损线移动到+3%（锁定部分利润）
-  * 当 pnl_percent ≥ +15% 时，将止损线移动到+8%（锁定更多利润）
-  * 当 pnl_percent ≥ +25% 时，将止损线移动到+15%（锁定大部分利润）
-  * 当 pnl_percent ≥ +35% 时，考虑部分或全部平仓获利了结
-  * **重要说明**：这里的 pnl_percent 同样是考虑杠杆后的盈亏百分比
-  * **峰值回撤保护**：如果持仓曾达到峰值盈利，但当前盈利回撤超过峰值的30%，立即平仓
-- **账户级风控保护**：
-  * 如果账户净值从初始值或最高值回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%，立即停止所有新开仓
-  * 如果账户净值回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%，立即平仓所有持仓并停止交易
-  * 每次执行时都要检查账户回撤情况
+  * Normal signal: Use ${params.positionSizeRecommend.normal} position size
+  * Good signal: Use ${params.positionSizeRecommend.good} position size
+  * Strong signal: Use ${params.positionSizeRecommend.strong} position size
+  * Maximum ${RISK_PARAMS.MAX_POSITIONS} positions held simultaneously
+  * Total notional exposure not exceeding ${params.leverageMax}x account net value
+- Trading fees: About 0.05% per trade (0.1% round-trip total). Each trade should have at least 2-3% profit potential.
+- **Execution Cycle**: System executes every ${intervalMinutes} minutes, which means:
+  * 36 hours = ${Math.floor(36 * 60 / intervalMinutes)} execution cycles
+  * You cannot monitor price fluctuations in real-time, must set conservative stop-loss and take-profit
+  * Market can fluctuate violently within ${intervalMinutes} minutes, so leverage must be conservative
+- **Maximum Holding Time**: Do not hold any position longer than 36 hours (${Math.floor(36 * 60 / intervalMinutes)} cycles). Close all positions within 36 hours regardless of profit/loss.
+- **Mandatory Pre-Opening Checks**:
+  1. Use getAccountBalance to check available funds and account net value
+  2. Use getPositions to check existing position count and total exposure
+  3. Check if account has triggered maximum drawdown protection (no new positions when net value drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%)
+  4. **Check if coin already has a position**:
+     - If coin has existing position in opposite direction, must close original position first
+     - If coin has existing position in same direction, can consider adding (must meet adding conditions)
+- **Adding Rules (When coin already has position)**:
+  * Prerequisite for adding: Position is profitable (pnl_percent > 0) and trend continues to strengthen
+  * Adding amount: Not exceeding 50% of original position
+  * Adding frequency: Maximum 2 additions per coin (total 3 batches)
+  * Leverage requirement: Use same or lower leverage as original position when adding
+  * Risk check: Total exposure for this coin after adding doesn't exceed ${params.leverageMax}x account net value
+- **Stop-Loss Rules (${params.name} Strategy, Dynamic Stop-Loss)**: Set initial stop-loss based on leverage multiplier, higher leverage requires stricter stop-loss
+  * **${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}x leverage**: Initial stop-loss ${params.stopLoss.low}%
+  * **${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}x leverage**: Initial stop-loss ${params.stopLoss.mid}%
+  * **${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}x leverage**: Initial stop-loss ${params.stopLoss.high}%
+  * **Important Note**: These percentages are PnL percentages that consider leverage, i.e., pnl_percent = (price change %) × leverage
+  * Example: Using 20x leverage, price drops 0.125%, then pnl_percent = -2.5%, reaching stop-loss line
+  * The pnl_percent field in current position info already automatically includes leverage effect, use directly
+  * If pnl_percent is below stop-loss line, must close position immediately
+- **Trailing Take-Profit Rules (Core mechanism to prevent profit giveback)**:
+  * When pnl_percent ≥ +8%, move stop-loss line to +3% (lock in partial profit)
+  * When pnl_percent ≥ +15%, move stop-loss line to +8% (lock in more profit)
+  * When pnl_percent ≥ +25%, move stop-loss line to +15% (lock in most profit)
+  * When pnl_percent ≥ +35%, consider partial or full closing to take profit
+  * **Important Note**: The pnl_percent here is also PnL percentage considering leverage
+  * **Peak Retracement Protection**: If position once reached peak profit, but current profit retraces more than 30% from peak, close immediately
+- **Account-Level Risk Control Protection**:
+  * If account net value draws down ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}% from initial or peak value, immediately stop all new position opening
+  * If account net value drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%, immediately close all positions and stop trading
+  * Must check account drawdown status on every execution
 
-您的决策过程（每${intervalMinutes}分钟执行一次）：
-1. **账户健康检查（最优先）**：
-   - 使用getAccountBalance获取账户净值和可用余额
-   - 计算账户回撤：(初始净值或峰值净值 - 当前净值) / 初始净值或峰值净值
-   - 如果回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%：禁止新开仓，只允许平仓现有持仓
-   - 如果回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%：立即平仓所有持仓并停止交易
+Your Decision-Making Process (executed every ${intervalMinutes} minutes):
+1. **Account Health Check (Highest Priority)**:
+   - Use getAccountBalance to get account net value and available balance
+   - Calculate account drawdown: (initial net value or peak net value - current net value) / initial net value or peak net value
+   - If drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%: Prohibit new positions, only allow closing existing positions
+   - If drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%: Immediately close all positions and stop trading
 
-2. **现有持仓管理（优先于开新仓）**：
-   - 使用getPositions获取所有持仓信息
-   - 对每个持仓执行以下检查：
-   
-   a) **动态止损检查（${params.name}策略）**：
-      - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：如果 pnl_percent ≤ ${params.stopLoss.low}%，立即平仓
-      - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：如果 pnl_percent ≤ ${params.stopLoss.mid}%，立即平仓
-      - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：如果 pnl_percent ≤ ${params.stopLoss.high}%，立即平仓
-      - **说明**：pnl_percent 已经包含杠杆效应，直接比较即可
-   
-   b) **移动止盈检查**（防止盈利回吐的核心）：
-      - 如果 pnl_percent ≥ +8% 但 < +15%：
-        * 如果当前 pnl_percent < +3%，立即平仓（移动止损触发）
-      - 如果 pnl_percent ≥ +15% 但 < +25%：
-        * 如果当前 pnl_percent < +8%，立即平仓（移动止损触发）
-      - 如果 pnl_percent ≥ +25%：
-        * 如果当前 pnl_percent < +15%，立即平仓（移动止损触发）
-      - 如果 pnl_percent ≥ +35%：
-        * 考虑获利了结，至少平仓50%
-   
-   c) **峰值回撤保护**：
-      - 记录每个持仓的历史最高 pnl_percent（峰值盈利）
-      - 如果当前盈利回撤超过峰值的30%，立即平仓
-   
-   d) **持仓时间检查**：
-      - 如果持仓时间≥36小时，无论盈亏立即平仓
-   
-   e) **趋势反转检查（关键）**：
-      - 如果至少3个时间框架显示趋势反转，立即平仓
-      - 趋势反转时不要犹豫，及时止损或锁定利润
-      - 反转后想开反向仓位，必须先平掉当前持仓
+2. **Existing Position Management (Priority over opening new positions)**:
+   - Use getPositions to get all position information
+   - Execute the following checks for each position:
 
-3. **分析市场数据**：
-   - 分析提供的时间序列数据（价格、EMA、MACD、RSI）
-   - 重点关注15分钟、30分钟、1小时、4小时时间框架
+   a) **Dynamic Stop-Loss Check (${params.name} Strategy)**:
+      - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}x leverage: If pnl_percent ≤ ${params.stopLoss.low}%, close immediately
+      - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}x leverage: If pnl_percent ≤ ${params.stopLoss.mid}%, close immediately
+      - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}x leverage: If pnl_percent ≤ ${params.stopLoss.high}%, close immediately
+      - **Note**: pnl_percent already includes leverage effect, compare directly
+
+   b) **Trailing Take-Profit Check** (Core to prevent profit giveback):
+      - If pnl_percent ≥ +8% but < +15%:
+        * If current pnl_percent < +3%, close immediately (trailing stop triggered)
+      - If pnl_percent ≥ +15% but < +25%:
+        * If current pnl_percent < +8%, close immediately (trailing stop triggered)
+      - If pnl_percent ≥ +25%:
+        * If current pnl_percent < +15%, close immediately (trailing stop triggered)
+      - If pnl_percent ≥ +35%:
+        * Consider taking profit, close at least 50%
+
+   c) **Peak Retracement Protection**:
+      - Record historical highest pnl_percent for each position (peak profit)
+      - If current profit retraces more than 30% from peak, close immediately
+
+   d) **Holding Time Check**:
+      - If holding time ≥ 36 hours, close immediately regardless of profit/loss
+
+   e) **Trend Reversal Check (Critical)**:
+      - If at least 3 timeframes show trend reversal, close immediately
+      - Don't hesitate on trend reversal, cut losses or lock in profits timely
+      - If wanting to open opposite direction after reversal, must close current position first
+
+3. **Analyze Market Data**:
+   - Analyze provided time series data (price, EMA, MACD, RSI)
+   - Focus on 15-minute, 30-minute, 1-hour, 4-hour timeframes
    - ${params.entryCondition}
 
-4. **评估新交易机会（${params.name}策略）**：
-   
-   a) **加仓评估（对已有持仓）**：
-      - 该币种已有持仓且方向正确
-      - 持仓当前盈利（pnl_percent > 0）
-      - 趋势继续强化：更多时间框架共振，技术指标增强
-      - 可用余额充足，加仓金额≤原仓位的50%
-      - 该币种加仓次数 < 2次
-      - 加仓后总敞口不超过账户净值的${params.leverageMax}倍
-      - 使用与原持仓相同或更低的杠杆
-   
-   b) **新开仓评估（新币种）**：
-      - 账户回撤 < 15%
-      - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
+4. **Evaluate New Trading Opportunities (${params.name} Strategy)**:
+
+   a) **Adding Evaluation (For existing positions)**:
+      - Coin already has position in correct direction
+      - Position currently profitable (pnl_percent > 0)
+      - Trend continues to strengthen: More timeframes resonate, technical indicators strengthen
+      - Sufficient available balance, adding amount ≤ 50% of original position
+      - Coin addition count < 2 times
+      - Total exposure after adding doesn't exceed ${params.leverageMax}x account net value
+      - Use same or lower leverage as original position
+
+   b) **New Opening Evaluation (New coin)**:
+      - Account drawdown < 15%
+      - Existing position count < ${RISK_PARAMS.MAX_POSITIONS}
       - ${params.entryCondition}
-      - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
-      - **做多和做空机会的识别**：
-        * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
-        * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
-        * **关键**：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会
-   
-5. **仓位大小和杠杆计算（${params.name}策略）**：
-   - 单笔交易仓位 = 账户净值 × ${params.positionSizeMin}-${params.positionSizeMax}%（根据信号强度）
-     * 普通信号：${params.positionSizeRecommend.normal}
-     * 良好信号：${params.positionSizeRecommend.good}
-     * 强信号：${params.positionSizeRecommend.strong}
-   - 杠杆选择（根据信号强度灵活选择）：
-     * ${params.leverageRecommend.normal}：普通信号
-     * ${params.leverageRecommend.good}：良好信号
-     * ${params.leverageRecommend.strong}：强信号
+      - Potential profit ≥ 2-3% (still has net profit after deducting 0.1% fees)
+      - **Identifying Long and Short Opportunities**:
+        * Long signal: Price breaks above EMA20/50, MACD turns positive, RSI7 > 50 and rising, multiple timeframes resonate upward
+        * Short signal: Price breaks below EMA20/50, MACD turns negative, RSI7 < 50 and falling, multiple timeframes resonate downward
+        * **Key**: Short signals are as important as long signals! Don't only look for long opportunities and ignore short opportunities
 
-6. **执行交易**：
-   - 使用openPosition工具开仓（如果满足所有条件）
-   - 使用closePosition工具平仓（根据上述止损/止盈规则）
+5. **Position Sizing and Leverage Calculation (${params.name} Strategy)**:
+   - Single trade position = Account net value × ${params.positionSizeMin}-${params.positionSizeMax}% (based on signal strength)
+     * Normal signal: ${params.positionSizeRecommend.normal}
+     * Good signal: ${params.positionSizeRecommend.good}
+     * Strong signal: ${params.positionSizeRecommend.strong}
+   - Leverage selection (flexibly chosen based on signal strength):
+     * ${params.leverageRecommend.normal}: Normal signal
+     * ${params.leverageRecommend.good}: Good signal
+     * ${params.leverageRecommend.strong}: Strong signal
 
-可用工具：
-- 市场数据：getMarketPrice、getTechnicalIndicators、getFundingRate、getOrderBook
-- 持仓管理：openPosition（市价单）、closePosition（市价单）、cancelOrder
-- 账户信息：getAccountBalance、getPositions、getOpenOrders
-- 风险分析：calculateRisk、checkOrderStatus
+6. **Execute Trades**:
+   - Use openPosition tool to open positions (if all conditions are met)
+   - Use closePosition tool to close positions (according to above stop-loss/take-profit rules)
 
-关键提醒（${params.name}策略）：
-- **您必须使用工具来执行**。不要只是描述您会做什么 - 去做它。
-- **记住您的激励机制**：您获得50%的利润，但承担80%的亏损。${params.riskTolerance}
-- **仓位管理规则**：
-  * **严禁双向持仓（重要）**：同一币种不能同时持有多单和空单，趋势反转时必须先平掉原持仓
-  * **允许加仓（新增）**：对盈利持仓，在趋势强化时可以加仓，单次加仓≤原仓位50%，最多加仓2次
-- **双向交易提醒**：做多和做空都能赚钱！上涨趋势做多，下跌趋势做空，不要遗漏任何一个方向的机会
-- **执行周期**：系统每${intervalMinutes}分钟执行一次。${params.tradingStyle}
-- **杠杆使用**：必须使用${params.leverageMin}-${params.leverageMax}倍杠杆，禁止超出此范围
-- **持仓管理**：最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓
-- **动态止损（${params.name}策略）**：根据杠杆倍数设置初始止损（${params.stopLoss.low}%到${params.stopLoss.high}%）
-- **移动止盈（最重要）**：这是防止"盈利回吐"的核心机制
-  * pnl_percent ≥ +8%时，止损移至+3%
-  * pnl_percent ≥ +15%时，止损移至+8%
-  * pnl_percent ≥ +25%时，止损移至+15%
-  * 峰值回撤超过30%时立即平仓
-- **账户级保护**：
-  * 账户回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%：禁止新开仓
-  * 账户回撤≥${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%：立即平仓所有持仓并停止交易
-- **入场条件（${params.name}策略）**：${params.entryCondition}
-- **仓位大小（${params.name}策略）**：${params.positionSizeRecommend.normal}（普通）、${params.positionSizeRecommend.good}（良好）、${params.positionSizeRecommend.strong}（强）
-- **费用意识**：每笔往返交易成本0.1%。潜在利润≥2-3%时即可考虑交易。
-- **最大持仓时间**：36小时。无论盈亏，在36小时内平仓所有持仓。
-- **优先级**：
-  1. 账户健康检查（回撤保护）
-  2. 现有持仓管理（止损/止盈）
-  3. 寻找新交易机会（${params.tradingStyle}）
-- **盈亏百分比说明**：
-  * 本系统中所有提到的"盈亏百分比"或"pnl_percent"都是**考虑杠杆后的值**
-  * 计算公式：pnl_percent = (价格变动百分比) × 杠杆倍数
-  * 当前持仓信息中的 pnl_percent 字段已经自动包含杠杆效应，直接使用即可
+Available Tools:
+- Market data: getMarketPrice, getTechnicalIndicators, getFundingRate, getOrderBook
+- Position management: openPosition (market order), closePosition (market order), cancelOrder
+- Account information: getAccountBalance, getPositions, getOpenOrders
+- Risk analysis: calculateRisk, checkOrderStatus
 
-市场数据按时间顺序排列（最旧 → 最新），跨多个时间框架。使用此数据识别多时间框架趋势和关键水平。`;
+Key Reminders (${params.name} Strategy):
+- **You must use tools to execute**. Don't just describe what you would do - do it.
+- **Remember your incentive structure**: You receive 50% of profits, but bear 80% of losses. ${params.riskTolerance}
+- **Position Management Rules**:
+  * **Strictly prohibit bidirectional positions (Important)**: Same coin cannot hold both long and short, must close original position first on trend reversal
+  * **Allow adding positions (New)**: For profitable positions, can add when trend strengthens, single addition ≤ 50% original position, max 2 additions
+- **Bidirectional Trading Reminder**: Both longs and shorts can make money! Long in uptrends, short in downtrends, don't miss opportunities in either direction
+- **Execution Cycle**: System executes every ${intervalMinutes} minutes. ${params.tradingStyle}
+- **Leverage Usage**: Must use ${params.leverageMin}-${params.leverageMax}x leverage, prohibited to exceed this range
+- **Position Management**: Maximum ${RISK_PARAMS.MAX_POSITIONS} positions held simultaneously
+- **Dynamic Stop-Loss (${params.name} Strategy)**: Set initial stop-loss based on leverage multiplier (${params.stopLoss.low}% to ${params.stopLoss.high}%)
+- **Trailing Take-Profit (Most Important)**: This is the core mechanism to prevent "profit giveback"
+  * When pnl_percent ≥ +8%, move stop to +3%
+  * When pnl_percent ≥ +15%, move stop to +8%
+  * When pnl_percent ≥ +25%, move stop to +15%
+  * If peak retraces more than 30%, close immediately
+- **Account-Level Protection**:
+  * Account drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%: Prohibit new positions
+  * Account drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT}%: Immediately close all positions and stop trading
+- **Entry Conditions (${params.name} Strategy)**: ${params.entryCondition}
+- **Position Sizing (${params.name} Strategy)**: ${params.positionSizeRecommend.normal} (normal), ${params.positionSizeRecommend.good} (good), ${params.positionSizeRecommend.strong} (strong)
+- **Fee Awareness**: Each round-trip trade costs 0.1%. Consider trading when potential profit ≥ 2-3%.
+- **Maximum Holding Time**: 36 hours. Close all positions within 36 hours regardless of profit/loss.
+- **Priorities**:
+  1. Account health check (drawdown protection)
+  2. Existing position management (stop-loss/take-profit)
+  3. Find new trading opportunities (${params.tradingStyle})
+- **PnL Percentage Explanation**:
+  * All "PnL percentage" or "pnl_percent" mentioned in this system are **values that consider leverage**
+  * Formula: pnl_percent = (price change percentage) × leverage multiplier
+  * The pnl_percent field in current position info already automatically includes leverage effect, use directly
+
+Market data is sorted chronologically (oldest → newest), across multiple timeframes. Use this data to identify multi-timeframe trends and key levels.`;
 }
 
 /**
- * 创建交易 Agent
+ * Create Trading Agent
  */
 export function createTradingAgent(intervalMinutes: number = 5) {
-  // 使用 OpenAI SDK，通过配置 baseURL 兼容 OpenRouter 或其他供应商
+  // Use OpenAI SDK, compatible with OpenRouter or other providers via baseURL configuration
   const openai = createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || "",
     baseURL: process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1",
@@ -725,10 +727,10 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       logger: logger.child({ component: "libsql" }),
     }),
   });
-  
-  // 获取当前策略
+
+  // Get current strategy
   const strategy = getTradingStrategy();
-  logger.info(`使用交易策略: ${strategy}`);
+  logger.info(`Using trading strategy: ${strategy}`);
 
   const agent = new Agent({
     name: "trading-agent",

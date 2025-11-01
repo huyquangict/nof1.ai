@@ -1,29 +1,29 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * 交易循环 - 定时执行交易决策
+ * Trading Loop - Execute trading decisions periodically
  */
 import cron from "node-cron";
 import { createPinoLogger } from "@voltagent/logger";
 import { createClient } from "@libsql/client";
 import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig } from "../agents/tradingAgent";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchange";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
@@ -37,18 +37,18 @@ const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
 });
 
-// 支持的币种 - 从配置中读取
+// Supported trading symbols - read from config
 const SYMBOLS = [...RISK_PARAMS.TRADING_SYMBOLS] as string[];
 
-// 交易开始时间
+// Trading start time
 let tradingStartTime = new Date();
 let iterationCount = 0;
 
-// 账户风险配置
+// Account risk configuration
 let accountRiskConfig = getAccountRiskConfig();
 
 /**
- * 确保数值是有效的有限数字，否则返回默认值
+ * Ensure the value is a valid finite number, otherwise return the default value
  */
 function ensureFinite(value: number, defaultValue: number = 0): number {
   if (!Number.isFinite(value)) {
@@ -58,7 +58,7 @@ function ensureFinite(value: number, defaultValue: number = 0): number {
 }
 
 /**
- * 确保数值在指定范围内
+ * Ensure the value is within the specified range
  */
 function ensureRange(value: number, min: number, max: number, defaultValue?: number): number {
   if (!Number.isFinite(value)) {
@@ -70,73 +70,73 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
 }
 
 /**
- * 收集所有市场数据（包含多时间框架分析和时序数据）
- * 🔥 优化：增加数据验证和错误处理，返回时序数据用于提示词
+ * Collect all market data (including multi-timeframe analysis and time series data)
+ * Optimization: Add data validation and error handling, return time series data for prompts
  */
 async function collectMarketData() {
-  const gateClient = createGateClient();
+  const exchangeClient = createExchangeClient();
   const marketData: Record<string, any> = {};
 
   for (const symbol of SYMBOLS) {
     try {
-      const contract = `${symbol}_USDT`;
-      
-      // 🔥 获取价格（带重试）
+      const contract = exchangeClient.normalizeSymbol(symbol);
+
+      // Fetch price (with retry)
       let ticker: any = null;
       let retryCount = 0;
       const maxRetries = 2;
-      
+
       while (retryCount <= maxRetries) {
         try {
-          ticker = await gateClient.getFuturesTicker(contract);
-          
-          // 🔥 验证价格数据有效性
-          const price = Number.parseFloat(ticker.last || "0");
+          ticker = await exchangeClient.getFuturesTicker(symbol);
+
+          // Validate price data validity
+          const price = ticker.lastPrice;
           if (price === 0 || !Number.isFinite(price)) {
-            throw new Error(`价格无效: ${ticker.last}`);
+            throw new Error(`Invalid price: ${price}`);
           }
-          
-          break; // 成功，跳出重试循环
+
+          break; // Success, break retry loop
         } catch (error) {
           retryCount++;
           if (retryCount > maxRetries) {
-            logger.error(`${symbol} 价格获取失败（${maxRetries}次重试）:`, error as any);
+            logger.error(`${symbol} price fetch failed (${maxRetries} retries):`, error as any);
             throw error;
           }
-          logger.warn(`${symbol} 价格获取失败，重试 ${retryCount}/${maxRetries}...`);
+          logger.warn(`${symbol} price fetch failed, retrying ${retryCount}/${maxRetries}...`);
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
-      
-      // 获取所有时间框架的K线数据
-      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 60);
-      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 60);
-      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);
-      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);
-      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 90);
-      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 120);
-      
-      // 计算每个时间框架的指标
+
+      // Fetch candlestick data for all timeframes
+      const candles1m = await exchangeClient.getFuturesCandles(symbol, "1m", 60);
+      const candles3m = await exchangeClient.getFuturesCandles(symbol, "3m", 60);
+      const candles5m = await exchangeClient.getFuturesCandles(symbol, "5m", 100);
+      const candles15m = await exchangeClient.getFuturesCandles(symbol, "15m", 96);
+      const candles30m = await exchangeClient.getFuturesCandles(symbol, "30m", 90);
+      const candles1h = await exchangeClient.getFuturesCandles(symbol, "1h", 120);
+
+      // Calculate indicators for each timeframe
       const indicators1m = calculateIndicators(candles1m);
       const indicators3m = calculateIndicators(candles3m);
       const indicators5m = calculateIndicators(candles5m);
       const indicators15m = calculateIndicators(candles15m);
       const indicators30m = calculateIndicators(candles30m);
       const indicators1h = calculateIndicators(candles1h);
-      
-      // 计算3分钟时序指标（使用全部60个数据计算，但只显示最近10个数据点）
+
+      // Calculate 3-minute time series indicators (use all 60 data points for calculation, but only display the last 10 data points)
       const intradaySeries = calculateIntradaySeries(candles3m);
-      
-      // 计算1小时指标作为更长期上下文
+
+      // Calculate 1-hour indicators as longer-term context
       const longerTermContext = calculateLongerTermContext(candles1h);
-      
-      // 使用5分钟K线数据作为主要指标（兼容性）
+
+      // Use 5-minute candlestick data as main indicators (for compatibility)
       const indicators = indicators5m;
-      
-      // 🔥 验证技术指标有效性和数据完整性
+
+      // Validate technical indicators validity and data completeness
       const dataTimestamp = new Date().toISOString();
       const dataQuality = {
-        price: Number.isFinite(Number.parseFloat(ticker.last || "0")),
+        price: Number.isFinite(ticker.lastPrice),
         ema20: Number.isFinite(indicators.ema20),
         macd: Number.isFinite(indicators.macd),
         rsi14: Number.isFinite(indicators.rsi14) && indicators.rsi14 >= 0 && indicators.rsi14 <= 100,
@@ -150,51 +150,51 @@ async function collectMarketData() {
           "1h": candles1h.length,
         }
       };
-      
-      // 记录数据质量问题
+
+      // Log data quality issues
       const issues: string[] = [];
-      if (!dataQuality.price) issues.push("价格无效");
-      if (!dataQuality.ema20) issues.push("EMA20无效");
-      if (!dataQuality.macd) issues.push("MACD无效");
-      if (!dataQuality.rsi14) issues.push("RSI14无效或超出范围");
-      if (!dataQuality.volume) issues.push("成交量无效");
-      if (indicators.volume === 0) issues.push("当前成交量为0");
-      
+      if (!dataQuality.price) issues.push("Invalid price");
+      if (!dataQuality.ema20) issues.push("Invalid EMA20");
+      if (!dataQuality.macd) issues.push("Invalid MACD");
+      if (!dataQuality.rsi14) issues.push("Invalid or out-of-range RSI14");
+      if (!dataQuality.volume) issues.push("Invalid volume");
+      if (indicators.volume === 0) issues.push("Current volume is 0");
+
       if (issues.length > 0) {
-        logger.warn(`${symbol} 数据质量问题 [${dataTimestamp}]: ${issues.join(", ")}`);
-        logger.debug(`${symbol} K线数量:`, dataQuality.candleCount);
+        logger.warn(`${symbol} data quality issues [${dataTimestamp}]: ${issues.join(", ")}`);
+        logger.debug(`${symbol} candlestick count:`, dataQuality.candleCount);
       } else {
-        logger.debug(`${symbol} 数据质量检查通过 [${dataTimestamp}]`);
+        logger.debug(`${symbol} data quality check passed [${dataTimestamp}]`);
       }
-      
-      // 获取资金费率
+
+      // Fetch funding rate
       let fundingRate = 0;
       try {
-        const fr = await gateClient.getFundingRate(contract);
-        fundingRate = Number.parseFloat(fr.r || "0");
+        const fr = await exchangeClient.getFundingRate(symbol);
+        fundingRate = fr.rate;
         if (!Number.isFinite(fundingRate)) {
           fundingRate = 0;
         }
       } catch (error) {
-        logger.warn(`获取 ${symbol} 资金费率失败:`, error as any);
+        logger.warn(`Failed to fetch ${symbol} funding rate:`, error as any);
       }
-      
-      // 获取未平仓合约（Open Interest）- Gate.io ticker中没有openInterest字段，暂时跳过
+
+      // Fetch open interest - skip for now
       let openInterest = { latest: 0, average: 0 };
-      // Note: Gate.io ticker 数据中没有开放持仓量字段，如需可以使用其他API或外部数据源
-      
-      // 将各时间框架指标添加到市场数据
+      // Note: Not all exchanges provide open interest data
+
+      // Add multi-timeframe indicators to market data
       marketData[symbol] = {
-        price: Number.parseFloat(ticker.last || "0"),
-        change24h: Number.parseFloat(ticker.change_percentage || "0"),
-        volume24h: Number.parseFloat(ticker.volume_24h || "0"),
+        price: ticker.lastPrice,
+        change24h: ticker.change24h,
+        volume24h: ticker.volume24h,
         fundingRate,
         openInterest,
         ...indicators,
-        // 添加时序数据（参照 1.md 格式）
+        // Add time series data (refer to 1.md format)
         intradaySeries,
         longerTermContext,
-        // 直接添加各时间框架指标
+        // Add multi-timeframe indicators directly
         timeframes: {
           "1m": indicators1m,
           "3m": indicators3m,
@@ -204,10 +204,10 @@ async function collectMarketData() {
           "1h": indicators1h,
         },
       };
-      
-      // 保存技术指标到数据库（确保所有数值都是有效的）
+
+      // Save technical indicators to database (ensure all values are valid)
       await dbClient.execute({
-        sql: `INSERT INTO trading_signals 
+        sql: `INSERT INTO trading_signals
               (symbol, timestamp, price, ema_20, ema_50, macd, rsi_7, rsi_14, volume, funding_rate)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
@@ -217,14 +217,14 @@ async function collectMarketData() {
           ensureFinite(indicators.ema20),
           ensureFinite(indicators.ema50),
           ensureFinite(indicators.macd),
-          ensureFinite(indicators.rsi7, 50), // RSI 默认 50
+          ensureFinite(indicators.rsi7, 50), // RSI default 50
           ensureFinite(indicators.rsi14, 50),
           ensureFinite(indicators.volume),
           ensureFinite(fundingRate),
         ],
       });
     } catch (error) {
-      logger.error(`收集 ${symbol} 市场数据失败:`, error as any);
+      logger.error(`Failed to collect market data for ${symbol}:`, error as any);
     }
   }
 
@@ -232,9 +232,9 @@ async function collectMarketData() {
 }
 
 /**
- * 计算日内时序数据（3分钟级别）
- * 参照 1.md 格式
- * @param candles 全部历史数据（至少60个数据点）
+ * Calculate intraday time series data (3-minute level)
+ * Refer to 1.md format
+ * @param candles All historical data (at least 60 data points)
  */
 function calculateIntradaySeries(candles: any[]) {
   if (!candles || candles.length === 0) {
@@ -247,9 +247,9 @@ function calculateIntradaySeries(candles: any[]) {
     };
   }
 
-  // 提取收盘价
+  // Extract closing prices
   const closes = candles.map((c) => Number.parseFloat(c.c || "0")).filter(n => Number.isFinite(n));
-  
+
   if (closes.length === 0) {
     return {
       midPrices: [],
@@ -260,31 +260,31 @@ function calculateIntradaySeries(candles: any[]) {
     };
   }
 
-  // 计算每个时间点的指标
+  // Calculate indicators for each time point
   const midPrices = closes;
   const ema20Series: number[] = [];
   const macdSeries: number[] = [];
   const rsi7Series: number[] = [];
   const rsi14Series: number[] = [];
 
-  // 为每个数据点计算指标（使用截至该点的所有历史数据）
+  // Calculate indicators for each data point (using all historical data up to that point)
   for (let i = 0; i < closes.length; i++) {
     const historicalPrices = closes.slice(0, i + 1);
-    
-    // EMA20 - 需要至少20个数据点
+
+    // EMA20 - requires at least 20 data points
     ema20Series.push(historicalPrices.length >= 20 ? calcEMA(historicalPrices, 20) : historicalPrices[historicalPrices.length - 1]);
-    
-    // MACD - 需要至少26个数据点
+
+    // MACD - requires at least 26 data points
     macdSeries.push(historicalPrices.length >= 26 ? calcMACD(historicalPrices) : 0);
-    
-    // RSI7 - 需要至少8个数据点
+
+    // RSI7 - requires at least 8 data points
     rsi7Series.push(historicalPrices.length >= 8 ? calcRSI(historicalPrices, 7) : 50);
-    
-    // RSI14 - 需要至少15个数据点
+
+    // RSI14 - requires at least 15 data points
     rsi14Series.push(historicalPrices.length >= 15 ? calcRSI(historicalPrices, 14) : 50);
   }
 
-  // 只返回最近10个数据点
+  // Return only the last 10 data points
   const sliceIndex = Math.max(0, midPrices.length - 10);
   return {
     midPrices: midPrices.slice(sliceIndex),
@@ -296,8 +296,8 @@ function calculateIntradaySeries(candles: any[]) {
 }
 
 /**
- * 计算更长期的上下文数据（1小时级别 - 用于短线交易）
- * 参照 1.md 格式
+ * Calculate longer-term context data (1-hour level - for short-term trading)
+ * Refer to 1.md format
  */
 function calculateLongerTermContext(candles: any[]) {
   if (!candles || candles.length < 26) {
@@ -318,22 +318,22 @@ function calculateLongerTermContext(candles: any[]) {
   const lows = candles.map((c) => Number.parseFloat(c.l || "0")).filter(n => Number.isFinite(n));
   const volumes = candles.map((c) => Number.parseFloat(c.v || "0")).filter(n => Number.isFinite(n));
 
-  // 计算 EMA
+  // Calculate EMA
   const ema20 = calcEMA(closes, 20);
   const ema50 = calcEMA(closes, 50);
 
-  // 计算 ATR
+  // Calculate ATR
   const atr3 = calcATR(highs, lows, closes, 3);
   const atr14 = calcATR(highs, lows, closes, 14);
 
-  // 计算成交量
+  // Calculate volume
   const currentVolume = volumes.length > 0 ? volumes[volumes.length - 1] : 0;
   const avgVolume = volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0;
 
-  // 计算最近10个数据点的 MACD 和 RSI14
+  // Calculate MACD and RSI14 for the last 10 data points
   const macdSeries: number[] = [];
   const rsi14Series: number[] = [];
-  
+
   const recentPoints = Math.min(10, closes.length);
   for (let i = closes.length - recentPoints; i < closes.length; i++) {
     const historicalPrices = closes.slice(0, i + 1);
@@ -354,7 +354,7 @@ function calculateLongerTermContext(candles: any[]) {
 }
 
 /**
- * 计算 ATR (Average True Range)
+ * Calculate ATR (Average True Range)
  */
 function calcATR(highs: number[], lows: number[], closes: number[], period: number) {
   if (highs.length < period + 1 || lows.length < period + 1 || closes.length < period + 1) {
@@ -366,7 +366,7 @@ function calcATR(highs: number[], lows: number[], closes: number[], period: numb
     const high = highs[i];
     const low = lows[i];
     const prevClose = closes[i - 1];
-    
+
     const tr = Math.max(
       high - low,
       Math.abs(high - prevClose),
@@ -375,14 +375,14 @@ function calcATR(highs: number[], lows: number[], closes: number[], period: numb
     trueRanges.push(tr);
   }
 
-  // 计算平均
+  // Calculate average
   const recentTR = trueRanges.slice(-period);
   const atr = recentTR.reduce((sum, tr) => sum + tr, 0) / recentTR.length;
-  
+
   return Number.isFinite(atr) ? atr : 0;
 }
 
-// 计算 EMA
+// Calculate EMA
 function calcEMA(prices: number[], period: number) {
   if (prices.length === 0) return 0;
   const k = 2 / (period + 1);
@@ -393,10 +393,10 @@ function calcEMA(prices: number[], period: number) {
   return Number.isFinite(ema) ? ema : 0;
 }
 
-// 计算 RSI
+// Calculate RSI
 function calcRSI(prices: number[], period: number) {
-  if (prices.length < period + 1) return 50; // 数据不足，返回中性值
-  
+  if (prices.length < period + 1) return 50; // Insufficient data, return neutral value
+
   let gains = 0;
   let losses = 0;
 
@@ -408,19 +408,19 @@ function calcRSI(prices: number[], period: number) {
 
   const avgGain = gains / period;
   const avgLoss = losses / period;
-  
+
   if (avgLoss === 0) return avgGain > 0 ? 100 : 50;
-  
+
   const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
-  
-  // 确保RSI在0-100范围内
+
+  // Ensure RSI is within 0-100 range
   return ensureRange(rsi, 0, 100, 50);
 }
 
-// 计算 MACD
+// Calculate MACD
 function calcMACD(prices: number[]) {
-  if (prices.length < 26) return 0; // 数据不足
+  if (prices.length < 26) return 0; // Insufficient data
   const ema12 = calcEMA(prices, 12);
   const ema26 = calcEMA(prices, 26);
   const macd = ema12 - ema26;
@@ -428,17 +428,17 @@ function calcMACD(prices: number[]) {
 }
 
 /**
- * 计算技术指标
- * 
- * K线数据格式：FuturesCandlestick 对象
+ * Calculate technical indicators
+ *
+ * Candlestick data format: FuturesCandlestick object
  * {
- *   t: number,    // 时间戳
- *   v: number,    // 成交量
- *   c: string,    // 收盘价
- *   h: string,    // 最高价
- *   l: string,    // 最低价
- *   o: string,    // 开盘价
- *   sum: string   // 总成交额
+ *   t: number,    // timestamp
+ *   v: number,    // volume
+ *   c: string,    // closing price
+ *   h: string,    // highest price
+ *   l: string,    // lowest price
+ *   o: string,    // opening price
+ *   sum: string   // total trading value
  * }
  */
 function calculateIndicators(candles: any[]) {
@@ -455,14 +455,14 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理对象格式的K线数据（Gate.io API返回的是对象，不是数组）
+  // Handle object format candlestick data (Gate.io API returns objects, not arrays)
   const closes = candles
     .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
+      // If object format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // 如果是数组格式（兼容旧代码）
+      // If array format (for backward compatibility)
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -472,20 +472,20 @@ function calculateIndicators(candles: any[]) {
 
   const volumes = candles
     .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
+      // If object format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
-        // 验证成交量：必须是有限数字且非负
+        // Validate volume: must be finite number and non-negative
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 如果是数组格式（兼容旧代码）
+      // If array format (for backward compatibility)
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
       return 0;
     })
-    .filter(n => n >= 0); // 过滤掉负数成交量
+    .filter(n => n >= 0); // Filter out negative volumes
 
   if (closes.length === 0 || volumes.length === 0) {
     return {
@@ -513,110 +513,109 @@ function calculateIndicators(candles: any[]) {
 }
 
 /**
- * 计算 Sharpe Ratio
- * 使用最近30天的账户历史数据
+ * Calculate Sharpe Ratio
+ * Uses recent 30 days of account history data
  */
 async function calculateSharpeRatio(): Promise<number> {
   try {
-    // 尝试获取所有账户历史数据（不限制30天）
+    // Try to fetch all account history data (not limited to 30 days)
     const result = await dbClient.execute({
-      sql: `SELECT total_value, timestamp FROM account_history 
+      sql: `SELECT total_value, timestamp FROM account_history
             ORDER BY timestamp ASC`,
       args: [],
     });
-    
+
     if (!result.rows || result.rows.length < 2) {
-      return 0; // 数据不足，返回0
+      return 0; // Insufficient data, return 0
     }
-    
-    // 计算每次交易的收益率（而不是每日）
+
+    // Calculate return rate for each trade (not daily)
     const returns: number[] = [];
     for (let i = 1; i < result.rows.length; i++) {
       const prevValue = Number.parseFloat(result.rows[i - 1].total_value as string);
       const currentValue = Number.parseFloat(result.rows[i].total_value as string);
-      
+
       if (prevValue > 0) {
         const returnRate = (currentValue - prevValue) / prevValue;
         returns.push(returnRate);
       }
     }
-    
+
     if (returns.length < 2) {
       return 0;
     }
-    
-    // 计算平均收益率
+
+    // Calculate average return rate
     const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    
-    // 计算收益率的标准差
+
+    // Calculate standard deviation of returns
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
     const stdDev = Math.sqrt(variance);
-    
+
     if (stdDev === 0) {
-      return avgReturn > 0 ? 10 : 0; // 无波动但有收益，返回高值
+      return avgReturn > 0 ? 10 : 0; // No volatility but has gains, return high value
     }
-    
-    // Sharpe Ratio = (平均收益率 - 无风险利率) / 标准差
-    // 假设无风险利率为0
+
+    // Sharpe Ratio = (average return - risk-free rate) / standard deviation
+    // Assume risk-free rate is 0
     const sharpeRatio = avgReturn / stdDev;
-    
+
     return Number.isFinite(sharpeRatio) ? sharpeRatio : 0;
   } catch (error) {
-    logger.error("计算 Sharpe Ratio 失败:", error as any);
+    logger.error("Failed to calculate Sharpe Ratio:", error as any);
     return 0;
   }
 }
 
 /**
- * 获取账户信息
- * 
- * Gate.io 的 account.total 不包含未实现盈亏
- * 总资产（不含未实现盈亏）= account.total = available + positionMargin
- * 
- * 因此：
- * - totalBalance 不包含未实现盈亏
- * - returnPercent 反映已实现盈亏
- * - 前端显示时需加上 unrealisedPnl
+ * Get account information
+ *
+ * Gate.io's account.total does not include unrealized P&L
+ * Total assets (excluding unrealized P&L) = account.total = available + positionMargin
+ *
+ * Therefore:
+ * - totalBalance does not include unrealized P&L
+ * - returnPercent reflects realized P&L
+ * - unrealizedPnl needs to be added when displaying on the frontend
  */
 async function getAccountInfo() {
-  const gateClient = createGateClient();
-  
+  const exchangeClient = createExchangeClient();
+
   try {
-    const account = await gateClient.getFuturesAccount();
-    
-    // 从数据库获取初始资金
+    const account = await exchangeClient.getFuturesAccount();
+
+    // Get initial balance from database
     const initialResult = await dbClient.execute(
       "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
     );
     const initialBalance = initialResult.rows[0]
       ? Number.parseFloat(initialResult.rows[0].total_value as string)
       : 100;
-    
-    // 从 Gate.io API 返回的数据中提取字段
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // Gate.io 的 account.total 不包含未实现盈亏
-    // totalBalance 直接使用 account.total（不包含未实现盈亏）
+
+    // Extract fields from exchange API response
+    const accountTotal = account.totalBalance;
+    const availableBalance = account.availableBalance;
+    const unrealisedPnl = account.unrealisedPnl;
+
+    // Exchange's totalBalance does not include unrealized P&L
     const totalBalance = accountTotal;
-    
-    // 实时收益率 = (总资产 - 初始资金) / 初始资金 * 100
-    // 总资产不包含未实现盈亏，收益率反映已实现盈亏
+
+    // Real-time return rate = (total assets - initial balance) / initial balance * 100
+    // Total assets do not include unrealized P&L, return rate reflects realized P&L
     const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
-    
-    // 计算 Sharpe Ratio
+
+    // Calculate Sharpe Ratio
     const sharpeRatio = await calculateSharpeRatio();
-    
+
     return {
-      totalBalance,      // 总资产（不包含未实现盈亏）
-      availableBalance,  // 可用余额
-      unrealisedPnl,     // 未实现盈亏
-      returnPercent,     // 收益率（不包含未实现盈亏）
-      sharpeRatio,       // 夏普比率
+      totalBalance,      // Total assets (excluding unrealized P&L)
+      availableBalance,  // Available balance
+      unrealisedPnl,     // Unrealized P&L
+      returnPercent,     // Return rate (excluding unrealized P&L)
+      sharpeRatio,       // Sharpe ratio
     };
   } catch (error) {
-    logger.error("获取账户信息失败:", error as any);
+    logger.error("Failed to get account information:", error as any);
     return {
       totalBalance: 0,
       availableBalance: 0,
@@ -628,78 +627,72 @@ async function getAccountInfo() {
 }
 
 /**
- * 从 Gate.io 同步持仓到数据库
- * 🔥 优化：确保持仓数据的准确性和完整性
- * 数据库中的持仓记录主要用于：
- * 1. 保存止损止盈订单ID等元数据
- * 2. 提供历史查询和监控页面展示
- * 实时持仓数据应该直接从 Gate.io 获取
+ * Sync positions from exchange to database
+ * Optimization: Ensure position data accuracy and completeness
+ * Position records in the database are mainly used for:
+ * 1. Saving metadata such as stop-loss and take-profit order IDs
+ * 2. Providing historical queries and monitoring page display
+ * Real-time position data should be fetched directly from the exchange
  */
 async function syncPositionsFromGate(cachedPositions?: any[]) {
-  const gateClient = createGateClient();
-  
+  const exchangeClient = createExchangeClient();
+
   try {
-    // 如果提供了缓存数据，使用缓存；否则重新获取
-    const gatePositions = cachedPositions || await gateClient.getPositions();
+    // If cached data is provided, use it; otherwise fetch new data
+    const positions = cachedPositions || await exchangeClient.getPositions();
     const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
-    
-    // 检查 Gate.io 是否有持仓（可能 API 有延迟）
-    const activeGatePositions = gatePositions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
-    
-    // 如果 Gate.io 返回0个持仓但数据库有持仓，可能是 API 延迟，不清空数据库
-    if (activeGatePositions.length === 0 && dbResult.rows.length > 0) {
-      logger.warn(`⚠️  Gate.io 返回0个持仓，但数据库有 ${dbResult.rows.length} 个持仓，可能是 API 延迟，跳过同步`);
+
+    // If exchange returns 0 positions but database has positions, it might be API delay, don't clear database
+    if (positions.length === 0 && dbResult.rows.length > 0) {
+      logger.warn(`Warning: Exchange returned 0 positions, but database has ${dbResult.rows.length} positions, possibly API delay, skipping sync`);
       return;
     }
-    
+
     await dbClient.execute("DELETE FROM positions");
-    
+
     let syncedCount = 0;
-    
-    for (const pos of gatePositions) {
-      const size = Number.parseInt(pos.size || "0");
-      if (size === 0) continue;
-      
-      const symbol = pos.contract.replace("_USDT", "");
-      let entryPrice = Number.parseFloat(pos.entryPrice || "0");
-      let currentPrice = Number.parseFloat(pos.markPrice || "0");
-      const leverage = Number.parseInt(pos.leverage || "1");
-      const side = size > 0 ? "long" : "short";
-      const quantity = Math.abs(size);
-      const unrealizedPnl = Number.parseFloat(pos.unrealisedPnl || "0");
-      let liquidationPrice = Number.parseFloat(pos.liqPrice || "0");
-      
+
+    for (const pos of positions) {
+      const symbol = pos.symbol;
+      let entryPrice = pos.entryPrice;
+      let currentPrice = pos.currentPrice;
+      const leverage = pos.leverage;
+      const side = pos.side;
+      const quantity = pos.quantity;
+      const unrealizedPnl = pos.unrealizedPnl;
+      let liquidationPrice = pos.liquidationPrice;
+
       if (entryPrice === 0 || currentPrice === 0) {
         try {
-          const ticker = await gateClient.getFuturesTicker(pos.contract);
+          const ticker = await exchangeClient.getFuturesTicker(symbol);
           if (currentPrice === 0) {
-            currentPrice = Number.parseFloat(ticker.markPrice || ticker.last || "0");
+            currentPrice = ticker.markPrice;
           }
           if (entryPrice === 0) {
             entryPrice = currentPrice;
           }
         } catch (error) {
-          logger.error(`获取 ${symbol} 行情失败:`, error as any);
+          logger.error(`Failed to fetch ${symbol} ticker:`, error as any);
         }
       }
-      
+
       if (liquidationPrice === 0 && entryPrice > 0) {
-        liquidationPrice = side === "long" 
+        liquidationPrice = side === "long"
           ? entryPrice * (1 - 0.9 / leverage)
           : entryPrice * (1 + 0.9 / leverage);
       }
-      
+
       const dbPos = dbPositionsMap.get(symbol);
-      
-      // 保留原有的 entry_order_id，不要覆盖
+
+      // Preserve original entry_order_id, do not overwrite
       const entryOrderId = dbPos?.entry_order_id || `synced-${symbol}-${Date.now()}`;
-      
+
       await dbClient.execute({
-        sql: `INSERT INTO positions 
-              (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
+        sql: `INSERT INTO positions
+              (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
                leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, entry_order_id, opened_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
@@ -715,107 +708,94 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           dbPos?.profit_target || null,
           dbPos?.sl_order_id || null,
           dbPos?.tp_order_id || null,
-          entryOrderId, // 保留原有的订单ID
-          dbPos?.opened_at || new Date().toISOString(), // 保留原有的开仓时间
+          entryOrderId, // Preserve original order ID
+          dbPos?.opened_at || new Date().toISOString(), // Preserve original opening time
         ],
       });
-      
+
       syncedCount++;
     }
-    
-    const activeGatePositionsCount = gatePositions.filter((p: any) => Number.parseInt(p.size || "0") !== 0).length;
-    if (activeGatePositionsCount > 0 && syncedCount === 0) {
-      logger.error(`Gate.io 有 ${activeGatePositionsCount} 个持仓，但数据库同步失败！`);
+
+    const activePositionsCount = positions.length;
+    if (activePositionsCount > 0 && syncedCount === 0) {
+      logger.error(`Exchange has ${activePositionsCount} positions, but database sync failed!`);
     }
-    
+
   } catch (error) {
-    logger.error("同步持仓失败:", error as any);
+    logger.error("Failed to sync positions:", error as any);
   }
 }
 
 /**
- * 获取持仓信息 - 直接从 Gate.io 获取最新数据
- * @param cachedGatePositions 可选，已获取的原始Gate持仓数据，避免重复调用API
- * @returns 格式化后的持仓数据
+ * Get position information - fetch latest data directly from the exchange
+ * @param cachedPositions Optional, already fetched position data to avoid repeated API calls
+ * @returns Formatted position data
  */
-async function getPositions(cachedGatePositions?: any[]) {
-  const gateClient = createGateClient();
-  
+async function getPositions(cachedPositions?: any[]) {
+  const exchangeClient = createExchangeClient();
+
   try {
-    // 如果提供了缓存数据，使用缓存；否则重新获取
-    const gatePositions = cachedGatePositions || await gateClient.getPositions();
-    
-    // 从数据库获取持仓的开仓时间（数据库中保存了正确的开仓时间）
+    // If cached data is provided, use it; otherwise fetch new data
+    const exchangePositions = cachedPositions || await exchangeClient.getPositions();
+
+    // Get position opening time from database (database stores the correct opening time)
     const dbResult = await dbClient.execute("SELECT symbol, opened_at FROM positions");
     const dbOpenedAtMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row.opened_at])
     );
-    
-    // 过滤并格式化持仓
-    const positions = gatePositions
-      .filter((p: any) => Number.parseInt(p.size || "0") !== 0)
-      .map((p: any) => {
-        const size = Number.parseInt(p.size || "0");
-        const symbol = p.contract.replace("_USDT", "");
-        
-        // 🔥 优先从数据库读取开仓时间，确保时间准确
+
+    // Format positions
+    const positions = exchangePositions.map((p) => {
+        const symbol = p.symbol;
+
+        // Prioritize reading opening time from database to ensure accuracy
         let openedAt = dbOpenedAtMap.get(symbol);
-        
-        // 如果数据库中没有，尝试从Gate.io的create_time获取
-        if (!openedAt && p.create_time) {
-          // Gate.io的create_time是UNIX时间戳（秒），需要转换为ISO字符串
-          if (typeof p.create_time === 'number') {
-            openedAt = new Date(p.create_time * 1000).toISOString();
-          } else {
-            openedAt = p.create_time;
-          }
-        }
-        
-        // 如果还是没有，使用当前时间（这种情况不应该发生）
+
+        // If not in database, use current time
         if (!openedAt) {
           openedAt = getChinaTimeISO();
-          logger.warn(`${symbol} 持仓的开仓时间缺失，使用当前时间`);
+          logger.warn(`Opening time missing for ${symbol} position, using current time`);
         }
-        
+
         return {
           symbol,
-          contract: p.contract,
-          quantity: Math.abs(size),
-          side: size > 0 ? "long" : "short",
-          entry_price: Number.parseFloat(p.entryPrice || "0"),
-          current_price: Number.parseFloat(p.markPrice || "0"),
-          liquidation_price: Number.parseFloat(p.liqPrice || "0"),
-          unrealized_pnl: Number.parseFloat(p.unrealisedPnl || "0"),
-          leverage: Number.parseInt(p.leverage || "1"),
-          margin: Number.parseFloat(p.margin || "0"),
+          contract: p.exchangeSymbol,
+          quantity: p.quantity,
+          side: p.side,
+          entry_price: p.entryPrice,
+          current_price: p.currentPrice,
+          liquidation_price: p.liquidationPrice,
+          unrealized_pnl: p.unrealizedPnl,
+          leverage: p.leverage,
+          margin: p.margin,
           opened_at: openedAt,
         };
       });
-    
+
     return positions;
   } catch (error) {
-    logger.error("获取持仓失败:", error as any);
+    logger.error("Failed to get positions:", error as any);
     return [];
   }
 }
 
 /**
- * 获取历史成交记录（最近10条）
- * 从数据库获取历史交易记录（监控页的交易历史）
+ * Get trade history (last 10 records)
+ * Fetch historical trade records from database (for monitoring page trade history)
  */
 async function getTradeHistory(limit: number = 10) {
   try {
-    // 从数据库获取历史交易记录
+    // Fetch historical trade records from database
     const result = await dbClient.execute({
       sql: `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`,
       args: [limit],
     });
-    
+
     if (!result.rows || result.rows.length === 0) {
       return [];
     }
-    
-    // 转换数据库格式到提示词需要的格式
+
+    // Convert database format to format needed for prompts
     const trades = result.rows.map((row: any) => {
       return {
         symbol: row.symbol,
@@ -830,35 +810,35 @@ async function getTradeHistory(limit: number = 10) {
         status: row.status,
       };
     });
-    
-    // 按时间正序排列（最旧 → 最新）
+
+    // Sort by time in ascending order (oldest to newest)
     trades.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    
+
     return trades;
   } catch (error) {
-    logger.error("获取历史成交记录失败:", error as any);
+    logger.error("Failed to get trade history:", error as any);
     return [];
   }
 }
 
 /**
- * 获取最近N次的AI决策记录
+ * Get recent N AI decision records
  */
 async function getRecentDecisions(limit: number = 3) {
   try {
     const result = await dbClient.execute({
-      sql: `SELECT timestamp, iteration, decision, account_value, positions_count 
-            FROM agent_decisions 
-            ORDER BY timestamp DESC 
+      sql: `SELECT timestamp, iteration, decision, account_value, positions_count
+            FROM agent_decisions
+            ORDER BY timestamp DESC
             LIMIT ?`,
       args: [limit],
     });
-    
+
     if (!result.rows || result.rows.length === 0) {
       return [];
     }
-    
-    // 返回格式化的决策记录（从旧到新）
+
+    // Return formatted decision records (from oldest to newest)
     return result.rows.reverse().map((row: any) => ({
       timestamp: row.timestamp,
       iteration: row.iteration,
@@ -867,38 +847,38 @@ async function getRecentDecisions(limit: number = 3) {
       positions_count: Number.parseInt(row.positions_count || "0"),
     }));
   } catch (error) {
-    logger.error("获取最近决策记录失败:", error as any);
+    logger.error("Failed to get recent decision records:", error as any);
     return [];
   }
 }
 
 /**
- * 同步风险配置到数据库
+ * Sync risk configuration to database
  */
 async function syncConfigToDatabase() {
   try {
     const config = getAccountRiskConfig();
     const timestamp = getChinaTimeISO();
-    
-    // 更新或插入配置
+
+    // Update or insert configuration
     await dbClient.execute({
       sql: `INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)`,
       args: ['account_stop_loss_usdt', config.stopLossUsdt.toString(), timestamp],
     });
-    
+
     await dbClient.execute({
       sql: `INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)`,
       args: ['account_take_profit_usdt', config.takeProfitUsdt.toString(), timestamp],
     });
-    
-    logger.info(`配置已同步到数据库: 止损线=${config.stopLossUsdt} USDT, 止盈线=${config.takeProfitUsdt} USDT`);
+
+    logger.info(`Configuration synced to database: stop loss=${config.stopLossUsdt} USDT, take profit=${config.takeProfitUsdt} USDT`);
   } catch (error) {
-    logger.error("同步配置到数据库失败:", error as any);
+    logger.error("Failed to sync configuration to database:", error as any);
   }
 }
 
 /**
- * 从数据库加载风险配置
+ * Load risk configuration from database
  */
 async function loadConfigFromDatabase() {
   try {
@@ -906,33 +886,33 @@ async function loadConfigFromDatabase() {
       sql: `SELECT value FROM system_config WHERE key = ?`,
       args: ['account_stop_loss_usdt'],
     });
-    
+
     const takeProfitResult = await dbClient.execute({
       sql: `SELECT value FROM system_config WHERE key = ?`,
       args: ['account_take_profit_usdt'],
     });
-    
+
     if (stopLossResult.rows.length > 0 && takeProfitResult.rows.length > 0) {
       accountRiskConfig = {
         stopLossUsdt: Number.parseFloat(stopLossResult.rows[0].value as string),
         takeProfitUsdt: Number.parseFloat(takeProfitResult.rows[0].value as string),
         syncOnStartup: accountRiskConfig.syncOnStartup,
       };
-      
-      logger.info(`从数据库加载配置: 止损线=${accountRiskConfig.stopLossUsdt} USDT, 止盈线=${accountRiskConfig.takeProfitUsdt} USDT`);
+
+      logger.info(`Configuration loaded from database: stop loss=${accountRiskConfig.stopLossUsdt} USDT, take profit=${accountRiskConfig.takeProfitUsdt} USDT`);
     }
   } catch (error) {
-    logger.warn("从数据库加载配置失败，使用环境变量配置:", error as any);
+    logger.warn("Failed to load configuration from database, using environment variable configuration:", error as any);
   }
 }
 
 /**
- * 修复历史盈亏记录
- * 每个周期结束时自动调用，确保所有交易记录的盈亏计算正确
+ * Fix historical P&L records
+ * Automatically called at the end of each cycle to ensure all trade records have correct P&L calculations
  */
 async function fixHistoricalPnlRecords() {
   try {
-    // 查询所有平仓记录
+    // Query all closing trade records
     const result = await dbClient.execute({
       sql: `SELECT * FROM trades WHERE type = 'close' ORDER BY timestamp DESC LIMIT 50`,
       args: [],
@@ -954,7 +934,7 @@ async function fixHistoricalPnlRecords() {
       const recordedFee = Number.parseFloat(closeTrade.fee as string || "0");
       const timestamp = closeTrade.timestamp as string;
 
-      // 查找对应的开仓记录
+      // Find corresponding opening trade record
       const openResult = await dbClient.execute({
         sql: `SELECT * FROM trades WHERE symbol = ? AND type = 'open' AND timestamp < ? ORDER BY timestamp DESC LIMIT 1`,
         args: [symbol, timestamp],
@@ -967,124 +947,126 @@ async function fixHistoricalPnlRecords() {
       const openTrade = openResult.rows[0];
       const openPrice = Number.parseFloat(openTrade.price as string);
 
-      // 获取合约乘数
+      // Get contract multiplier
       const contract = `${symbol}_USDT`;
       const quantoMultiplier = await getQuantoMultiplier(contract);
 
-      // 重新计算正确的盈亏
-      const priceChange = side === "long" 
-        ? (closePrice - openPrice) 
+      // Recalculate correct P&L
+      const priceChange = side === "long"
+        ? (closePrice - openPrice)
         : (openPrice - closePrice);
-      
+
       const grossPnl = priceChange * quantity * quantoMultiplier;
       const openFee = openPrice * quantity * quantoMultiplier * 0.0005;
       const closeFee = closePrice * quantity * quantoMultiplier * 0.0005;
       const totalFee = openFee + closeFee;
       const correctPnl = grossPnl - totalFee;
 
-      // 计算差异
+      // Calculate difference
       const pnlDiff = Math.abs(recordedPnl - correctPnl);
       const feeDiff = Math.abs(recordedFee - totalFee);
 
-      // 如果差异超过0.5 USDT，就需要修复
+      // If difference exceeds 0.5 USDT, fix it
       if (pnlDiff > 0.5 || feeDiff > 0.1) {
-        logger.warn(`🔧 修复交易记录 ID=${id} (${symbol} ${side})`);
-        logger.warn(`  盈亏: ${recordedPnl.toFixed(2)} → ${correctPnl.toFixed(2)} USDT (差异: ${pnlDiff.toFixed(2)})`);
-        
-        // 更新数据库
+        logger.warn(`Fixing trade record ID=${id} (${symbol} ${side})`);
+        logger.warn(`  P&L: ${recordedPnl.toFixed(2)} → ${correctPnl.toFixed(2)} USDT (difference: ${pnlDiff.toFixed(2)})`);
+
+        // Update database
         await dbClient.execute({
           sql: `UPDATE trades SET pnl = ?, fee = ? WHERE id = ?`,
           args: [correctPnl, totalFee, id],
         });
-        
+
         fixedCount++;
       }
     }
 
     if (fixedCount > 0) {
-      logger.info(`✅ 修复了 ${fixedCount} 条历史盈亏记录`);
+      logger.info(`Fixed ${fixedCount} historical P&L records`);
     }
   } catch (error) {
-    logger.error("修复历史盈亏记录失败:", error as any);
+    logger.error("Failed to fix historical P&L records:", error as any);
   }
 }
 
 /**
- * 清仓所有持仓
+ * Close all positions
  */
 async function closeAllPositions(reason: string): Promise<void> {
-  const gateClient = createGateClient();
-  
+  const exchangeClient = createExchangeClient();
+
   try {
-    logger.warn(`清仓所有持仓，原因: ${reason}`);
-    
-    const positions = await gateClient.getPositions();
-    const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
-    
-    if (activePositions.length === 0) {
+    logger.warn(`Closing all positions, reason: ${reason}`);
+
+    const positions = await exchangeClient.getPositions();
+    // Positions are already filtered (only non-zero positions)
+
+    if (positions.length === 0) {
       return;
     }
-    
-    for (const pos of activePositions) {
-      const size = Number.parseInt(pos.size || "0");
-      const contract = pos.contract;
-      const symbol = contract.replace("_USDT", "");
-      
+
+    for (const pos of positions) {
+      const symbol = pos.symbol;
+      const quantity = pos.quantity;
+      const side = pos.side;
+
       try {
-        await gateClient.placeOrder({
-          contract,
-          size: -size,
-          price: 0, // 市价单必须传 price: 0
+        // Place opposite order to close the position
+        await exchangeClient.placeOrder({
+          symbol,
+          side: side === 'long' ? 'short' : 'long',
+          quantity,
+          isReduceOnly: true,
         });
-        
-        logger.info(`已平仓: ${symbol} ${Math.abs(size)}张`);
+
+        logger.info(`Position closed: ${symbol} ${quantity} units`);
       } catch (error) {
-        logger.error(`平仓失败: ${symbol}`, error as any);
+        logger.error(`Failed to close position: ${symbol}`, error as any);
       }
     }
-    
-    logger.warn(`清仓完成`);
+
+    logger.warn(`All positions closed`);
   } catch (error) {
-    logger.error("清仓失败:", error as any);
+    logger.error("Failed to close all positions:", error as any);
     throw error;
   }
 }
 
 /**
- * 检查账户余额是否触发止损或止盈
- * @returns true: 触发退出条件, false: 继续运行
+ * Check if account balance triggers stop loss or take profit
+ * @returns true: exit condition triggered, false: continue running
  */
 async function checkAccountThresholds(accountInfo: any): Promise<boolean> {
   const totalBalance = accountInfo.totalBalance;
-  
-  // 检查止损线
+
+  // Check stop loss threshold
   if (totalBalance <= accountRiskConfig.stopLossUsdt) {
-    logger.error(`触发止损线！余额: ${totalBalance.toFixed(2)} USDT <= ${accountRiskConfig.stopLossUsdt} USDT`);
-    await closeAllPositions(`账户余额触发止损线 (${totalBalance.toFixed(2)} USDT)`);
+    logger.error(`Stop loss triggered! Balance: ${totalBalance.toFixed(2)} USDT <= ${accountRiskConfig.stopLossUsdt} USDT`);
+    await closeAllPositions(`Account balance triggered stop loss (${totalBalance.toFixed(2)} USDT)`);
     return true;
   }
-  
-  // 检查止盈线
+
+  // Check take profit threshold
   if (totalBalance >= accountRiskConfig.takeProfitUsdt) {
-    logger.warn(`触发止盈线！余额: ${totalBalance.toFixed(2)} USDT >= ${accountRiskConfig.takeProfitUsdt} USDT`);
-    await closeAllPositions(`账户余额触发止盈线 (${totalBalance.toFixed(2)} USDT)`);
+    logger.warn(`Take profit triggered! Balance: ${totalBalance.toFixed(2)} USDT >= ${accountRiskConfig.takeProfitUsdt} USDT`);
+    await closeAllPositions(`Account balance triggered take profit (${totalBalance.toFixed(2)} USDT)`);
     return true;
   }
-  
+
   return false;
 }
 
 /**
- * 执行交易决策
- * 🔥 优化：增强错误处理和数据验证，确保数据实时准确
+ * Execute trading decision
+ * Optimization: Enhance error handling and data validation to ensure real-time accurate data
  */
 async function executeTradingDecision() {
   iterationCount++;
   const minutesElapsed = Math.floor((Date.now() - tradingStartTime.getTime()) / 60000);
   const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "5");
-  
+
   logger.info(`\n${"=".repeat(80)}`);
-  logger.info(`交易周期 #${iterationCount} (运行${minutesElapsed}分钟)`);
+  logger.info(`Trading cycle #${iterationCount} (running for ${minutesElapsed} minutes)`);
   logger.info(`${"=".repeat(80)}\n`);
 
   let marketData: any = {};
@@ -1092,7 +1074,7 @@ async function executeTradingDecision() {
   let positions: any[] = [];
 
   try {
-    // 1. 收集市场数据
+    // 1. Collect market data
     try {
       marketData = await collectMarketData();
       const validSymbols = SYMBOLS.filter(symbol => {
@@ -1102,145 +1084,145 @@ async function executeTradingDecision() {
         }
         return true;
       });
-      
+
       if (validSymbols.length === 0) {
-        logger.error("市场数据获取失败，跳过本次循环");
+        logger.error("Failed to fetch market data, skipping this cycle");
         return;
       }
     } catch (error) {
-      logger.error("收集市场数据失败:", error as any);
+      logger.error("Failed to collect market data:", error as any);
       return;
     }
-    
-    // 2. 获取账户信息
+
+    // 2. Get account information
     try {
       accountInfo = await getAccountInfo();
-      
+
       if (!accountInfo || accountInfo.totalBalance === 0) {
-        logger.error("账户数据异常，跳过本次循环");
+        logger.error("Account data anomaly, skipping this cycle");
         return;
       }
-      
-      // 检查账户余额是否触发止损或止盈
+
+      // Check if account balance triggers stop loss or take profit
       const shouldExit = await checkAccountThresholds(accountInfo);
       if (shouldExit) {
-        logger.error("账户余额触发退出条件，系统即将停止！");
+        logger.error("Account balance triggered exit condition, system will stop!");
         setTimeout(() => {
           process.exit(0);
         }, 5000);
         return;
       }
-      
+
     } catch (error) {
-      logger.error("获取账户信息失败:", error as any);
+      logger.error("Failed to get account information:", error as any);
       return;
     }
-    
-    // 3. 同步持仓信息（优化：只调用一次API，避免重复）
+
+    // 3. Sync position information (Optimization: call API only once to avoid duplication)
     try {
-      const gateClient = createGateClient();
-      const rawGatePositions = await gateClient.getPositions();
-      
-      // 使用同一份数据进行处理和同步，避免重复调用API
-      positions = await getPositions(rawGatePositions);
-      await syncPositionsFromGate(rawGatePositions);
-      
+      const exchangeClient = createExchangeClient();
+      const rawPositions = await exchangeClient.getPositions();
+
+      // Use the same data for processing and syncing to avoid repeated API calls
+      positions = await getPositions(rawPositions);
+      await syncPositionsFromGate(rawPositions);
+
       const dbPositions = await dbClient.execute("SELECT COUNT(*) as count FROM positions");
       const dbCount = (dbPositions.rows[0] as any).count;
-      
+
       if (positions.length !== dbCount) {
-        logger.warn(`持仓同步不一致: Gate=${positions.length}, DB=${dbCount}`);
-        // 再次同步，使用同一份数据
-        await syncPositionsFromGate(rawGatePositions);
+        logger.warn(`Position sync inconsistency: Exchange=${positions.length}, DB=${dbCount}`);
+        // Sync again using the same data
+        await syncPositionsFromGate(rawPositions);
       }
     } catch (error) {
-      logger.error("持仓同步失败:", error as any);
+      logger.error("Failed to sync positions:", error as any);
     }
-    
-    // 4. ====== 强制风控检查（在AI执行前） ======
-    const gateClient = createGateClient();
-    
+
+    // 4. Forced risk control check (before AI execution)
+    const exchangeClient = createExchangeClient();
+
     for (const pos of positions) {
       const symbol = pos.symbol;
       const side = pos.side;
       const leverage = pos.leverage;
       const entryPrice = pos.entry_price;
       const currentPrice = pos.current_price;
-      
-      // 计算盈亏百分比（考虑杠杆）
-      const priceChangePercent = entryPrice > 0 
+
+      // Calculate P&L percentage (considering leverage)
+      const priceChangePercent = entryPrice > 0
         ? ((currentPrice - entryPrice) / entryPrice * 100 * (side === 'long' ? 1 : -1))
         : 0;
       const pnlPercent = priceChangePercent * leverage;
-      
-      // 获取并更新峰值盈利
+
+      // Get and update peak profit
       let peakPnlPercent = 0;
       try {
         const dbPosResult = await dbClient.execute({
           sql: "SELECT peak_pnl_percent FROM positions WHERE symbol = ?",
           args: [symbol],
         });
-        
+
         if (dbPosResult.rows.length > 0) {
           peakPnlPercent = Number.parseFloat(dbPosResult.rows[0].peak_pnl_percent as string || "0");
-          
-          // 如果当前盈亏超过历史峰值，更新峰值
+
+          // If current P&L exceeds historical peak, update peak
           if (pnlPercent > peakPnlPercent) {
             peakPnlPercent = pnlPercent;
             await dbClient.execute({
               sql: "UPDATE positions SET peak_pnl_percent = ? WHERE symbol = ?",
               args: [peakPnlPercent, symbol],
             });
-            logger.info(`${symbol} 峰值盈利更新: ${peakPnlPercent.toFixed(2)}%`);
+            logger.info(`${symbol} peak profit updated: ${peakPnlPercent.toFixed(2)}%`);
           }
         }
       } catch (error: any) {
-        logger.warn(`获取峰值盈利失败 ${symbol}: ${error.message}`);
+        logger.warn(`Failed to get peak profit for ${symbol}: ${error.message}`);
       }
-      
+
       let shouldClose = false;
       let closeReason = "";
-      
-      // a) 36小时强制平仓检查
+
+      // a) 36-hour forced liquidation check
       const openedTime = new Date(pos.opened_at);
       const now = new Date();
       const holdingHours = (now.getTime() - openedTime.getTime()) / (1000 * 60 * 60);
-      
+
       if (holdingHours >= 36) {
         shouldClose = true;
-        closeReason = `持仓时间已达 ${holdingHours.toFixed(1)} 小时，超过36小时限制`;
+        closeReason = `Holding time reached ${holdingHours.toFixed(1)} hours, exceeds 36-hour limit`;
       }
-      
-      // b) 动态止损检查（根据策略和杠杆）
-      // 从策略配置中获取止损参数
+
+      // b) Dynamic stop loss check (based on strategy and leverage)
+      // Get stop loss parameters from strategy configuration
       const { getStrategyParams, getTradingStrategy } = await import("../agents/tradingAgent.js");
       const strategy = getTradingStrategy();
       const params = getStrategyParams(strategy);
-      
-      // 根据杠杆倍数确定止损线
+
+      // Determine stop loss line based on leverage multiple
       const leverageMid = Math.floor((params.leverageMin + params.leverageMax) / 2);
       const leverageHigh = Math.floor(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.75);
-      
-      let stopLossPercent = params.stopLoss.low; // 默认使用 low
+
+      let stopLossPercent = params.stopLoss.low; // Default use low
       if (leverage >= leverageHigh) {
-        stopLossPercent = params.stopLoss.high; // 高杠杆，严格止损
+        stopLossPercent = params.stopLoss.high; // High leverage, strict stop loss
       } else if (leverage >= leverageMid) {
-        stopLossPercent = params.stopLoss.mid;   // 中等杠杆
+        stopLossPercent = params.stopLoss.mid;   // Medium leverage
       } else {
-        stopLossPercent = params.stopLoss.low;   // 低杠杆，宽松止损
+        stopLossPercent = params.stopLoss.low;   // Low leverage, loose stop loss
       }
-      
-      logger.info(`${symbol} 止损检查: 策略=${strategy}, 杠杆=${leverage}x, 止损线=${stopLossPercent}%, 当前盈亏=${pnlPercent.toFixed(2)}%`);
-      
+
+      logger.info(`${symbol} stop loss check: strategy=${strategy}, leverage=${leverage}x, stop loss=${stopLossPercent}%, current P&L=${pnlPercent.toFixed(2)}%`);
+
       if (pnlPercent <= stopLossPercent) {
         shouldClose = true;
-        closeReason = `触发动态止损 (${pnlPercent.toFixed(2)}% ≤ ${stopLossPercent}%, 策略=${strategy}, 杠杆=${leverage}x)`;
+        closeReason = `Triggered dynamic stop loss (${pnlPercent.toFixed(2)}% <= ${stopLossPercent}%, strategy=${strategy}, leverage=${leverage}x)`;
       }
-      
-      // c) 移动止盈检查
+
+      // c) Trailing take profit check
       if (!shouldClose) {
-        let trailingStopPercent = stopLossPercent; // 默认使用初始止损
-        
+        let trailingStopPercent = stopLossPercent; // Default use initial stop loss
+
         if (pnlPercent >= 25) {
           trailingStopPercent = 15;
         } else if (pnlPercent >= 15) {
@@ -1248,118 +1230,117 @@ async function executeTradingDecision() {
         } else if (pnlPercent >= 8) {
           trailingStopPercent = 3;
         }
-        
-        // 如果当前盈亏低于移动止损线
+
+        // If current P&L is below trailing stop line
         if (pnlPercent < trailingStopPercent && trailingStopPercent > stopLossPercent) {
           shouldClose = true;
-          closeReason = `触发移动止盈 (当前 ${pnlPercent.toFixed(2)}% < 移动止损线 ${trailingStopPercent}%)`;
+          closeReason = `Triggered trailing take profit (current ${pnlPercent.toFixed(2)}% < trailing stop line ${trailingStopPercent}%)`;
         }
       }
-      
-      // d) 峰值回撤保护（如果持仓曾盈利）
+
+      // d) Peak drawdown protection (if position was ever profitable)
       if (!shouldClose && peakPnlPercent > 5) {
-        // 只对曾经盈利超过5%的持仓启用峰值回撤保护
-        const drawdownFromPeak = peakPnlPercent > 0 
-          ? ((peakPnlPercent - pnlPercent) / peakPnlPercent) * 100 
+        // Only enable peak drawdown protection for positions that were once profitable > 5%
+        const drawdownFromPeak = peakPnlPercent > 0
+          ? ((peakPnlPercent - pnlPercent) / peakPnlPercent) * 100
           : 0;
-        
+
         if (drawdownFromPeak >= 30) {
           shouldClose = true;
-          closeReason = `触发峰值回撤保护 (峰值 ${peakPnlPercent.toFixed(2)}% → 当前 ${pnlPercent.toFixed(2)}%，回撤 ${drawdownFromPeak.toFixed(1)}% ≥ 30%)`;
+          closeReason = `Triggered peak drawdown protection (peak ${peakPnlPercent.toFixed(2)}% → current ${pnlPercent.toFixed(2)}%, drawdown ${drawdownFromPeak.toFixed(1)}% >= 30%)`;
         }
       }
-      
-      // 执行强制平仓
+
+      // Execute forced liquidation
       if (shouldClose) {
-        logger.warn(`【强制平仓】${symbol} ${side} - ${closeReason}`);
+        logger.warn(`[Forced Liquidation] ${symbol} ${side} - ${closeReason}`);
         try {
-          const contract = `${symbol}_USDT`;
-          const size = side === 'long' ? -pos.quantity : pos.quantity;
-          
-          // 1. 执行平仓订单
-          const order = await gateClient.placeOrder({
-            contract,
-            size,
-            price: 0,
-            reduceOnly: true,
+          // 1. Place liquidation order
+          const order = await exchangeClient.placeOrder({
+            symbol,
+            side: side === 'long' ? 'short' : 'long',
+            quantity: pos.quantity,
+            isReduceOnly: true,
           });
-          
-          logger.info(`✅ 已下达强制平仓订单 ${symbol}，订单ID: ${order.id}`);
-          
-          // 2. 等待订单完成并获取成交信息（最多重试5次）
+
+          logger.info(`Forced liquidation order placed for ${symbol}, Order ID: ${order.id}`);
+
+          // 2. Wait for order completion and get fill details (max 5 retries)
           let actualExitPrice = 0;
           let actualQuantity = Math.abs(pos.quantity);
           let pnl = 0;
           let totalFee = 0;
           let orderFilled = false;
-          
+
           for (let retry = 0; retry < 5; retry++) {
             await new Promise(resolve => setTimeout(resolve, 500));
-            
+
             try {
-              const orderStatus = await gateClient.getOrder(order.id?.toString() || "");
-              
+              const orderStatus = await exchangeClient.getOrder(order.id?.toString() || "");
+
               if (orderStatus.status === 'finished') {
-                actualExitPrice = Number.parseFloat(orderStatus.fill_price || orderStatus.price || "0");
-                actualQuantity = Math.abs(Number.parseFloat(orderStatus.size || "0"));
+                actualExitPrice = orderStatus.price;
+                actualQuantity = orderStatus.filled;
                 orderFilled = true;
-                
-                // 获取合约乘数
+
+                // Get contract multiplier
+                const contract = exchangeClient.normalizeSymbol(symbol);
                 const quantoMultiplier = await getQuantoMultiplier(contract);
-                
-                // 计算盈亏
+
+                // Calculate P&L
                 const entryPrice = pos.entry_price;
-                const priceChange = side === "long" 
-                  ? (actualExitPrice - entryPrice) 
+                const priceChange = side === "long"
+                  ? (actualExitPrice - entryPrice)
                   : (entryPrice - actualExitPrice);
-                
+
                 const grossPnl = priceChange * actualQuantity * quantoMultiplier;
-                
-                // 计算手续费（开仓 + 平仓）
+
+                // Calculate fees (entry + exit)
                 const openFee = entryPrice * actualQuantity * quantoMultiplier * 0.0005;
                 const closeFee = actualExitPrice * actualQuantity * quantoMultiplier * 0.0005;
                 totalFee = openFee + closeFee;
-                
-                // 净盈亏
+
+                // Net P&L
                 pnl = grossPnl - totalFee;
-                
-                logger.info(`平仓成交: 价格=${actualExitPrice}, 数量=${actualQuantity}, 盈亏=${pnl.toFixed(2)} USDT`);
+
+                logger.info(`Position closed: price=${actualExitPrice}, quantity=${actualQuantity}, P&L=${pnl.toFixed(2)} USDT`);
                 break;
               }
             } catch (statusError: any) {
-              logger.warn(`查询订单状态失败 (重试${retry + 1}/5): ${statusError.message}`);
+              logger.warn(`Failed to query order status (retry ${retry + 1}/5): ${statusError.message}`);
             }
           }
-          
-          // 3. 记录到trades表（无论是否成功获取详细信息都要记录）
+
+          // 3. Record to trades table (record regardless of whether detailed info was obtained)
           try {
-            // 🔥 关键验证：检查盈亏计算是否正确
+            // Critical validation: check if P&L calculation is correct
             const finalPrice = actualExitPrice || pos.current_price;
+            const contract = exchangeClient.normalizeSymbol(symbol);
             const quantoMultiplier = await getQuantoMultiplier(contract);
             const notionalValue = finalPrice * actualQuantity * quantoMultiplier;
-            const priceChangeCheck = side === "long" 
-              ? (finalPrice - pos.entry_price) 
+            const priceChangeCheck = side === "long"
+              ? (finalPrice - pos.entry_price)
               : (pos.entry_price - finalPrice);
             const expectedPnl = priceChangeCheck * actualQuantity * quantoMultiplier - totalFee;
-            
-            // 检测盈亏是否被错误地设置为名义价值
+
+            // Detect if P&L was incorrectly set to notional value
             if (Math.abs(pnl - notionalValue) < Math.abs(pnl - expectedPnl)) {
-              logger.error(`🚨 【强制平仓】检测到盈亏计算异常！`);
-              logger.error(`  当前pnl: ${pnl.toFixed(2)} USDT 接近名义价值 ${notionalValue.toFixed(2)} USDT`);
-              logger.error(`  预期pnl: ${expectedPnl.toFixed(2)} USDT`);
-              logger.error(`  开仓价: ${pos.entry_price}, 平仓价: ${finalPrice}, 数量: ${actualQuantity}, 合约乘数: ${quantoMultiplier}`);
-              
-              // 强制修正为正确值
+              logger.error(`Alert: [Forced Liquidation] P&L calculation anomaly detected!`);
+              logger.error(`  Current pnl: ${pnl.toFixed(2)} USDT close to notional value ${notionalValue.toFixed(2)} USDT`);
+              logger.error(`  Expected pnl: ${expectedPnl.toFixed(2)} USDT`);
+              logger.error(`  Entry price: ${pos.entry_price}, Exit price: ${finalPrice}, Quantity: ${actualQuantity}, Contract multiplier: ${quantoMultiplier}`);
+
+              // Force correct to correct value
               pnl = expectedPnl;
-              logger.warn(`  已自动修正pnl为: ${pnl.toFixed(2)} USDT`);
+              logger.warn(`  Automatically corrected pnl to: ${pnl.toFixed(2)} USDT`);
             }
-            
-            // 详细日志
-            logger.info(`【强制平仓盈亏详情】${symbol} ${side}`);
-            logger.info(`  原因: ${closeReason}`);
-            logger.info(`  开仓价: ${pos.entry_price.toFixed(4)}, 平仓价: ${finalPrice.toFixed(4)}, 数量: ${actualQuantity}张`);
-            logger.info(`  净盈亏: ${pnl.toFixed(2)} USDT, 手续费: ${totalFee.toFixed(4)} USDT`);
-            
+
+            // Detailed log
+            logger.info(`[Forced Liquidation P&L Details] ${symbol} ${side}`);
+            logger.info(`  Reason: ${closeReason}`);
+            logger.info(`  Entry price: ${pos.entry_price.toFixed(4)}, Exit price: ${finalPrice.toFixed(4)}, Quantity: ${actualQuantity} units`);
+            logger.info(`  Net P&L: ${pnl.toFixed(2)} USDT, Fee: ${totalFee.toFixed(4)} USDT`);
+
             await dbClient.execute({
               sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1368,20 +1349,20 @@ async function executeTradingDecision() {
                 symbol,
                 side,
                 "close",
-                finalPrice, // 使用验证后的价格
+                finalPrice, // Use verified price
                 actualQuantity,
                 pos.leverage || 1,
-                pnl, // 已验证和修正的盈亏
+                pnl, // Verified and corrected P&L
                 totalFee,
                 getChinaTimeISO(),
                 orderFilled ? "filled" : "pending",
               ],
             });
-            logger.info(`✅ 已记录强制平仓交易到数据库: ${symbol}, 盈亏=${pnl.toFixed(2)} USDT, 原因=${closeReason}`);
+            logger.info(`Forced liquidation recorded to database: ${symbol}, P&L=${pnl.toFixed(2)} USDT, reason=${closeReason}`);
           } catch (dbError: any) {
-            logger.error(`❌ 记录强制平仓交易失败: ${dbError.message}`);
-            // 即使数据库写入失败，也记录到日志以便后续补救
-            logger.error(`缺失的交易记录: ${JSON.stringify({
+            logger.error(`Failed to record forced liquidation transaction: ${dbError.message}`);
+            // Record to log even if database write fails for later recovery
+            logger.error(`Missing trade record: ${JSON.stringify({
               order_id: order.id,
               symbol,
               side,
@@ -1392,73 +1373,73 @@ async function executeTradingDecision() {
               reason: closeReason,
             })}`);
           }
-          
-          // 4. 从数据库删除持仓记录
+
+          // 4. Delete position record from database
           await dbClient.execute({
             sql: "DELETE FROM positions WHERE symbol = ?",
             args: [symbol],
           });
-          
-          logger.info(`✅ 强制平仓完成 ${symbol}，原因：${closeReason}`);
-          
+
+          logger.info(`Forced liquidation completed for ${symbol}, reason: ${closeReason}`);
+
         } catch (closeError: any) {
-          logger.error(`强制平仓失败 ${symbol}: ${closeError.message}`);
-          // 即使失败也记录到日志
-          logger.error(`强制平仓失败详情: symbol=${symbol}, side=${side}, quantity=${pos.quantity}, reason=${closeReason}`);
+          logger.error(`Failed to close position ${symbol}: ${closeError.message}`);
+          // Record to log even if failed
+          logger.error(`Failed forced liquidation details: symbol=${symbol}, side=${side}, quantity=${pos.quantity}, reason=${closeReason}`);
         }
       }
     }
-    
-    // 重新获取持仓（可能已经被强制平仓）
+
+    // Refresh positions (may have been force liquidated)
     positions = await getPositions();
-    
-    // 4. 不再保存账户历史（已移除资金曲线模块）
+
+    // 4. No longer save account history (equity curve module removed)
     // try {
     //   await saveAccountHistory(accountInfo);
     // } catch (error) {
-    //   logger.error("保存账户历史失败:", error as any);
-    //   // 不影响主流程
+    //   logger.error("Failed to save account history:", error as any);
+    //   // Does not affect main flow
     // }
-    
-    // 5. 🔥 数据完整性最终检查
-    const dataValid = 
+
+    // 5. Data integrity final check
+    const dataValid =
       marketData && Object.keys(marketData).length > 0 &&
       accountInfo && accountInfo.totalBalance > 0 &&
       Array.isArray(positions);
-    
+
     if (!dataValid) {
-      logger.error("数据完整性检查失败，跳过本次循环");
-      logger.error(`市场数据: ${Object.keys(marketData).length}, 账户: ${accountInfo?.totalBalance}, 持仓: ${positions.length}`);
+      logger.error("Data integrity check failed, skipping this cycle");
+      logger.error(`Market data: ${Object.keys(marketData).length}, Account: ${accountInfo?.totalBalance}, Positions: ${positions.length}`);
       return;
     }
-    
-    // 6. 修复历史盈亏记录
+
+    // 6. Fix historical P&L records
     try {
       await fixHistoricalPnlRecords();
     } catch (error) {
-      logger.warn("修复历史盈亏记录失败:", error as any);
-      // 不影响主流程，继续执行
+      logger.warn("Failed to fix historical P&L records:", error as any);
+      // Does not affect main flow, continue execution
     }
-    
-    // 7. 获取历史成交记录（最近10条）
+
+    // 7. Get trade history (last 10 records)
     let tradeHistory: any[] = [];
     try {
       tradeHistory = await getTradeHistory(10);
     } catch (error) {
-      logger.warn("获取历史成交记录失败:", error as any);
-      // 不影响主流程，继续执行
+      logger.warn("Failed to get trade history:", error as any);
+      // Does not affect main flow, continue execution
     }
-    
-    // 8. 获取上一次的AI决策
+
+    // 8. Get previous AI decision
     let recentDecisions: any[] = [];
     try {
       recentDecisions = await getRecentDecisions(1);
     } catch (error) {
-      logger.warn("获取最近决策记录失败:", error as any);
-      // 不影响主流程，继续执行
+      logger.warn("Failed to get recent decision records:", error as any);
+      // Does not affect main flow, continue execution
     }
-    
-    // 9. 生成提示词并调用 Agent
+
+    // 9. Generate prompt and call Agent
     const prompt = generateTradingPrompt({
       minutesElapsed,
       iteration: iterationCount,
@@ -1469,29 +1450,29 @@ async function executeTradingDecision() {
       tradeHistory,
       recentDecisions,
     });
-    
-    // 🔥 输出完整提示词到日志
-    logger.info("【入参 - AI 提示词】");
+
+    // Output complete prompt to log
+    logger.info("Input Parameters - AI Prompt");
     logger.info("=".repeat(80));
     logger.info(prompt);
     logger.info("=".repeat(80) + "\n");
     
     const agent = createTradingAgent(intervalMinutes);
-    
+
     try {
       const response = await agent.generateText(prompt);
-      
-      // 从响应中提取AI的完整回复，不进行任何切分
+
+      // Extract AI's complete response from response, no splitting
       let decisionText = "";
-      
+
       if (typeof response === 'string') {
         decisionText = response;
       } else if (response && typeof response === 'object') {
         const steps = (response as any).steps || [];
-        
-        // 收集所有AI的文本回复（完整保存，不切分）
+
+        // Collect all AI text responses (preserve completely, no splitting)
         const allTexts: string[] = [];
-        
+
         for (const step of steps) {
           if (step.content) {
             for (const item of step.content) {
@@ -1501,31 +1482,31 @@ async function executeTradingDecision() {
             }
           }
         }
-        
-        // 完整合并所有文本，用双换行分隔
+
+        // Merge all text completely, separated by double newlines
         if (allTexts.length > 0) {
           decisionText = allTexts.join('\n\n');
         }
-        
-        // 如果没有找到文本消息，尝试其他字段
+
+        // If no text message found, try other fields
         if (!decisionText) {
           decisionText = (response as any).text || (response as any).message || "";
         }
-        
-        // 如果还是没有文本回复，说明AI只是调用了工具，没有做出决策
+
+        // If still no text response, AI only called tools without producing decision
         if (!decisionText && steps.length > 0) {
-          decisionText = "AI调用了工具但未产生决策结果";
+          decisionText = "AI called tools but did not produce decision result";
         }
       }
-      
-      logger.info("【输出 - AI 决策】");
+
+      logger.info("Output - AI Decision");
       logger.info("=".repeat(80));
-      logger.info(decisionText || "无决策输出");
+      logger.info(decisionText || "No decision output");
       logger.info("=".repeat(80) + "\n");
-      
-      // 保存决策记录
+
+      // Save decision record
       await dbClient.execute({
-        sql: `INSERT INTO agent_decisions 
+        sql: `INSERT INTO agent_decisions
               (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
@@ -1538,119 +1519,119 @@ async function executeTradingDecision() {
           positions.length,
         ],
       });
-      
-      // Agent 执行后重新同步持仓数据（优化：只调用一次API）
-      const updatedRawPositions = await gateClient.getPositions();
+
+      // Re-sync position data after Agent execution (Optimization: call API only once)
+      const updatedRawPositions = await exchangeClient.getPositions();
       await syncPositionsFromGate(updatedRawPositions);
       const updatedPositions = await getPositions(updatedRawPositions);
-      
-      // 重新获取更新后的账户信息，包含最新的未实现盈亏
+
+      // Re-fetch updated account info with latest unrealized P&L
       const updatedAccountInfo = await getAccountInfo();
       const finalUnrealizedPnL = updatedPositions.reduce((sum: number, pos: any) => sum + (pos.unrealized_pnl || 0), 0);
-      
-      logger.info("【最终 - 持仓状态】");
+
+      logger.info("Final - Position Status");
       logger.info("=".repeat(80));
-      logger.info(`账户: ${updatedAccountInfo.totalBalance.toFixed(2)} USDT (可用: ${updatedAccountInfo.availableBalance.toFixed(2)}, 收益率: ${updatedAccountInfo.returnPercent.toFixed(2)}%)`);
-      
+      logger.info(`Account: ${updatedAccountInfo.totalBalance.toFixed(2)} USDT (Available: ${updatedAccountInfo.availableBalance.toFixed(2)}, Return: ${updatedAccountInfo.returnPercent.toFixed(2)}%)`);
+
       if (updatedPositions.length === 0) {
-        logger.info("持仓: 无");
+        logger.info("Positions: None");
       } else {
-        logger.info(`持仓: ${updatedPositions.length} 个`);
+        logger.info(`Positions: ${updatedPositions.length} total`);
         updatedPositions.forEach((pos: any) => {
-          // 计算盈亏百分比：考虑杠杆倍数
-          // 对于杠杆交易：盈亏百分比 = (价格变动百分比) × 杠杆倍数
-          const priceChangePercent = pos.entry_price > 0 
+          // Calculate P&L percentage: consider leverage multiple
+          // For leveraged trading: P&L% = (price change%) x leverage multiple
+          const priceChangePercent = pos.entry_price > 0
             ? ((pos.current_price - pos.entry_price) / pos.entry_price * 100 * (pos.side === 'long' ? 1 : -1))
             : 0;
           const pnlPercent = priceChangePercent * pos.leverage;
-          logger.info(`  ${pos.symbol} ${pos.side === 'long' ? '做多' : '做空'} ${pos.quantity}张 (入场: ${pos.entry_price.toFixed(2)}, 当前: ${pos.current_price.toFixed(2)}, 盈亏: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT / ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)`);
+          logger.info(`  ${pos.symbol} ${pos.side === 'long' ? 'long' : 'short'} ${pos.quantity} units (entry: ${pos.entry_price.toFixed(2)}, current: ${pos.current_price.toFixed(2)}, P&L: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT / ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)`);
         });
       }
-      
-      logger.info(`未实现盈亏: ${finalUnrealizedPnL >= 0 ? '+' : ''}${finalUnrealizedPnL.toFixed(2)} USDT`);
+
+      logger.info(`Unrealized P&L: ${finalUnrealizedPnL >= 0 ? '+' : ''}${finalUnrealizedPnL.toFixed(2)} USDT`);
       logger.info("=".repeat(80) + "\n");
-      
+
     } catch (agentError) {
-      logger.error("Agent 执行失败:", agentError as any);
+      logger.error("Agent execution failed:", agentError as any);
       try {
         await syncPositionsFromGate();
       } catch (syncError) {
-        logger.error("同步失败:", syncError as any);
+        logger.error("Sync failed:", syncError as any);
       }
     }
-    
-    // 🔥 每个周期结束时自动修复历史盈亏记录
+
+    // Automatically fix historical P&L records at the end of each cycle
     try {
-      logger.info("🔧 检查并修复历史盈亏记录...");
+      logger.info("Checking and fixing historical P&L records...");
       await fixHistoricalPnlRecords();
     } catch (fixError) {
-      logger.error("修复历史盈亏失败:", fixError as any);
-      // 不影响主流程，继续执行
+      logger.error("Failed to fix historical P&L:", fixError as any);
+      // Does not affect main flow, continue execution
     }
-    
+
   } catch (error) {
-    logger.error("交易循环执行失败:", error as any);
+    logger.error("Trading loop execution failed:", error as any);
     try {
       await syncPositionsFromGate();
     } catch (recoveryError) {
-      logger.error("恢复失败:", recoveryError as any);
+      logger.error("Recovery failed:", recoveryError as any);
     }
   }
 }
 
 /**
- * 初始化交易系统配置
+ * Initialize trading system configuration
  */
 export async function initTradingSystem() {
-  logger.info("初始化交易系统配置...");
-  
-  // 1. 加载配置
+  logger.info("Initializing trading system configuration...");
+
+  // 1. Load configuration
   accountRiskConfig = getAccountRiskConfig();
-  logger.info(`环境变量配置: 止损线=${accountRiskConfig.stopLossUsdt} USDT, 止盈线=${accountRiskConfig.takeProfitUsdt} USDT`);
-  
-  // 2. 如果启用了启动时同步，则同步配置到数据库
+  logger.info(`Environment variable configuration: stop loss=${accountRiskConfig.stopLossUsdt} USDT, take profit=${accountRiskConfig.takeProfitUsdt} USDT`);
+
+  // 2. If startup sync is enabled, sync config to database
   if (accountRiskConfig.syncOnStartup) {
     await syncConfigToDatabase();
   } else {
-    // 否则从数据库加载配置
+    // Otherwise load config from database
     await loadConfigFromDatabase();
   }
-  
-  logger.info(`最终配置: 止损线=${accountRiskConfig.stopLossUsdt} USDT, 止盈线=${accountRiskConfig.takeProfitUsdt} USDT`);
+
+  logger.info(`Final configuration: stop loss=${accountRiskConfig.stopLossUsdt} USDT, take profit=${accountRiskConfig.takeProfitUsdt} USDT`);
 }
 
 /**
- * 启动交易循环
+ * Start trading loop
  */
 export function startTradingLoop() {
   const intervalMinutes = Number.parseInt(
     process.env.TRADING_INTERVAL_MINUTES || "5"
   );
-  
-  logger.info(`启动交易循环，间隔: ${intervalMinutes} 分钟`);
-  logger.info(`支持币种: ${SYMBOLS.join(", ")}`);
-  
-  // 立即执行一次
+
+  logger.info(`Starting trading loop, interval: ${intervalMinutes} minutes`);
+  logger.info(`Supported symbols: ${SYMBOLS.join(", ")}`);
+
+  // Execute once immediately
   executeTradingDecision();
-  
-  // 设置定时任务
+
+  // Set scheduled task
   const cronExpression = `*/${intervalMinutes} * * * *`;
   cron.schedule(cronExpression, () => {
     executeTradingDecision();
   });
-  
-  logger.info(`定时任务已设置: ${cronExpression}`);
+
+  logger.info(`Scheduled task set: ${cronExpression}`);
 }
 
 /**
- * 重置交易开始时间（用于恢复之前的交易）
+ * Reset trading start time (for recovering previous trades)
  */
 export function setTradingStartTime(time: Date) {
   tradingStartTime = time;
 }
 
 /**
- * 重置迭代计数（用于恢复之前的交易）
+ * Reset iteration count (for recovering previous trades)
  */
 export function setIterationCount(count: number) {
   iterationCount = count;
