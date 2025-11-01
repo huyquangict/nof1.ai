@@ -577,8 +577,22 @@ class TradingMonitor {
 
         // Update equity chart every 30 seconds
         setInterval(async () => {
-            await this.updateEquityChart();
+            try {
+                await this.updateEquityChart();
+            } catch (error) {
+                console.error('[Equity Chart] Update failed:', error);
+            }
         }, 30000);
+
+        // Also do an immediate update after 5 seconds (for testing)
+        setTimeout(async () => {
+            try {
+                console.log('[Equity Chart] Running initial update after 5 seconds');
+                await this.updateEquityChart();
+            } catch (error) {
+                console.error('[Equity Chart] Initial update failed:', error);
+            }
+        }, 5000);
     }
 
     // Duplicate ticker content for seamless scrolling
@@ -786,38 +800,51 @@ class TradingMonitor {
 
     // Update equity chart
     async updateEquityChart() {
-        const historyData = await this.loadEquityHistory();
+        try {
+            console.log('[Equity Chart] Starting update...');
 
-        if (!historyData || historyData.length === 0) {
-            console.log('[Equity Chart] No history data available');
-            return;
+            const historyData = await this.loadEquityHistory();
+
+            if (!historyData || historyData.length === 0) {
+                console.log('[Equity Chart] No history data available');
+                return;
+            }
+
+            console.log(`[Equity Chart] Loaded ${historyData.length} data points`);
+
+            // Destroy existing chart to ensure clean render
+            if (this.equityChart) {
+                console.log('[Equity Chart] Destroying old chart instance');
+                this.equityChart.destroy();
+                this.equityChart = null;
+            }
+
+            // Completely recreate the canvas element to clear any cached state
+            const oldCanvas = document.getElementById('equityChart');
+            if (oldCanvas) {
+                const container = oldCanvas.parentElement;
+                if (!container) {
+                    console.error('[Equity Chart] Canvas parent container not found');
+                    return;
+                }
+                // Clear the entire container (removes canvas and any "no data" messages)
+                container.innerHTML = '';
+                // Create fresh canvas
+                const newCanvas = document.createElement('canvas');
+                newCanvas.id = 'equityChart';
+                container.appendChild(newCanvas);
+                console.log('[Equity Chart] Canvas element recreated');
+            } else {
+                console.warn('[Equity Chart] Old canvas not found, will create new one');
+            }
+
+            // Recreate chart with fresh data
+            await this.initEquityChart();
+            console.log('[Equity Chart] ✅ Chart update complete!');
+        } catch (error) {
+            console.error('[Equity Chart] ❌ Update error:', error);
+            throw error;
         }
-
-        console.log(`[Equity Chart] Updating with ${historyData.length} data points`);
-
-        // Destroy existing chart to ensure clean render
-        if (this.equityChart) {
-            console.log('[Equity Chart] Destroying old chart instance');
-            this.equityChart.destroy();
-            this.equityChart = null;
-        }
-
-        // Completely recreate the canvas element to clear any cached state
-        const oldCanvas = document.getElementById('equityChart');
-        if (oldCanvas) {
-            const container = oldCanvas.parentElement;
-            // Clear the entire container (removes canvas and any "no data" messages)
-            container.innerHTML = '';
-            // Create fresh canvas
-            const newCanvas = document.createElement('canvas');
-            newCanvas.id = 'equityChart';
-            container.appendChild(newCanvas);
-            console.log('[Equity Chart] Canvas element recreated');
-        }
-
-        // Recreate chart with fresh data
-        await this.initEquityChart();
-        console.log('[Equity Chart] Chart recreated with fresh data');
     }
 
     // Initialize timeframe selector (switching functionality disabled)
