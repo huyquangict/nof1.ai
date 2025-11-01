@@ -795,39 +795,16 @@ class TradingMonitor {
 
         console.log(`[Equity Chart] Updating with ${historyData.length} data points`);
 
-        // If chart doesn't exist, initialize it
-        if (!this.equityChart) {
-            await this.initEquityChart();
-            return;
+        // Destroy existing chart to ensure clean render
+        if (this.equityChart) {
+            console.log('[Equity Chart] Destroying old chart instance');
+            this.equityChart.destroy();
+            this.equityChart = null;
         }
 
-        // Update chart data
-        const newLabels = historyData.map(d => {
-            const date = new Date(d.timestamp);
-            return date.toLocaleString('zh-CN', {
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        });
-
-        const newData = historyData.map(d =>
-            parseFloat(d.totalValue.toFixed(2))
-        );
-
-        // Update chart data
-        this.equityChart.data.labels = newLabels;
-        this.equityChart.data.datasets[0].data = newData;
-        this.equityChart.data.datasets[0].pointRadius = 0;
-
-        // Reset chart scales and update with active mode to trigger full redraw
-        this.equityChart.options.scales.y.min = undefined;
-        this.equityChart.options.scales.y.max = undefined;
-
-        // Force chart update with 'active' mode for full redraw
-        this.equityChart.update('active');
-        console.log('[Equity Chart] Chart updated successfully');
+        // Recreate chart with fresh data
+        await this.initEquityChart();
+        console.log('[Equity Chart] Chart recreated with fresh data');
     }
 
     // Initialize timeframe selector (switching functionality disabled)
