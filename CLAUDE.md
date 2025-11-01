@@ -211,6 +211,11 @@ AI_MODEL_NAME=deepseek/deepseek-v3.2-exp
 # Trading Strategy (conservative/balanced/aggressive)
 TRADING_STRATEGY=balanced
 
+# Position Reversal (Contrarian Mode)
+REVERSE_POSITIONS=false              # When true, reverses all position directions
+                                     # AI opens LONG → System executes SHORT (and vice versa)
+                                     # Useful for contrarian trading or inverse strategies
+
 # Risk Controls
 ACCOUNT_DRAWDOWN_WARNING_PERCENT=10       # Warning threshold
 ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=15  # Block new positions
@@ -248,6 +253,29 @@ The system uses **leveraged PnL percentage** throughout:
 2. **Trend Reversal Protocol**: Must close existing position before opening opposite direction
 3. **Add-to-Position**: Allowed when position is profitable and trend strengthens (max 2 additions, each ≤50% of original)
 4. **36-Hour Maximum**: All positions automatically closed after 36 hours regardless of profit/loss
+
+### Position Reversal (Contrarian Mode)
+
+The system supports **automatic position reversal** for contrarian trading strategies:
+
+**Configuration**: Set `REVERSE_POSITIONS=true` in `.env`
+
+**Behavior**:
+- When AI decides to open LONG → System executes SHORT
+- When AI decides to open SHORT → System executes LONG
+- The AI is **unaware** of the reversal (gets normal success messages)
+- Clear logging indicates when reversal occurs: `🔄 REVERSE MODE ENABLED`
+
+**Use Cases**:
+- **Contrarian Trading**: Fade AI signals when you believe opposite direction is correct
+- **Inverse Strategies**: Test if inverting strategy improves performance
+- **Market Testing**: Compare normal vs inverted performance in different market conditions
+
+**Important Notes**:
+- Only affects new position openings, not closings
+- All risk management rules still apply normally
+- Logs clearly show both AI's intent and actual execution
+- Disable by setting `REVERSE_POSITIONS=false` (default)
 
 ### Forced Risk Checks (Pre-AI Execution)
 

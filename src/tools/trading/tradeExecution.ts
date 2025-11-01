@@ -67,7 +67,16 @@ export const openPositionTool = createTool({
     const takeProfit = undefined;
     const client = createExchangeClient();
     const contract = client.normalizeSymbol(symbol);
-    
+
+    // 🔄 Position Reversal Logic (Contrarian Mode)
+    const reversePositions = process.env.REVERSE_POSITIONS === 'true';
+    const originalSide = side;
+
+    if (reversePositions) {
+      side = side === 'long' ? 'short' : 'long';
+      logger.warn(`🔄 REVERSE MODE ENABLED: AI requested ${originalSide.toUpperCase()}, executing ${side.toUpperCase()} instead`);
+    }
+
     try {
       //  参数验证
       if (!Number.isFinite(amountUsdt) || amountUsdt <= 0) {
@@ -483,7 +492,12 @@ export const openPositionTool = createTool({
       
       const contractAmount = Math.abs(size) * quantoMultiplier;
       const totalValue = contractAmount * actualFillPrice;
-      
+
+      // Prepare message with reversal indicator if applicable
+      const reversalNote = reversePositions
+        ? ` 🔄 [REVERSE MODE: AI requested ${originalSide.toUpperCase()}, executed ${side.toUpperCase()}]`
+        : '';
+
       return {
         success: true,
         orderId: order.id?.toString(),
@@ -494,7 +508,7 @@ export const openPositionTool = createTool({
         price: actualFillPrice,
         leverage,
         actualMargin,
-        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
+        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。${reversalNote}`,
       };
     } catch (error: any) {
       logger.error(`❌ 开仓失败 ${symbol} ${side}: ${error.message}`, error);
