@@ -248,7 +248,21 @@ function calculateIntradaySeries(candles: any[]) {
   }
 
   // Extract closing prices
-  const closes = candles.map((c) => Number.parseFloat(c.c || "0")).filter(n => Number.isFinite(n));
+  const closes = candles.map((c) => {
+    // Standard Candle format (Binance, CCXT)
+    if (c && typeof c === 'object' && 'close' in c) {
+      return Number.parseFloat(c.close);
+    }
+    // Gate.io format (FuturesCandlestick)
+    if (c && typeof c === 'object' && 'c' in c) {
+      return Number.parseFloat(c.c);
+    }
+    // Array format (for backward compatibility)
+    if (Array.isArray(c)) {
+      return Number.parseFloat(c[4]); // Index 4 for close price
+    }
+    return NaN;
+  }).filter(n => Number.isFinite(n));
 
   if (closes.length === 0) {
     return {
