@@ -24,67 +24,89 @@ class TradingMonitor {
         this.equityChart = null;
         this.chartTimeframe = '24'; // Fixed to 24 hours
         this.token = localStorage.getItem('jwt_token');
+        console.log('TradingMonitor constructor, token:', this.token ? 'exists' : 'none');
+
+        // Allow clearing token via console: monitor.clearAuth()
+        window.monitor = this;
+
         this.init();
     }
 
+    clearAuth() {
+        console.log('Clearing authentication');
+        localStorage.removeItem('jwt_token');
+        this.token = null;
+        location.reload();
+    }
+
     async init() {
-        // Check authentication first
-        if (!this.token || !(await this.verifyToken())) {
+        console.log('Starting init, has token:', !!this.token);
+
+        // If no token, show login immediately (no need to verify)
+        if (!this.token) {
+            console.log('No token, showing login form');
             this.showLoginForm();
             return;
         }
 
-        await this.loadInitialData();
-        this.initEquityChart();
-        this.initTimeframeSelector();
-        this.startDataUpdates();
-        this.initTabs();
-        this.initChat();
-        this.duplicateTicker();
-        this.loadGitHubStars(); // Load GitHub star count
-    }
+        console.log('Token exists, attempting to load data');
 
-    // Verify JWT token
-    async verifyToken() {
+        // If we have a token, try to load data (will redirect to login on 401)
         try {
-            const response = await fetch('/api/auth/verify', {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-            return response.ok;
+            await this.loadInitialData();
+            console.log('Data loaded successfully');
+            this.initEquityChart();
+            this.initTimeframeSelector();
+            this.startDataUpdates();
+            this.initTabs();
+            this.initChat();
+            this.duplicateTicker();
+            this.loadGitHubStars(); // Load GitHub star count
         } catch (error) {
-            return false;
+            // If loading fails, token is invalid - show login
+            console.error('Failed to load data:', error);
+            console.log('Showing login form due to error');
+            this.showLoginForm();
         }
     }
 
     // Show login form
     showLoginForm() {
+        // Prevent duplicate login forms
+        if (document.getElementById('login-overlay')) {
+            return;
+        }
+
+        console.log('Showing login form');
+
         const loginHTML = `
-            <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-                <div style="background: white; padding: 2rem; border: 3px solid black; max-width: 400px; width: 90%;">
-                    <h2 style="margin: 0 0 1.5rem 0; font-family: 'Inter', sans-serif; text-transform: uppercase;">Login Required</h2>
+            <div id="login-overlay">
+                <div class="login-box">
+                    <h2>Login Required</h2>
                     <form id="login-form">
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Username:</label>
-                            <input type="text" id="username" required style="width: 100%; padding: 0.5rem; border: 2px solid black; font-family: 'Inter', sans-serif;">
+                        <div class="form-group">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username" required autocomplete="username">
                         </div>
-                        <div style="margin-bottom: 1.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Password:</label>
-                            <input type="password" id="password" required style="width: 100%; padding: 0.5rem; border: 2px solid black; font-family: 'Inter', sans-serif;">
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" required autocomplete="current-password">
                         </div>
-                        <button type="submit" style="width: 100%; padding: 0.75rem; background: black; color: white; border: none; font-weight: 700; cursor: pointer; text-transform: uppercase; font-family: 'Inter', sans-serif;">Login</button>
-                        <div id="login-error" style="margin-top: 1rem; color: #EF4444; display: none; font-weight: 600;"></div>
+                        <button type="submit">Login</button>
+                        <div id="login-error"></div>
                     </form>
                 </div>
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', loginHTML);
 
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleLogin();
-        });
+        const form = document.getElementById('login-form');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleLogin();
+            });
+        }
     }
 
     // Handle login
@@ -763,5 +785,10 @@ class TradingMonitor {
 
 // Initialize monitoring system
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM ready, initializing TradingMonitor');
     const monitor = new TradingMonitor();
+
+    // Debug: Check if token exists
+    const token = localStorage.getItem('jwt_token');
+    console.log('JWT token exists:', !!token);
 });
