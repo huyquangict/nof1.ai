@@ -786,11 +786,6 @@ class TradingMonitor {
 
     // Update equity chart
     async updateEquityChart() {
-        if (!this.equityChart) {
-            await this.initEquityChart();
-            return;
-        }
-
         const historyData = await this.loadEquityHistory();
 
         if (!historyData || historyData.length === 0) {
@@ -800,8 +795,14 @@ class TradingMonitor {
 
         console.log(`[Equity Chart] Updating with ${historyData.length} data points`);
 
+        // If chart doesn't exist, initialize it
+        if (!this.equityChart) {
+            await this.initEquityChart();
+            return;
+        }
+
         // Update chart data
-        this.equityChart.data.labels = historyData.map(d => {
+        const newLabels = historyData.map(d => {
             const date = new Date(d.timestamp);
             return date.toLocaleString('zh-CN', {
                 month: '2-digit',
@@ -811,15 +812,21 @@ class TradingMonitor {
             });
         });
 
-        this.equityChart.data.datasets[0].data = historyData.map(d =>
+        const newData = historyData.map(d =>
             parseFloat(d.totalValue.toFixed(2))
         );
 
-        // Fixed to not show points
+        // Update chart data
+        this.equityChart.data.labels = newLabels;
+        this.equityChart.data.datasets[0].data = newData;
         this.equityChart.data.datasets[0].pointRadius = 0;
 
-        // Force chart update and redraw
-        this.equityChart.update();
+        // Reset chart scales and update with active mode to trigger full redraw
+        this.equityChart.options.scales.y.min = undefined;
+        this.equityChart.options.scales.y.max = undefined;
+
+        // Force chart update with 'active' mode for full redraw
+        this.equityChart.update('active');
         console.log('[Equity Chart] Chart updated successfully');
     }
 
