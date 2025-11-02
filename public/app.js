@@ -188,6 +188,7 @@ async function loadPositionsData() {
                 <div class="position-header">
                     <div class="position-symbol">${pos.symbol}</div>
                     <div class="position-side ${pos.side}">${pos.side === 'long' ? '多' : '空'}</div>
+                    <button class="close-position-btn" onclick="closePosition('${pos.symbol}')" title="手动平仓">✕</button>
                 </div>
                 <div class="position-grid">
                     <div class="position-field">
@@ -367,6 +368,37 @@ async function loadTradesData() {
         
     } catch (error) {
         console.error('加载交易历史失败:', error);
+    }
+}
+
+// 手动平仓
+async function closePosition(symbol) {
+    if (!confirm(`确定要平仓 ${symbol} 吗？`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/positions/${symbol}/close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ percentage: 100 })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ ${result.message}`);
+            // Reload positions
+            await loadPositionsData();
+            await loadAccountData();
+        } else {
+            alert(`❌ 平仓失败: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('平仓请求失败:', error);
+        alert(`❌ 平仓请求失败: ${error.message}`);
     }
 }
 

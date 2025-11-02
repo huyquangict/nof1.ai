@@ -192,6 +192,44 @@ export function createApiRoutes() {
   });
 
   /**
+   * 手动平仓
+   */
+  app.post("/api/positions/:symbol/close", async (c) => {
+    try {
+      const symbol = c.req.param("symbol");
+      const body = await c.req.json();
+      const percentage = body.percentage || 100;
+
+      logger.info(`Manual close request: ${symbol}, ${percentage}%`);
+
+      // Import closePosition tool
+      const { closePositionTool } = await import("../tools/trading/tradeExecution");
+
+      // Execute close
+      const result = await closePositionTool.execute({ symbol, percentage });
+
+      if (result.success) {
+        return c.json({
+          success: true,
+          message: result.message,
+          data: result
+        });
+      } else {
+        return c.json({
+          success: false,
+          error: result.message
+        }, 400);
+      }
+    } catch (error: any) {
+      logger.error(`Manual close failed: ${error.message}`, error);
+      return c.json({
+        success: false,
+        error: error.message
+      }, 500);
+    }
+  });
+
+  /**
    * 获取账户价值历史（用于绘图）
    */
   app.get("/api/history", async (c) => {

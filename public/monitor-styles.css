@@ -1138,3 +1138,33 @@ body {
 }
 
 .black { font-weight: 900; }
+
+/* === CLOSE POSITION BUTTON === */
+.close-position-btn {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.close-position-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  transform: scale(1.1);
+}
+
+.close-position-btn:active {
+  transform: scale(0.95);
+}
