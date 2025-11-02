@@ -251,6 +251,9 @@ export function generateTradingPrompt(data: {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
 
+  // Check if REVERSE_POSITIONS mode is enabled
+  const reverseMode = process.env.REVERSE_POSITIONS === 'true';
+
   let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times (every ${intervalMinutes} minutes).
 
 ⏰ TIMING AWARENESS - CRITICAL:
@@ -260,7 +263,30 @@ export function generateTradingPrompt(data: {
 - This is why mental stops MUST be conservative (2-3% max)
 - Next execution will be in ${intervalMinutes} minutes at approximately ${new Date(Date.now() + intervalMinutes * 60000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
 
-Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
+${reverseMode ? `
+🔄 REVERSE POSITIONS MODE ACTIVE - CRITICAL AWARENESS:
+**IMPORTANT**: The trading system is currently in CONTRARIAN mode!
+- When you decide to open LONG → System executes SHORT
+- When you decide to open SHORT → System executes LONG
+- **All current positions are ALREADY REVERSED** from what you might expect
+- When managing positions: Think about what the system actually executed, not your original intent
+- Example: If you previously decided "open BTC LONG", the system opened BTC SHORT - manage it as SHORT!
+
+**How to trade in REVERSE mode:**
+1. Analyze the market normally and decide your trade direction
+2. Call openPosition with your analysis-based direction (LONG or SHORT)
+3. System will automatically reverse it (your LONG becomes SHORT, your SHORT becomes LONG)
+4. Current positions shown below are the ACTUAL positions (already reversed)
+5. Manage them based on ACTUAL direction, not your original decision
+
+**Why this mode exists:**
+- Testing contrarian strategies (fade the AI signals)
+- Inverse trading approach
+- Market condition testing
+
+**Your job:** Make normal technical analysis decisions. The system handles the reversal automatically.
+
+` : ''}Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
 Important Rules and Instructions for 80% Win Rate Trading:
 
