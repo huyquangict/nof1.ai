@@ -1214,8 +1214,11 @@ async function executeTradingDecision() {
     // 4. Forced risk control check (before AI execution)
     // DISABLED: LLM now has full control over position management
     // The AI will analyze and decide when to close positions for stop-loss or take-profit
-    /*
+
+    // Still need exchangeClient for position sync after agent execution
     const exchangeClient = createExchangeClient();
+
+    /*
 
     for (const pos of positions) {
       const symbol = pos.symbol;
