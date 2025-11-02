@@ -251,42 +251,7 @@ export function generateTradingPrompt(data: {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
 
-  // Check if REVERSE_POSITIONS mode is enabled
-  const reverseMode = process.env.REVERSE_POSITIONS === 'true';
-
-  let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times (every ${intervalMinutes} minutes).
-
-⏰ TIMING AWARENESS - CRITICAL:
-- You are called ONCE every ${intervalMinutes} minutes, not continuously
-- You CANNOT monitor prices between calls - only see current snapshot
-- Market can move significantly in ${intervalMinutes} minutes
-- This is why mental stops MUST be conservative (2-3% max)
-- Next execution will be in ${intervalMinutes} minutes at approximately ${new Date(Date.now() + intervalMinutes * 60000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-
-${reverseMode ? `
-🔄 REVERSE POSITIONS MODE ACTIVE - CRITICAL AWARENESS:
-**IMPORTANT**: The trading system is currently in CONTRARIAN mode!
-- When you decide to open LONG → System executes SHORT
-- When you decide to open SHORT → System executes LONG
-- **All current positions are ALREADY REVERSED** from what you might expect
-- When managing positions: Think about what the system actually executed, not your original intent
-- Example: If you previously decided "open BTC LONG", the system opened BTC SHORT - manage it as SHORT!
-
-**How to trade in REVERSE mode:**
-1. Analyze the market normally and decide your trade direction
-2. Call openPosition with your analysis-based direction (LONG or SHORT)
-3. System will automatically reverse it (your LONG becomes SHORT, your SHORT becomes LONG)
-4. Current positions shown below are the ACTUAL positions (already reversed)
-5. Manage them based on ACTUAL direction, not your original decision
-
-**Why this mode exists:**
-- Testing contrarian strategies (fade the AI signals)
-- Inverse trading approach
-- Market condition testing
-
-**Your job:** Make normal technical analysis decisions. The system handles the reversal automatically.
-
-` : ''}Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
+  let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
 Important Rules and Instructions for 80% Win Rate Trading:
 
@@ -298,7 +263,7 @@ Important Rules and Instructions for 80% Win Rate Trading:
 
 🛑 STOP-LOSS MONITORING (NO AUTOMATIC ORDERS - YOU MUST MANUALLY CLOSE):
 **CRITICAL**: We have NO automatic stop-loss or take-profit orders!
-- You MUST check EVERY position EVERY cycle (every ${intervalMinutes} minutes)
+- You MUST check EVERY position EVERY cycle (every 5 minutes)
 - You MUST call closePosition tool when stop or target is hit
 - **LONG STOP**: Monitor if price drops below swing low OR EMA20 → CLOSE MANUALLY
 - **SHORT STOP**: Monitor if price rises above swing high OR EMA20 → CLOSE MANUALLY
@@ -346,14 +311,14 @@ Important Rules and Instructions for 80% Win Rate Trading:
 □ No major news in next 2 hours
 □ Market correlation supports trade
 
-❌ TRADE INVALIDATION (MANUAL EXIT REQUIRED - CHECK EVERY ${intervalMinutes} MIN):
+❌ TRADE INVALIDATION (MANUAL EXIT REQUIRED - CHECK EVERY 5 MIN):
 **NO AUTOMATIC EXITS** - You must monitor and call closePosition tool:
 - **LONG invalid**: Price breaks below support → YOU must closePosition
 - **SHORT invalid**: Price breaks above resistance → YOU must closePosition
-- **Time stop**: No profit after 8 hours (${Math.floor(8 * 60 / intervalMinutes)} cycles) → YOU must closePosition
+- **Time stop**: No profit after 8 hours → YOU must closePosition
 - **Delta stop**: BTC moves opposite 2% → YOU must close alt positions
 - **Correlation break**: Assumption fails → YOU must closePosition
-Remember: You only check every ${intervalMinutes} minutes - act decisively when conditions are met!
+Remember: These are YOUR responsibility to monitor and execute!
 
 🧠 PSYCHOLOGICAL DISCIPLINE (80% Win Rate Mindset):
 - **FOMO CHECK**: If coin already moved >5% today, you're too late - WAIT
@@ -369,12 +334,11 @@ Remember: You only check every ${intervalMinutes} minutes - act decisively when 
 
 💰 PROFIT MANAGEMENT (MANUAL - YOU MUST CLOSE POSITIONS):
 **REMINDER**: No automatic take-profit! You must call closePosition tool!
-- **+10-15% PnL**: Mental stop moves to breakeven (monitor next cycle)
+- **+10-15% PnL**: Mental stop moves to breakeven (monitor closely)
 - **+20% PnL**: MUST call closePosition for at least 50% of position
 - **+30% PnL**: MUST call closePosition for 75% or full position
-- **Critical**: Check EVERY position EVERY ${intervalMinutes} minutes - if profit reverses to <10%, CLOSE!
+- **Critical**: Check EVERY position EVERY 5 minutes - if profit reverses to <10%, CLOSE!
 - Never let >10% profit drop below 5% - CLOSE IMMEDIATELY if this happens
-- Remember: You won't see price again for ${intervalMinutes} minutes, so ACT NOW on targets!
 
 💵 POSITION SIZING (Professional):
 - Base size: 2% account risk per trade
@@ -384,7 +348,7 @@ Remember: You only check every ${intervalMinutes} minutes - act decisively when 
 
 📋 PROFESSIONAL DECISION FLOW (MANUAL MONITORING REQUIRED):
 
-⚠️ FIRST PRIORITY - CHECK EXISTING POSITIONS (EVERY ${intervalMinutes} MINUTES):
+⚠️ FIRST PRIORITY - CHECK EXISTING POSITIONS (EVERY 5 MINUTES):
 For EACH open position, check:
 □ Hit mental stop-loss? → MUST call closePosition NOW
 □ Hit +20% profit? → MUST call closePosition for 50%+ NOW
@@ -733,16 +697,6 @@ Current Market Status for All Coins
     prompt += `If a previous decision mentioned an error, you MUST verify by calling the tool yourself.\n`;
     prompt += `Make fresh decisions based on CURRENT market data and ACTUAL tool results.\n\n`;
   }
-
-  // CRITICAL: Ensure AI provides final decision summary
-  prompt += `\n📋 FINAL DECISION REQUIREMENT (CRITICAL):\n`;
-  prompt += `After using any tools (getMarketPrice, getTechnicalIndicators, etc.), you MUST provide a clear final decision summary.\n`;
-  prompt += `Your response must include:\n`;
-  prompt += `1. **Position Management**: What you decided for each existing position (hold/close/adjust)\n`;
-  prompt += `2. **New Trades**: Any new positions opened (symbol, side, leverage, reasoning)\n`;
-  prompt += `3. **No Action**: If no trades, clearly state "NO TRADES THIS CYCLE" with brief reasoning\n`;
-  prompt += `4. **Next Steps**: What you'll monitor in the next cycle\n\n`;
-  prompt += `DO NOT end your response with "Let me check..." or tool calls only. Always provide a complete decision summary.\n\n`;
 
   return prompt;
 }
