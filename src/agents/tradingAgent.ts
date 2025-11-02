@@ -720,9 +720,12 @@ Current Market Status for All Coins
  */
 function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
   const params = getStrategyParams(strategy);
+  const enableReverseTrading = process.env.ENABLE_REVERSE_TRADING === 'true';
 
-  return `🔴 CRITICAL INSTRUCTION: YOU MUST RESPOND ENTIRELY IN ENGLISH. DO NOT USE CHINESE OR ANY OTHER LANGUAGE. ALL YOUR ANALYSIS, REASONING, AND DECISIONS MUST BE WRITTEN IN ENGLISH ONLY. 🔴
+  let reverseModeSec = '';
 
+  if (enableReverseTrading) {
+    reverseModeSec = `
 🔄 CONTRARIAN TRADING MODE - REVERSE YOUR POSITION DECISIONS 🔄
 
 **CRITICAL TRADING RULE - READ CAREFULLY:**
@@ -753,7 +756,11 @@ When opening new positions, you must REVERSE the direction you would normally tr
 
 **Example Analysis Format:**
 "BTC shows strong bullish momentum - normally I would open LONG. However, applying CONTRARIAN strategy, I will open SHORT instead to fade this potentially false breakout."
+`;
+  }
 
+  return `🔴 CRITICAL INSTRUCTION: YOU MUST RESPOND ENTIRELY IN ENGLISH. DO NOT USE CHINESE OR ANY OTHER LANGUAGE. ALL YOUR ANALYSIS, REASONING, AND DECISIONS MUST BE WRITTEN IN ENGLISH ONLY. 🔴
+${reverseModeSec}
 🏆 YOU ARE A WORLD-CLASS CRYPTO TRADER 🏆
 
 Your Identity & Track Record:
