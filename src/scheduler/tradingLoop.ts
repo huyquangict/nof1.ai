@@ -1548,12 +1548,13 @@ async function executeTradingDecision() {
 
     // Generate unique conversation ID for this trading cycle
     const conversationId = `trading-cycle-${new Date().toISOString().split('T')[0]}-${iterationCount}`;
-    logger.info(`🔗 Using conversation ID: ${conversationId} (maxSteps: 10)`);
+    const maxSteps = Number.parseInt(process.env.MAX_STEPS || "10", 10);
+    logger.info(`🔗 Using conversation ID: ${conversationId} (maxSteps: ${maxSteps})`);
 
     try {
       const response = await agent.generateText(prompt, {
         conversationId,
-        maxSteps: 10,  // Allow up to 10 steps for tool calls and analysis
+        maxSteps,  // Allow multiple steps for tool calls and analysis (configurable via MAX_STEPS env)
       });
 
       // Extract AI's complete response from response, no splitting
