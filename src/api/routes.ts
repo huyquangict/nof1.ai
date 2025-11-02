@@ -235,34 +235,40 @@ export function createApiRoutes() {
   app.get("/api/history", async (c) => {
     try {
       const limitParam = c.req.query("limit");
-      
+      const hoursParam = c.req.query("hours") || "8"; // 默认显示最近8小时
+
       let result;
       if (limitParam) {
         // 如果传递了 limit 参数，使用 LIMIT 子句
         const limit = Number.parseInt(limitParam);
         result = await dbClient.execute({
-          sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent 
-                FROM account_history 
-                ORDER BY timestamp DESC 
+          sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
+                FROM account_history
+                ORDER BY timestamp DESC
                 LIMIT ?`,
           args: [limit],
         });
       } else {
-        // 如果没有传递 limit 参数，返回全部数据
-        result = await dbClient.execute(
-          `SELECT timestamp, total_value, unrealized_pnl, return_percent 
-           FROM account_history 
-           ORDER BY timestamp DESC`
-        );
+        // 默认返回最近N小时的数据（避免x轴溢出）
+        const hours = Number.parseInt(hoursParam);
+        const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+        result = await dbClient.execute({
+          sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
+                FROM account_history
+                WHERE timestamp >= ?
+                ORDER BY timestamp DESC`,
+          args: [cutoffTime],
+        });
       }
-      
+
       const history = result.rows.map((row: any) => ({
         timestamp: new Date(row.timestamp as string).getTime(), // Convert ISO string to milliseconds
         totalValue: Number.parseFloat(row.total_value as string) || 0,
         unrealizedPnl: Number.parseFloat(row.unrealized_pnl as string) || 0,
         returnPercent: Number.parseFloat(row.return_percent as string) || 0,
       })).reverse(); // 反转，使时间从旧到新
-      
+
       return c.json({ history });
     } catch (error: any) {
       return c.json({ error: error.message }, 500);
