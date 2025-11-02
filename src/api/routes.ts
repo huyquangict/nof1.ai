@@ -93,13 +93,14 @@ export function createApiRoutes() {
   });
 
   // Apply JWT authentication to all API routes (except auth endpoints)
-  app.use("/api/*", async (c, next) => {
-    // Skip auth for login and verify endpoints
-    if (c.req.path.startsWith("/api/auth/")) {
-      return next();
-    }
-    return jwtAuth(c, next);
-  });
+  // DISABLED FOR LOCAL USE: Re-enable if deploying to production
+  // app.use("/api/*", async (c, next) => {
+  //   // Skip auth for login and verify endpoints
+  //   if (c.req.path.startsWith("/api/auth/")) {
+  //     return next();
+  //   }
+  //   return jwtAuth(c, next);
+  // });
 
   /**
    * 获取账户总览
