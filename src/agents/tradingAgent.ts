@@ -734,6 +734,16 @@ Current Market Status for All Coins
     prompt += `Make fresh decisions based on CURRENT market data and ACTUAL tool results.\n\n`;
   }
 
+  // CRITICAL: Ensure AI provides final decision summary
+  prompt += `\n📋 FINAL DECISION REQUIREMENT (CRITICAL):\n`;
+  prompt += `After using any tools (getMarketPrice, getTechnicalIndicators, etc.), you MUST provide a clear final decision summary.\n`;
+  prompt += `Your response must include:\n`;
+  prompt += `1. **Position Management**: What you decided for each existing position (hold/close/adjust)\n`;
+  prompt += `2. **New Trades**: Any new positions opened (symbol, side, leverage, reasoning)\n`;
+  prompt += `3. **No Action**: If no trades, clearly state "NO TRADES THIS CYCLE" with brief reasoning\n`;
+  prompt += `4. **Next Steps**: What you'll monitor in the next cycle\n\n`;
+  prompt += `DO NOT end your response with "Let me check..." or tool calls only. Always provide a complete decision summary.\n\n`;
+
   return prompt;
 }
 
