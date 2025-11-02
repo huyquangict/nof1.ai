@@ -1525,8 +1525,7 @@ async function executeTradingDecision() {
     }
 
     // 8. Get previous AI decision
-    // NOTE: Disabled (set to 0) to save ~2000+ tokens in prompt
-    // All current state is provided, historical decisions not needed
+    // Disabled to maximize AI response tokens (saves ~1,500 chars)
     let recentDecisions: any[] = [];
     try {
       recentDecisions = await getRecentDecisions(0);
