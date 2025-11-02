@@ -813,8 +813,9 @@ class TradingMonitor {
     // Load asset history data
     async loadEquityHistory() {
         try {
-            // Get all historical data
-            const response = await this.authenticatedFetch(`/api/history`);
+            // Get last 8 hours of data (with cache-busting timestamp)
+            const cacheBuster = Date.now();
+            const response = await this.authenticatedFetch(`/api/history?hours=8&_=${cacheBuster}`);
             const data = await response.json();
 
             if (data.error) {

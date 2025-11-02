@@ -250,15 +250,16 @@ export function createApiRoutes() {
         });
       } else {
         // 默认返回最近N小时的数据（避免x轴溢出）
+        // 假设每10分钟记录一次，8小时 = 48条记录，取60条确保覆盖
         const hours = Number.parseInt(hoursParam);
-        const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+        const estimatedRecords = Math.ceil(hours * 6); // 每小时6条记录（10分钟间隔）
 
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
                 FROM account_history
-                WHERE timestamp >= ?
-                ORDER BY timestamp DESC`,
-          args: [cutoffTime],
+                ORDER BY timestamp DESC
+                LIMIT ?`,
+          args: [estimatedRecords],
         });
       }
 
