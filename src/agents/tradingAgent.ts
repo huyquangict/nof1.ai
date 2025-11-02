@@ -605,14 +605,14 @@ Current Market Status for All Coins
         tradesBySymbolSide[key].push(trade);
       }
 
-      prompt += `Recent Closed Positions Performance (Last 10 per Symbol & Side):\n\n`;
+      prompt += `Recent Closed Positions Performance (Last 3 per Symbol & Side):\n\n`;
 
       // Show stats and details per symbol-side combination
       const sortedKeys = Object.keys(tradesBySymbolSide).sort();
       for (const key of sortedKeys) {
         const [symbol, side] = key.split('_');
         const allTrades = tradesBySymbolSide[key];
-        const last10Trades = allTrades.slice(0, 10); // Get last 10
+        const last10Trades = allTrades.slice(0, 3); // Get last 3 (reduced from 10 to save tokens)
 
         const winningTrades = last10Trades.filter((t: any) => t.pnl > 0);
         const losingTrades = last10Trades.filter((t: any) => t.pnl < 0);
