@@ -1543,11 +1543,25 @@ async function executeTradingDecision() {
     logger.info("=".repeat(80));
     logger.info(prompt);
     logger.info("=".repeat(80) + "\n");
-    
+
     const agent = createTradingAgent(intervalMinutes);
 
+    // Use daily conversation ID to maintain chat history across the day
+    // Format: trading-YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
+    const conversationId = `trading-${today}`;
+
+    logger.info(`Using conversation ID: ${conversationId} (maintains chat history for context)`);
+
     try {
-      const response = await agent.generateText(prompt);
+      // Generate text with conversation ID to maintain chat history
+      // This allows the AI to see its previous decisions, tool calls, and reasoning
+      // The memory system will automatically store and retrieve conversation history
+      // contextLimit: 10 means last 10 messages (5 user + 5 assistant pairs)
+      const response = await agent.generateText(prompt, {
+        conversationId,
+        contextLimit: 10, // Keep last 10 messages (5 conversation rounds)
+      });
 
       // Extract AI's complete response from response, no splitting
       let decisionText = "";
