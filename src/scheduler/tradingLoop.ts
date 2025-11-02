@@ -1212,6 +1212,9 @@ async function executeTradingDecision() {
     }
 
     // 4. Forced risk control check (before AI execution)
+    // DISABLED: LLM now has full control over position management
+    // The AI will analyze and decide when to close positions for stop-loss or take-profit
+    /*
     const exchangeClient = createExchangeClient();
 
     for (const pos of positions) {
@@ -1476,9 +1479,10 @@ async function executeTradingDecision() {
         }
       }
     }
+    */
 
-    // Refresh positions (may have been force liquidated)
-    positions = await getPositions();
+    // Refresh positions - no longer needed as forced liquidation is disabled
+    // positions = await getPositions();
 
     // 4. No longer save account history (equity curve module removed)
     // try {
