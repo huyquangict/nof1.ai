@@ -1525,9 +1525,11 @@ async function executeTradingDecision() {
     }
 
     // 8. Get previous AI decision
+    // NOTE: Disabled (set to 0) to save ~2000+ tokens in prompt
+    // All current state is provided, historical decisions not needed
     let recentDecisions: any[] = [];
     try {
-      recentDecisions = await getRecentDecisions(1);
+      recentDecisions = await getRecentDecisions(0);
     } catch (error) {
       logger.warn("Failed to get recent decision records:", error as any);
       // Does not affect main flow, continue execution

@@ -693,6 +693,8 @@ Current Market Status for All Coins
   }
 
   // Previous AI decision records
+  // NOTE: Disabled to save prompt space (~2000+ tokens)
+  // AI gets all current state in the prompt, previous decisions not needed
   if (recentDecisions && recentDecisions.length > 0) {
     prompt += `\nYour Previous Decisions:\n`;
     prompt += `Use this information as reference and make decisions based on current market conditions.\n\n`;
@@ -1072,6 +1074,9 @@ export function createTradingAgent(intervalMinutes: number = 5) {
     memory,
     hooks: {
       onPrepareMessages: async ({ messages }: OnPrepareMessagesHookArgs): Promise<OnPrepareMessagesHookResult> => {
+        // Log message count to understand what's being sent
+        logger.info(`[onPrepareMessages] Received ${messages.length} messages`);
+
         // Limit conversation history to last 10 messages (5 rounds)
         // This prevents context window overflow while maintaining recent context
         const MESSAGE_LIMIT = 10;
