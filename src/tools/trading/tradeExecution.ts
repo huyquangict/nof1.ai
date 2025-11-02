@@ -562,10 +562,8 @@ export const closePositionTool = createTool({
         }
       }
       
-      // 计算平仓数量
-      // For small positions, don't floor to avoid rounding to 0
-      const calculatedSize = (quantity * percentage) / 100;
-      const closeSize = calculatedSize >= 1 ? Math.floor(calculatedSize) : calculatedSize;
+      // 计算平仓数量 - No rounding, preserve full decimal precision
+      const closeSize = (quantity * percentage) / 100;
       const size = side === "long" ? -closeSize : closeSize;
       
       //  获取合约乘数用于计算盈亏和手续费
