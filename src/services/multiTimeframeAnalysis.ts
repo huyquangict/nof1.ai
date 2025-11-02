@@ -32,7 +32,7 @@ const logger = createPinoLogger({
  * 时间框架定义
  */
 export interface TimeframeConfig {
-  interval: "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+  interval: "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "4h" | "8h" | "1d";
   candleCount: number;
   description: string;
 }

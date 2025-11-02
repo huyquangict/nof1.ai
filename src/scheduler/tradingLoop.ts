@@ -113,12 +113,16 @@ async function collectMarketData() {
       const candles15m = await exchangeClient.getFuturesCandles(symbol, "15m", 96);
       const candles30m = await exchangeClient.getFuturesCandles(symbol, "30m", 90);
       const candles1h = await exchangeClient.getFuturesCandles(symbol, "1h", 120);
+      const candles4h = await exchangeClient.getFuturesCandles(symbol, "4h", 60);
+      const candles8h = await exchangeClient.getFuturesCandles(symbol, "8h", 30);
 
       // Calculate indicators for each timeframe
       const indicators5m = calculateIndicators(candles5m);
       const indicators15m = calculateIndicators(candles15m);
       const indicators30m = calculateIndicators(candles30m);
       const indicators1h = calculateIndicators(candles1h);
+      const indicators4h = calculateIndicators(candles4h);
+      const indicators8h = calculateIndicators(candles8h);
 
       // Calculate 5-minute time series indicators (use all data points for calculation, but only display the last 10)
       const intradaySeries = calculateIntradaySeries(candles5m);
@@ -142,6 +146,8 @@ async function collectMarketData() {
           "15m": candles15m.length,
           "30m": candles30m.length,
           "1h": candles1h.length,
+          "4h": candles4h.length,
+          "8h": candles8h.length,
         }
       };
 
@@ -194,6 +200,8 @@ async function collectMarketData() {
           "15m": indicators15m,
           "30m": indicators30m,
           "1h": indicators1h,
+          "4h": indicators4h,
+          "8h": indicators8h,
         },
       };
 

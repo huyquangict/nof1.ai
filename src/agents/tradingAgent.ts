@@ -542,6 +542,8 @@ Current Market Status for All Coins
         { key: "15m", name: "15-minute" },
         { key: "30m", name: "30-minute" },
         { key: "1h", name: "1-hour" },
+        { key: "4h", name: "4-hour" },
+        { key: "8h", name: "8-hour" },
       ];
 
       for (const tf of tfList) {
