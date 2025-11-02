@@ -258,17 +258,15 @@ Important Rules and Instructions for 80% Win Rate Trading:
 📊 RISK:REWARD REQUIREMENTS (CRITICAL):
 - **NEVER enter a trade with R:R < 1:2** (risk 1 to make 2 minimum)
 - A+ setups only: R:R > 1:3 with multiple confirmations
-- If stop-loss distance > 3% from entry, DON'T TRADE (you're too late)
 - Calculate R:R BEFORE entry: (Target - Entry) / (Entry - Stop) must be ≥ 2
 
 🛑 STOP-LOSS MONITORING (NO AUTOMATIC ORDERS - YOU MUST MANUALLY CLOSE):
 **CRITICAL**: We have NO automatic stop-loss or take-profit orders!
 - You MUST check EVERY position EVERY cycle (every 5 minutes)
 - You MUST call closePosition tool when stop or target is hit
-- **LONG STOP**: Monitor if price drops below swing low OR EMA20 → CLOSE MANUALLY
-- **SHORT STOP**: Monitor if price rises above swing high OR EMA20 → CLOSE MANUALLY
-- Mental stop distance: 2-3% max (if > 3% away, don't enter)
-- Track your mental stops - write them in your analysis!
+- **LONG STOP**: Monitor if price drops below swing low OR EMA20 OR hits -20% PnL → CLOSE MANUALLY
+- **SHORT STOP**: Monitor if price rises above swing high OR EMA20 OR hits -20% PnL → CLOSE MANUALLY
+- Track your stop-loss levels - write them in your analysis!
 
 ⭐ SETUP QUALITY GRADING (Only Trade A+ Setups):
 **A+ Setup (TRADE)** = 4+ confirmations:
