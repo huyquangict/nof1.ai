@@ -19,7 +19,7 @@
 /**
  * Trading Agent Configuration (Minimalist Version)
  */
-import { Agent, Memory } from "@voltagent/core";
+import { Agent, Memory, type OnPrepareMessagesHookArgs, type OnPrepareMessagesHookResult } from "@voltagent/core";
 import { LibSQLMemoryAdapter } from "@voltagent/libsql";
 import { createPinoLogger } from "@voltagent/logger";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -1070,6 +1070,21 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       tradingTools.syncPositionsTool,
     ],
     memory,
+    hooks: {
+      onPrepareMessages: async ({ messages }: OnPrepareMessagesHookArgs): Promise<OnPrepareMessagesHookResult> => {
+        // Limit conversation history to last 10 messages (5 rounds)
+        // This prevents context window overflow while maintaining recent context
+        const MESSAGE_LIMIT = 10;
+        const originalCount = messages.length;
+        const limitedMessages = messages.slice(-MESSAGE_LIMIT);
+
+        if (originalCount > MESSAGE_LIMIT) {
+          logger.info(`Conversation history limited: ${originalCount} → ${limitedMessages.length} messages (keeping last ${MESSAGE_LIMIT})`);
+        }
+
+        return { messages: limitedMessages };
+      },
+    },
   });
 
   return agent;
