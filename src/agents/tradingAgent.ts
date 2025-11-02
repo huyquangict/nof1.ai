@@ -723,7 +723,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   const enableReverseTrading = process.env.ENABLE_REVERSE_TRADING === 'true';
 
   // Log reverse trading status for debugging
-  console.log(`[Trading Agent] Reverse Trading Mode: ${enableReverseTrading ? 'ENABLED' : 'DISABLED'} (env: ${process.env.ENABLE_REVERSE_TRADING})`);
+  logger.info(`Reverse Trading Mode: ${enableReverseTrading ? 'ENABLED ✅' : 'DISABLED ❌'} (env: ${process.env.ENABLE_REVERSE_TRADING})`);
 
   let reverseModeSec = '';
 
