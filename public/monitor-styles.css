@@ -1168,3 +1168,41 @@ body {
 .close-position-btn:active {
   transform: scale(0.95);
 }
+
+/* === CLOSE POSITION BUTTON FOR CARDS === */
+.close-position-btn-card {
+  background: rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.close-position-btn-card:hover {
+  background: rgba(239, 68, 68, 0.5);
+  border-color: #ef4444;
+  transform: scale(1.15);
+}
+
+.close-position-btn-card:active {
+  transform: scale(0.9);
+}
+
+.position-card {
+  position: relative;
+  padding-right: 36px; /* Make room for close button */
+}

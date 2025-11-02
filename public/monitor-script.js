@@ -375,6 +375,7 @@ class TradingMonitor {
                             <span class="position-card-pnl ${pnlClass}">
                                 ${sideText} ${pos.unrealizedPnl >= 0 ? '+' : ''}$${pos.unrealizedPnl.toFixed(2)} (${pos.unrealizedPnl >= 0 ? '+' : ''}${profitPercent}%)
                             </span>
+                            <button class="close-position-btn-card" onclick="window.monitor.closePosition('${pos.symbol}')" title="Close position">✕</button>
                         </div>
                     `;
                 }).join('');
@@ -382,6 +383,37 @@ class TradingMonitor {
 
         } catch (error) {
             console.error('Failed to load positions data:', error);
+        }
+    }
+
+    // Close position manually
+    async closePosition(symbol) {
+        if (!confirm(`Are you sure you want to close ${symbol} position?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/positions/${symbol}/close`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ percentage: 100 })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`✅ ${result.message}`);
+                // Reload positions and account data
+                await this.loadPositionsData();
+                await this.loadAccountData();
+            } else {
+                alert(`❌ Close failed: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Close position request failed:', error);
+            alert(`❌ Close request failed: ${error.message}`);
         }
     }
 
