@@ -538,8 +538,6 @@ Current Market Status for All Coins
       prompt += `Multi-Timeframe Indicators:\n\n`;
 
       const tfList = [
-        { key: "1m", name: "1-minute" },
-        { key: "3m", name: "3-minute" },
         { key: "5m", name: "5-minute" },
         { key: "15m", name: "15-minute" },
         { key: "30m", name: "30-minute" },
