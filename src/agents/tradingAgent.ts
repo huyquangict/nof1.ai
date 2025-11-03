@@ -964,12 +964,20 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
       - Coin addition count < 2 times
       - Total exposure after adding doesn't exceed ${params.leverageMax}x account net value
       - Use same or lower leverage as original position
+      - **Check Per-Symbol History**: If this symbol has poor recent performance (win rate < 50%), be extra cautious about adding
 
    b) **New Opening Evaluation (New coin)**:
       - Account drawdown < 15%
       - Existing position count < ${RISK_PARAMS.MAX_POSITIONS}
       - ${params.entryCondition}
       - Potential profit ≥ 2-3% (still has net profit after deducting 0.1% fees)
+      - **Per-Symbol Performance Analysis** (if history is shown above):
+        * Check this symbol's recent win rate and total PnL
+        * If win rate < 40% on this symbol: Require stronger confirmation (4+ timeframes aligned)
+        * If last 2-3 trades on this symbol were losses: Analyze WHY they failed, avoid repeating same setup
+        * If win rate > 70% on this symbol: You trade this well, maintain same approach
+        * If switching from winning to losing streak: Re-evaluate your strategy on this symbol
+        * **Key**: Each symbol has unique price behavior - adapt your strategy per symbol!
       - **Identifying Long and Short Opportunities**:
         * Long signal: Price breaks above EMA20/50, MACD turns positive, RSI7 > 50 and rising, multiple timeframes resonate upward
         * Short signal: Price breaks below EMA20/50, MACD turns negative, RSI7 < 50 and falling, multiple timeframes resonate downward
