@@ -48,6 +48,28 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 }
 
 /**
+ * Position-level stop-loss and take-profit configuration
+ */
+export interface PositionSLTPConfig {
+  stopLossPnlPercent: number;
+  tp1PnlPercent: number;
+  tp2PnlPercent: number;
+  tp3PnlPercent: number;
+}
+
+/**
+ * Read position SL/TP configuration from environment variables
+ */
+export function getPositionSLTPConfig(): PositionSLTPConfig {
+  return {
+    stopLossPnlPercent: Number.parseFloat(process.env.POSITION_STOP_LOSS_PNL_PERCENT || "20"),
+    tp1PnlPercent: Number.parseFloat(process.env.POSITION_TP1_PNL_PERCENT || "15"),
+    tp2PnlPercent: Number.parseFloat(process.env.POSITION_TP2_PNL_PERCENT || "25"),
+    tp3PnlPercent: Number.parseFloat(process.env.POSITION_TP3_PNL_PERCENT || "40"),
+  };
+}
+
+/**
  * Trading Strategy Type
  */
 export type TradingStrategy = "conservative" | "balanced" | "aggressive";
@@ -250,6 +272,7 @@ export function generateTradingPrompt(data: {
 }): string {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
+  const sltp = getPositionSLTPConfig();
 
   let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
 
@@ -266,16 +289,31 @@ Important Rules and Instructions for 80% Win Rate Trading:
 
 1. **Immediately Set Stop-Loss** (Required):
    - MUST call setStopLoss tool right after opening position
-   - Calculate stop-loss price based on your strategy (-20% PnL for current setup)
-   - Example: Long at $100K with 10x leverage → Stop at $98K (-2% price = -20% PnL)
+   - Calculate stop-loss price based on your strategy (-${sltp.stopLossPnlPercent}% PnL for current setup)
+   - **CALCULATION FORMULA**:
+     * Required price change % = Target PnL % / Leverage
+     * For LONG: Stop-loss price = Entry price × (1 - |Required price change %| / 100)
+     * For SHORT: Stop-loss price = Entry price × (1 + |Required price change %| / 100)
+   - **Example**: Long at $100K with 10x leverage, target -${sltp.stopLossPnlPercent}% PnL
+     * Required price change = -${sltp.stopLossPnlPercent}% / 10 = -${sltp.stopLossPnlPercent / 10}%
+     * Stop-loss price = $100,000 × (1 - ${sltp.stopLossPnlPercent / 1000}) = $${100000 * (1 - sltp.stopLossPnlPercent / 100)}
+     * Verification: Price drops ${sltp.stopLossPnlPercent / 10}%, PnL with 10x = -${sltp.stopLossPnlPercent / 10}% × 10 = -${sltp.stopLossPnlPercent}% ✓
    - This creates automatic order on exchange - no manual monitoring needed
 
 2. **Immediately Set Take-Profit** (Recommended - Multiple Levels):
    - SHOULD call setTakeProfit multiple times for scaling out
-   - Recommended strategy:
-     * 30% of position at +15% PnL (secure early profits)
-     * 40% of position at +25% PnL (lock in bulk profits)
-     * 30% of position at +40% PnL (maximize on strong moves)
+   - **CALCULATION FORMULA** (same as stop-loss):
+     * Required price change % = Target PnL % / Leverage
+     * For LONG: TP price = Entry price × (1 + Required price change % / 100)
+     * For SHORT: TP price = Entry price × (1 - Required price change % / 100)
+   - **Recommended strategy**:
+     * 30% of position at +${sltp.tp1PnlPercent}% PnL (secure early profits)
+     * 40% of position at +${sltp.tp2PnlPercent}% PnL (lock in bulk profits)
+     * 30% of position at +${sltp.tp3PnlPercent}% PnL (maximize on strong moves)
+   - **Example**: Long at $100K with 10x leverage
+     * TP1 (+${sltp.tp1PnlPercent}% PnL): Price change = +${sltp.tp1PnlPercent}% / 10 = +${sltp.tp1PnlPercent / 10}% → $100,000 × ${1 + sltp.tp1PnlPercent / 1000} = $${100000 * (1 + sltp.tp1PnlPercent / 100)}
+     * TP2 (+${sltp.tp2PnlPercent}% PnL): Price change = +${sltp.tp2PnlPercent}% / 10 = +${sltp.tp2PnlPercent / 10}% → $100,000 × ${1 + sltp.tp2PnlPercent / 1000} = $${100000 * (1 + sltp.tp2PnlPercent / 100)}
+     * TP3 (+${sltp.tp3PnlPercent}% PnL): Price change = +${sltp.tp3PnlPercent}% / 10 = +${sltp.tp3PnlPercent / 10}% → $100,000 × ${1 + sltp.tp3PnlPercent / 1000} = $${100000 * (1 + sltp.tp3PnlPercent / 100)}
    - These are automatic orders - position closes automatically when targets hit
 
 3. **Manual Trailing Stop Management** (Your Ongoing Job):
@@ -297,10 +335,10 @@ Important Rules and Instructions for 80% Win Rate Trading:
 1. Analyze: BTC shows strong bullish setup, R:R = 1:3
 2. Calculate: Account = 100 USDT, Strong signal = 25%, Position = 25 USDT
 3. Execute: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
-4. Protect: setStopLoss(symbol="BTC", stopPrice=98000) // -20% PnL
-5. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=103000, percentage=30) // +15% PnL
-6. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=105000, percentage=40) // +25% PnL
-7. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=108000, percentage=30) // +40% PnL
+4. Protect: setStopLoss(symbol="BTC", stopPrice=${100000 * (1 - sltp.stopLossPnlPercent / 100)}) // -${sltp.stopLossPnlPercent / 10}% price = -${sltp.stopLossPnlPercent}% PnL with 10x
+5. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp1PnlPercent / 100)}, percentage=30) // +${sltp.tp1PnlPercent / 10}% price = +${sltp.tp1PnlPercent}% PnL with 10x
+6. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp2PnlPercent / 100)}, percentage=40) // +${sltp.tp2PnlPercent / 10}% price = +${sltp.tp2PnlPercent}% PnL with 10x
+7. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp3PnlPercent / 100)}, percentage=30) // +${sltp.tp3PnlPercent / 10}% price = +${sltp.tp3PnlPercent}% PnL with 10x
 8. Monitor: Every ${intervalMinutes} min, check if profit ≥ +8% → Move stop to breakeven/profit
 
 **BENEFITS OF AUTOMATED ORDERS:**
