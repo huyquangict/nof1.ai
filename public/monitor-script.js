@@ -375,7 +375,10 @@ class TradingMonitor {
                             <span class="position-card-pnl ${pnlClass}">
                                 ${sideText} ${pos.unrealizedPnl >= 0 ? '+' : ''}$${pos.unrealizedPnl.toFixed(2)} (${pos.unrealizedPnl >= 0 ? '+' : ''}${profitPercent}%)
                             </span>
-                            <button class="close-position-btn-card" onclick="window.monitor.closePosition('${pos.symbol}')" title="Close position">✕</button>
+                            <div class="position-card-actions">
+                                <button class="take-profit-btn-card" onclick="window.monitor.showTakeProfitMenu('${pos.symbol}')" title="Take profit partially">💰</button>
+                                <button class="close-position-btn-card" onclick="window.monitor.closePosition('${pos.symbol}')" title="Close position">✕</button>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -414,6 +417,68 @@ class TradingMonitor {
         } catch (error) {
             console.error('Close position request failed:', error);
             alert(`❌ Close request failed: ${error.message}`);
+        }
+    }
+
+    // Show take profit menu with percentage options
+    showTakeProfitMenu(symbol) {
+        const percentage = prompt(
+            `💰 Take Profit on ${symbol}\n\n` +
+            `Enter percentage to close (30, 50, or 80):\n` +
+            `- 30% = Close 30% of position\n` +
+            `- 50% = Close 50% of position (default)\n` +
+            `- 80% = Close 80% of position`,
+            '50'
+        );
+
+        if (percentage === null) {
+            return; // User cancelled
+        }
+
+        const percentNum = parseInt(percentage);
+        if (isNaN(percentNum) || percentNum < 1 || percentNum > 100) {
+            alert('❌ Invalid percentage. Please enter a number between 1-100.');
+            return;
+        }
+
+        // Common options: validate
+        if (![30, 50, 80].includes(percentNum)) {
+            if (!confirm(`⚠️ You entered ${percentNum}%. This is not a standard option (30/50/80). Continue anyway?`)) {
+                return;
+            }
+        }
+
+        this.takeProfitPartial(symbol, percentNum);
+    }
+
+    // Take profit partially
+    async takeProfitPartial(symbol, percentage) {
+        if (!confirm(`💰 Take profit: Close ${percentage}% of ${symbol} position?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/positions/${symbol}/close`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ percentage })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`✅ ${result.message}`);
+                // Reload positions and account data
+                await this.loadPositionsData();
+                await this.loadAccountData();
+            } else {
+                alert(`❌ Take profit failed: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Take profit request failed:', error);
+            alert(`❌ Take profit request failed: ${error.message}`);
         }
     }
 
