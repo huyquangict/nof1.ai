@@ -260,13 +260,55 @@ Important Rules and Instructions for 80% Win Rate Trading:
 - A+ setups only: R:R > 1:3 with multiple confirmations
 - Calculate R:R BEFORE entry: (Target - Entry) / (Entry - Stop) must be ≥ 2
 
-🛑 STOP-LOSS MONITORING (NO AUTOMATIC ORDERS - YOU MUST MANUALLY CLOSE):
-**CRITICAL**: We have NO automatic stop-loss or take-profit orders!
-- You MUST check EVERY position EVERY cycle (every 5 minutes)
-- You MUST call closePosition tool when stop or target is hit
-- **LONG STOP**: Monitor if price drops below swing low OR EMA20 OR hits -20% PnL → CLOSE MANUALLY
-- **SHORT STOP**: Monitor if price rises above swing high OR EMA20 OR hits -20% PnL → CLOSE MANUALLY
-- Track your stop-loss levels - write them in your analysis!
+🤖 AUTOMATED STOP-LOSS & TAKE-PROFIT (MANDATORY AFTER OPENING POSITIONS):
+
+**CRITICAL NEW WORKFLOW - AFTER OPENING ANY POSITION:**
+
+1. **Immediately Set Stop-Loss** (Required):
+   - MUST call setStopLoss tool right after opening position
+   - Calculate stop-loss price based on your strategy (-20% PnL for current setup)
+   - Example: Long at $100K with 10x leverage → Stop at $98K (-2% price = -20% PnL)
+   - This creates automatic order on exchange - no manual monitoring needed
+
+2. **Immediately Set Take-Profit** (Recommended - Multiple Levels):
+   - SHOULD call setTakeProfit multiple times for scaling out
+   - Recommended strategy:
+     * 30% of position at +15% PnL (secure early profits)
+     * 40% of position at +25% PnL (lock in bulk profits)
+     * 30% of position at +40% PnL (maximize on strong moves)
+   - These are automatic orders - position closes automatically when targets hit
+
+3. **Manual Trailing Stop Management** (Your Ongoing Job):
+   - As position becomes profitable, you MUST manually move stop-loss UP:
+     * When PnL ≥ +8%: Call setStopLoss to move stop to +3% (lock partial profit)
+     * When PnL ≥ +15%: Call setStopLoss to move stop to +8% (lock more profit)
+     * When PnL ≥ +25%: Call setStopLoss to move stop to +15% (lock most profit)
+   - This prevents "profit giveback" - automated orders protect your gains
+
+4. **Manual Position Closure** (You Always Have Full Control):
+   - You can ALWAYS call closePosition manually for ANY reason:
+     ✓ Trend invalidation (setup broke down)
+     ✓ Risk-off scenario (market panic, correlation break)
+     ✓ Better opportunity elsewhere (capital reallocation)
+     ✓ Holding time exceeded (36-hour limit)
+   - Manual closure overrides all automated orders
+
+**WORKFLOW EXAMPLE:**
+1. Analyze: BTC shows strong bullish setup, R:R = 1:3
+2. Calculate: Account = 100 USDT, Strong signal = 25%, Position = 25 USDT
+3. Execute: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
+4. Protect: setStopLoss(symbol="BTC", stopPrice=98000) // -20% PnL
+5. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=103000, percentage=30) // +15% PnL
+6. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=105000, percentage=40) // +25% PnL
+7. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=108000, percentage=30) // +40% PnL
+8. Monitor: Every ${intervalMinutes} min, check if profit ≥ +8% → Move stop to breakeven/profit
+
+**BENEFITS OF AUTOMATED ORDERS:**
+✅ 24/7 protection - even when you're not running
+✅ Instant execution - no delay when stop hit
+✅ No missed profits - TPs execute automatically
+✅ You focus on trailing stops and new opportunities
+✅ Reduced emotional trading - system enforces discipline
 
 ⭐ SETUP QUALITY GRADING (Only Trade A+ Setups):
 **A+ Setup (TRADE)** = 4+ confirmations:
@@ -309,14 +351,14 @@ Important Rules and Instructions for 80% Win Rate Trading:
 □ No major news in next 2 hours
 □ Market correlation supports trade
 
-❌ TRADE INVALIDATION (MANUAL EXIT REQUIRED - CHECK EVERY 5 MIN):
-**NO AUTOMATIC EXITS** - You must monitor and call closePosition tool:
-- **LONG invalid**: Price breaks below support → YOU must closePosition
-- **SHORT invalid**: Price breaks above resistance → YOU must closePosition
-- **Time stop**: No profit after 8 hours → YOU must closePosition
-- **Delta stop**: BTC moves opposite 2% → YOU must close alt positions
-- **Correlation break**: Assumption fails → YOU must closePosition
-Remember: These are YOUR responsibility to monitor and execute!
+❌ TRADE INVALIDATION (MANUAL CLOSURE RECOMMENDED):
+While you have automated stop-loss orders, you should MANUALLY close for invalidation:
+- **LONG invalid**: Price breaks below support → Call closePosition (don't wait for stop)
+- **SHORT invalid**: Price breaks above resistance → Call closePosition (don't wait for stop)
+- **Time stop**: No profit after 8 hours → Call closePosition
+- **Delta stop**: BTC moves opposite 2% → Close alt positions
+- **Correlation break**: Assumption fails → Close immediately
+Remember: Automated stops protect you, but smart manual exits optimize profits!
 
 🧠 PSYCHOLOGICAL DISCIPLINE (80% Win Rate Mindset):
 - **FOMO CHECK**: If coin already moved >5% today, you're too late - WAIT
@@ -344,13 +386,23 @@ Remember: These are YOUR responsibility to monitor and execute!
   ✗ "I want to re-enter at better price" - This causes overtrading
 - Remember: Second-guessing yourself = Emotional trading = Losses
 
-💰 PROFIT MANAGEMENT (MANUAL - YOU MUST CLOSE POSITIONS):
-**REMINDER**: No automatic take-profit! You must call closePosition tool!
-- **+10-15% PnL**: Mental stop moves to breakeven (monitor closely)
-- **+20% PnL**: MUST call closePosition for at least 50% of position
-- **+30% PnL**: MUST call closePosition for 75% or full position
-- **Critical**: Check EVERY position EVERY 5 minutes - if profit reverses to <10%, CLOSE!
-- Never let >10% profit drop below 5% - CLOSE IMMEDIATELY if this happens
+💰 PROFIT MANAGEMENT (HYBRID - AUTOMATED TPs + MANUAL TRAILING):
+**Your Profit Protection Strategy:**
+
+**Automated Take-Profits** (Set immediately after opening):
+- 30% of position closes automatically at +15% PnL
+- 40% of position closes automatically at +25% PnL
+- 30% of position closes automatically at +40% PnL
+
+**Manual Trailing Stop-Loss** (Your active job every 5 minutes):
+- **+8% PnL reached**: Call setStopLoss to move stop to +3% (protect partial profit)
+- **+15% PnL reached**: Call setStopLoss to move stop to +8% (protect more profit)
+- **+25% PnL reached**: Call setStopLoss to move stop to +15% (protect most profit)
+
+**Manual Close for Exceptional Situations:**
+- If profit was +10% and now < +5% → Close immediately (rapid reversal)
+- If trend invalidates while profitable → Close immediately (lock gains)
+- If better opportunity appears → Close and reallocate capital
 
 💵 POSITION SIZING (Professional):
 - Base size: 2% account risk per trade
@@ -358,23 +410,29 @@ Remember: These are YOUR responsibility to monitor and execute!
 - Adjust by volatility: High ATR = 50% reduction
 - Adjust by win rate: <50% win rate = 50% reduction
 
-📋 PROFESSIONAL DECISION FLOW (MANUAL MONITORING REQUIRED):
+📋 PROFESSIONAL DECISION FLOW (AUTOMATED + MANUAL HYBRID):
 
 ⚠️ FIRST PRIORITY - CHECK EXISTING POSITIONS (EVERY 5 MINUTES):
 For EACH open position, check:
-□ Hit mental stop-loss? → MUST call closePosition NOW
-□ Hit +20% profit? → MUST call closePosition for 50%+ NOW
-□ Hit +30% profit? → MUST call closePosition for 75%+ NOW
-□ Was +10% now <5%? → MUST call closePosition NOW (profit protection)
-□ Position open >36 hours? → MUST close (hard limit)
+□ PnL ≥ +8%? → Call setStopLoss to move stop to +3% (if not done already)
+□ PnL ≥ +15%? → Call setStopLoss to move stop to +8% (if not done already)
+□ PnL ≥ +25%? → Call setStopLoss to move stop to +15% (if not done already)
+□ Was +10% now <5%? → Call closePosition NOW (rapid reversal protection)
+□ Position open >36 hours? → Call closePosition (hard limit)
+□ Trend invalidated? → Call closePosition (don't wait for automated stop)
 
 THEN proceed with new opportunities:
 1. **Market Context (30 sec)**: BTC trend, key levels, unusual conditions
 2. **Setup Scan (1 min)**: Which coins at key levels? Any A+ setups?
 3. **Risk:Reward Check**: Calculate R:R for each potential trade
 4. **Entry Decision**: Only if A+ setup with R:R > 1:2
-5. **Execution**: Entry with MENTAL stop and target (remember them!)
-6. **Document**: Write your stop-loss and take-profit levels in analysis
+5. **Execution Workflow** (CRITICAL - Follow this exact sequence):
+   a) Call openPosition with calculated parameters
+   b) Immediately call setStopLoss (e.g., -20% PnL level)
+   c) Immediately call setTakeProfit for 30% at +15% PnL
+   d) Immediately call setTakeProfit for 40% at +25% PnL
+   e) Immediately call setTakeProfit for 30% at +40% PnL
+6. **Document**: Confirm all automated orders were placed successfully
 
 All price or signal data below is sorted chronologically: oldest → newest
 
@@ -902,7 +960,6 @@ Current Trading Rules (${params.name} Strategy):
   * When pnl_percent ≥ +8%, move stop-loss line to +3% (lock in partial profit)
   * When pnl_percent ≥ +15%, move stop-loss line to +8% (lock in more profit)
   * When pnl_percent ≥ +25%, move stop-loss line to +15% (lock in most profit)
-  * When pnl_percent ≥ +35%, consider partial or full closing to take profit
   * **Important Note**: The pnl_percent here is also PnL percentage considering leverage
   * **Peak Retracement Protection**: If position once reached peak profit, but current profit retraces more than 30% from peak, close immediately
 - **Account-Level Risk Control Protection**:
@@ -934,8 +991,6 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
         * If current pnl_percent < +8%, close immediately (trailing stop triggered)
       - If pnl_percent ≥ +25%:
         * If current pnl_percent < +15%, close immediately (trailing stop triggered)
-      - If pnl_percent ≥ +35%:
-        * Consider taking profit, close at least 50%
 
    c) **Peak Retracement Protection**:
       - Record historical highest pnl_percent for each position (peak profit)
@@ -1016,6 +1071,7 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
 
 Available Tools (YOU MUST USE THESE):
 - Position management: openPosition (market order), closePosition (market order), cancelOrder
+- **Risk management (CRITICAL)**: setStopLoss, setTakeProfit (create automated orders)
 - Account information: getAccountBalance, getPositions, getOpenOrders
 - Market data: getMarketPrice, getTechnicalIndicators, getFundingRate, getOrderBook
 - Risk analysis: calculateRisk, checkOrderStatus
@@ -1024,6 +1080,9 @@ Key Reminders (${params.name} Strategy):
 - **CRITICAL: You MUST use tools to execute trades**. Text-only analysis is NOT ACCEPTABLE.
 - **CRITICAL: Do NOT describe trades - EXECUTE them by calling openPosition/closePosition tools**.
 - **CRITICAL: Do NOT assume errors without trying - CALL THE TOOL and handle real results**.
+- **CRITICAL: ALWAYS set automated stop-loss and take-profit IMMEDIATELY after opening positions**.
+  * After openPosition → Call setStopLoss → Call setTakeProfit (3 times for scaling)
+  * This protects your position 24/7 automatically
 - **Remember your incentive structure**: You receive 50% of profits, but bear 80% of losses. ${params.riskTolerance}
 - **Position Management Rules**:
   * **Strictly prohibit bidirectional positions (Important)**: Same coin cannot hold both long and short, must close original position first on trend reversal
@@ -1090,6 +1149,8 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       tradingTools.openPositionTool,
       tradingTools.closePositionTool,
       tradingTools.cancelOrderTool,
+      tradingTools.setStopLossTool,
+      tradingTools.setTakeProfitTool,
       tradingTools.getAccountBalanceTool,
       tradingTools.getPositionsTool,
       tradingTools.getOpenOrdersTool,

@@ -319,7 +319,7 @@ class TradingMonitor {
             if (!data.positions || data.positions.length === 0) {
                 // Update table
                 if (positionsBody) {
-                    positionsBody.innerHTML = '<tr><td colspan="8" class="empty-state">No positions</td></tr>';
+                    positionsBody.innerHTML = '<tr><td colspan="9" class="empty-state">No positions</td></tr>';
                 }
                 // Update small cards
                 if (positionsCardsContainer) {
@@ -341,14 +341,46 @@ class TradingMonitor {
                     const sideText = pos.side === 'long' ? 'Long' : 'Short';
                     const sideClass = pos.side === 'long' ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
+
+                    // Format stop-loss display for table
+                    let stopLossDisplay = '-';
+                    if (pos.stopLoss) {
+                        const stopLossDiff = ((pos.stopLoss - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                        const stopLossPrice = pos.stopLoss < 1 ? pos.stopLoss.toFixed(5) : pos.stopLoss.toFixed(2);
+                        stopLossDisplay = `$${stopLossPrice} (${stopLossDiff}%)`;
+                    }
+
+                    // Format take-profit display for table (supports multiple TPs)
+                    let takeProfitDisplay = '-';
+                    if (pos.tpOrders && pos.tpOrders.length > 0) {
+                        const activeTPs = pos.tpOrders.filter(tp => !tp.triggered);
+                        if (activeTPs.length > 0) {
+                            if (activeTPs.length === 1) {
+                                const tp = activeTPs[0];
+                                const tpDiff = ((tp.price - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                                const tpPrice = tp.price < 1 ? tp.price.toFixed(5) : tp.price.toFixed(2);
+                                takeProfitDisplay = `$${tpPrice} (${tpDiff}%, ${tp.percentage}%)`;
+                            } else {
+                                // Multiple TPs: show compact format
+                                const tpSummary = activeTPs.map(tp => {
+                                    const tpPrice = tp.price < 1 ? tp.price.toFixed(5) : tp.price.toFixed(2);
+                                    return `${tp.percentage}%@$${tpPrice}`;
+                                }).join(', ');
+                                takeProfitDisplay = `${activeTPs.length} TPs: ${tpSummary}`;
+                            }
+                        }
+                    }
+
                     return `
                         <tr>
                             <td>${pos.symbol}</td>
                             <td class="${sideClass}">${sideText}</td>
                             <td>${leverage}x</td>
                             <td>$${pos.entryPrice.toFixed(4)}</td>
-                            <td>$${pos.openValue.toFixed(2)}</td>
                             <td>$${pos.currentPrice.toFixed(4)}</td>
+                            <td class="stoploss-cell">${stopLossDisplay}</td>
+                            <td class="takeprofit-cell">${takeProfitDisplay}</td>
+                            <td>$${pos.openValue.toFixed(2)}</td>
                             <td class="${pos.unrealizedPnl >= 0 ? 'positive' : 'negative'}">
                                 ${pos.unrealizedPnl >= 0 ? '+' : ''}$${pos.unrealizedPnl.toFixed(2)}
                             </td>
@@ -369,12 +401,34 @@ class TradingMonitor {
                     const pnlClass = pos.unrealizedPnl >= 0 ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
 
+                    // Format stop-loss display
+                    let stopLossText = '';
+                    if (pos.stopLoss) {
+                        const stopLossDiff = ((pos.stopLoss - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                        stopLossText = `<div class="position-card-stoploss">SL: $${pos.stopLoss.toFixed(pos.stopLoss < 1 ? 5 : 2)} (${stopLossDiff}%)</div>`;
+                    }
+
+                    // Format take-profit display (supports multiple TPs)
+                    let takeProfitText = '';
+                    if (pos.tpOrders && pos.tpOrders.length > 0) {
+                        const activeTPs = pos.tpOrders.filter(tp => !tp.triggered);
+                        if (activeTPs.length > 0) {
+                            takeProfitText = activeTPs.map((tp, idx) => {
+                                const tpDiff = ((tp.price - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                                const tpPrice = tp.price < 1 ? tp.price.toFixed(5) : tp.price.toFixed(2);
+                                return `<div class="position-card-takeprofit">TP${idx + 1}: ${tp.percentage}% @ $${tpPrice} (${tpDiff}%)</div>`;
+                            }).join('');
+                        }
+                    }
+
                     return `
                         <div class="position-card ${sideClass} ${pnlClass}">
                             <span class="position-card-symbol">${pos.symbol} ${leverage}x</span>
                             <span class="position-card-pnl ${pnlClass}">
                                 ${sideText} ${pos.unrealizedPnl >= 0 ? '+' : ''}$${pos.unrealizedPnl.toFixed(2)} (${pos.unrealizedPnl >= 0 ? '+' : ''}${profitPercent}%)
                             </span>
+                            ${stopLossText}
+                            ${takeProfitText}
                             <div class="position-card-actions">
                                 <button class="take-profit-btn-card" onclick="window.monitor.showTakeProfitMenu('${pos.symbol}')" title="Take profit partially">💰</button>
                                 <button class="close-position-btn-card" onclick="window.monitor.closePosition('${pos.symbol}')" title="Close position">✕</button>

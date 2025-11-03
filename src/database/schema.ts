@@ -20,6 +20,13 @@
  * 数据库模式定义
  */
 
+export interface TakeProfitOrder {
+  price: number;
+  percentage: number; // Percentage of position (1-100)
+  orderId: string;
+  triggered?: boolean; // Whether this TP has been triggered
+}
+
 export interface Trade {
   id: number;
   order_id: string;
@@ -45,10 +52,13 @@ export interface Position {
   unrealized_pnl: number;
   leverage: number;
   side: 'long' | 'short';
-  profit_target?: number;
+  profit_target?: number; // Deprecated: use tp_orders instead
   stop_loss?: number;
-  tp_order_id?: string;
+  tp_order_id?: string; // Deprecated: use tp_orders instead
   sl_order_id?: string;
+  tp_percentage?: number; // Deprecated: use tp_orders instead
+  sl_percentage?: number; // Percentage of position covered by stop-loss (1-100)
+  tp_orders?: TakeProfitOrder[]; // Multiple take-profit orders (stored as JSON in DB)
   entry_order_id: string;
   opened_at: string;
   confidence?: number;
@@ -137,6 +147,9 @@ CREATE TABLE IF NOT EXISTS positions (
   stop_loss REAL,
   tp_order_id TEXT,
   sl_order_id TEXT,
+  tp_percentage REAL,
+  sl_percentage REAL,
+  tp_orders TEXT, -- JSON array of TakeProfitOrder objects
   entry_order_id TEXT NOT NULL,
   opened_at TEXT NOT NULL,
   confidence REAL,

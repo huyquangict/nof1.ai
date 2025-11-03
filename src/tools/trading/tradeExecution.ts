@@ -27,6 +27,7 @@ import { createPinoLogger } from "@voltagent/logger";
 import { getChinaTimeISO } from "../../utils/timeUtils";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
+import type { TakeProfitOrder } from "../../database/schema";
 
 const logger = createPinoLogger({
   name: "trade-execution",
@@ -844,7 +845,7 @@ export const cancelOrderTool = createTool({
 
     try {
       await client.cancelOrder(orderId);
-      
+
       return {
         success: true,
         orderId,
@@ -855,6 +856,355 @@ export const cancelOrderTool = createTool({
         success: false,
         error: error.message,
         message: `取消订单失败: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Set Take Profit Tool - Create automatic take-profit orders for existing position
+ * Supports multiple TP levels (e.g., 30% at +5%, 40% at +10%, 30% at +15%)
+ */
+export const setTakeProfitTool = createTool({
+  name: "setTakeProfit",
+  description: "Set one or more take-profit orders for an existing position. Supports multiple TP levels for scaling out (e.g., 30% at +5%, 40% at +10%, 30% at +15%). Take-profits execute automatically when price reaches each target. Can be called multiple times to add more TPs. IMPORTANT: Long positions must have TP > current price, short positions must have TP < current price. Total percentage across all TPs cannot exceed 100%.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
+    takeProfitPrice: z.number().describe("Take-profit trigger price (long: TP > current, short: TP < current)"),
+    percentage: z.number().min(1).max(100).optional().describe("Percentage of position to take profit (1-100%, default 100% if no existing TPs)"),
+  }),
+  execute: async ({ symbol, takeProfitPrice, percentage }) => {
+    const client = createExchangeClient();
+
+    try {
+      // 1. Get current position from exchange
+      const positions = await client.getPositions();
+      const position = positions.find(p => p.symbol === symbol);
+
+      if (!position) {
+        return {
+          success: false,
+          message: `No position found for ${symbol}, cannot set take-profit`,
+        };
+      }
+
+      // 2. Get existing TPs from database
+      const dbResult = await dbClient.execute({
+        sql: "SELECT tp_orders FROM positions WHERE symbol = ?",
+        args: [symbol]
+      });
+
+      let existingTPs: TakeProfitOrder[] = [];
+      if (dbResult.rows.length > 0) {
+        const tpOrdersStr = (dbResult.rows[0] as any).tp_orders;
+        if (tpOrdersStr) {
+          try {
+            existingTPs = JSON.parse(tpOrdersStr);
+          } catch (e) {
+            logger.warn(`Failed to parse existing tp_orders for ${symbol}, starting fresh`);
+          }
+        }
+      }
+
+      // 3. Calculate total existing percentage (excluding triggered TPs)
+      const totalExistingPercent = existingTPs
+        .filter(tp => !tp.triggered)
+        .reduce((sum, tp) => sum + tp.percentage, 0);
+
+      // 4. Determine percentage for this TP
+      let tpPercentage = percentage;
+      if (tpPercentage === undefined) {
+        // Default: 100% if no existing TPs, otherwise error (user must specify)
+        if (totalExistingPercent === 0) {
+          tpPercentage = 100;
+        } else {
+          return {
+            success: false,
+            message: `Position already has ${totalExistingPercent.toFixed(0)}% covered by TPs. Must specify percentage for additional TP (remaining: ${(100 - totalExistingPercent).toFixed(0)}%)`,
+          };
+        }
+      }
+
+      // 5. Validate total percentage doesn't exceed 100%
+      const newTotalPercent = totalExistingPercent + tpPercentage;
+      if (newTotalPercent > 100) {
+        return {
+          success: false,
+          message: `Total TP coverage would exceed 100% (existing: ${totalExistingPercent.toFixed(0)}%, new: ${tpPercentage}%, total: ${newTotalPercent.toFixed(0)}%)`,
+        };
+      }
+
+      // 6. Get current price
+      const ticker = await client.getFuturesTicker(symbol);
+      const currentPrice = ticker.lastPrice;
+
+      // 7. Validate take-profit price
+      if (position.side === 'long' && takeProfitPrice <= currentPrice) {
+        return {
+          success: false,
+          message: `Long position take-profit price ${formatPrice(takeProfitPrice)} must be above current price ${formatPrice(currentPrice)}`,
+        };
+      }
+
+      if (position.side === 'short' && takeProfitPrice >= currentPrice) {
+        return {
+          success: false,
+          message: `Short position take-profit price ${formatPrice(takeProfitPrice)} must be below current price ${formatPrice(currentPrice)}`,
+        };
+      }
+
+      // 8. Calculate take-profit quantity
+      const tpQuantity = (position.quantity * tpPercentage) / 100;
+
+      // 9. Use different API based on exchange
+      const exchangeName = client.getExchangeName();
+
+      let orderId: string;
+
+      if (exchangeName === 'Binance') {
+        // Binance: Use CCXT TAKE_PROFIT_MARKET order
+        const binanceAdapter = client as any; // Type assertion
+        const ccxt = binanceAdapter.getUnderlyingExchange();
+        const ccxtSymbol = client.normalizeSymbol(symbol);
+
+        // Take-profit order side is opposite to position (closing)
+        const orderSide = position.side === 'long' ? 'sell' : 'buy';
+
+        const order = await ccxt.createOrder(
+          ccxtSymbol,
+          'TAKE_PROFIT_MARKET',
+          orderSide,
+          tpQuantity,
+          undefined, // no limit price for TAKE_PROFIT_MARKET
+          {
+            stopPrice: takeProfitPrice,
+            reduceOnly: true,
+          }
+        );
+
+        orderId = order.id;
+        logger.info(`[Binance] Take-profit order created: ${symbol} ${position.side} ${tpQuantity}@${takeProfitPrice} (order ID: ${orderId})`);
+
+
+      } else if (exchangeName === 'Gate.io') {
+        // Gate.io: Use Price Trigger Order
+        const gateAdapter = client as any;
+        const gateClient = gateAdapter.getUnderlyingClient();
+        const contract = client.normalizeSymbol(symbol);
+
+        // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
+        const size = position.side === 'long' ? -tpQuantity : tpQuantity;
+
+        // Create price trigger order
+        // rule: 1 = price >= trigger, 2 = price <= trigger
+        const rule = position.side === 'long' ? 1 : 2; // long: >= TP price, short: <= TP price
+
+        const trigger = await gateClient.createPriceTriggerOrder({
+          contract: contract,
+          size: size,
+          triggerPrice: takeProfitPrice,
+          orderPrice: undefined, // market order
+          rule: rule,
+        });
+
+        orderId = trigger.id?.toString() || 'unknown';
+        logger.info(`[Gate.io] Take-profit order created: ${symbol} ${position.side} ${tpQuantity}@${takeProfitPrice} (trigger ID: ${orderId})`);
+
+      } else {
+        return {
+          success: false,
+          message: `Unsupported exchange: ${exchangeName}`,
+        };
+      }
+
+      // 10. Add new TP to the array and save to database
+      const newTP: TakeProfitOrder = {
+        price: takeProfitPrice,
+        percentage: tpPercentage,
+        orderId: orderId,
+        triggered: false,
+      };
+
+      const allTPs = [...existingTPs, newTP];
+
+      await dbClient.execute({
+        sql: "UPDATE positions SET tp_orders = ? WHERE symbol = ?",
+        args: [JSON.stringify(allTPs), symbol]
+      });
+
+      // 11. Build summary message
+      const tpCount = allTPs.filter(tp => !tp.triggered).length;
+      const coveredPercent = allTPs.filter(tp => !tp.triggered).reduce((sum, tp) => sum + tp.percentage, 0);
+
+      return {
+        success: true,
+        orderId: orderId,
+        symbol,
+        side: position.side,
+        takeProfitPrice,
+        quantity: tpQuantity,
+        percentage: tpPercentage,
+        totalTPs: tpCount,
+        totalCoverage: coveredPercent,
+        message: `✅ Take-profit set: ${symbol} ${position.side.toUpperCase()} TP${tpCount} @ ${formatPrice(takeProfitPrice)} (${tpPercentage}% = ${tpQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${tpCount} TPs.`,
+      };
+
+    } catch (error: any) {
+      logger.error(`Failed to set take-profit for ${symbol}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to set take-profit: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Set Stop Loss Tool - Create automatic stop-loss order for existing position
+ */
+export const setStopLossTool = createTool({
+  name: "setStopLoss",
+  description: "Set a stop-loss order for an existing position (automatic market close order). Stop-loss will execute automatically when price reaches the trigger price, no manual monitoring needed. Used for risk management and profit protection. IMPORTANT: Stop price must be set correctly - long positions must have stop price < current price, short positions must have stop price > current price.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
+    stopPrice: z.number().describe("Stop-loss trigger price (long: stop price < current, short: stop price > current)"),
+    percentage: z.number().min(1).max(100).optional().describe("Percentage of position to protect (1-100%, default 100% full position)"),
+  }),
+  execute: async ({ symbol, stopPrice, percentage = 100 }) => {
+    const client = createExchangeClient();
+
+    try {
+      // 1. Get current position
+      const positions = await client.getPositions();
+      const position = positions.find(p => p.symbol === symbol);
+
+      if (!position) {
+        return {
+          success: false,
+          message: `No position found for ${symbol}, cannot set stop-loss`,
+        };
+      }
+
+      // 2. Get current price
+      const ticker = await client.getFuturesTicker(symbol);
+      const currentPrice = ticker.lastPrice;
+
+      // 3. Validate stop price
+      if (position.side === 'long' && stopPrice >= currentPrice) {
+        return {
+          success: false,
+          message: `Long position stop price ${formatPrice(stopPrice)} must be below current price ${formatPrice(currentPrice)}`,
+        };
+      }
+
+      if (position.side === 'short' && stopPrice <= currentPrice) {
+        return {
+          success: false,
+          message: `Short position stop price ${formatPrice(stopPrice)} must be above current price ${formatPrice(currentPrice)}`,
+        };
+      }
+
+      // 4. Calculate stop quantity
+      const stopQuantity = (position.quantity * percentage) / 100;
+
+      // 5. Use different API based on exchange
+      const exchangeName = client.getExchangeName();
+
+      if (exchangeName === 'Binance') {
+        // Binance: Use CCXT STOP_MARKET order
+        const binanceAdapter = client as any; // Type assertion
+        const ccxt = binanceAdapter.getUnderlyingExchange();
+        const ccxtSymbol = client.normalizeSymbol(symbol);
+
+        // Stop order side is opposite to position (closing)
+        const orderSide = position.side === 'long' ? 'sell' : 'buy';
+
+        const order = await ccxt.createOrder(
+          ccxtSymbol,
+          'STOP_MARKET',
+          orderSide,
+          stopQuantity,
+          undefined, // no limit price for STOP_MARKET
+          {
+            stopPrice: stopPrice,
+            reduceOnly: true,
+          }
+        );
+
+        logger.info(`[Binance] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (order ID: ${order.id})`);
+
+        // Save stop-loss order to database
+        await dbClient.execute({
+          sql: "UPDATE positions SET stop_loss = ?, sl_order_id = ?, sl_percentage = ? WHERE symbol = ?",
+          args: [stopPrice, order.id, percentage, symbol]
+        });
+
+        return {
+          success: true,
+          orderId: order.id,
+          symbol,
+          side: position.side,
+          stopPrice,
+          quantity: stopQuantity,
+          percentage,
+          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} will close ${percentage}% (${stopQuantity.toFixed(4)} contracts) when price ${position.side === 'long' ? 'drops to' : 'rises to'} ${formatPrice(stopPrice)}`,
+        };
+
+      } else if (exchangeName === 'Gate.io') {
+        // Gate.io: Use Price Trigger Order
+        const gateAdapter = client as any;
+        const gateClient = gateAdapter.getUnderlyingClient();
+        const contract = client.normalizeSymbol(symbol);
+
+        // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
+        const size = position.side === 'long' ? -stopQuantity : stopQuantity;
+
+        // Create price trigger order
+        // rule: 1 = price >= trigger, 2 = price <= trigger
+        const rule = position.side === 'long' ? 2 : 1; // long: <= stop price, short: >= stop price
+
+        const trigger = await gateClient.createPriceTriggerOrder({
+          contract: contract,
+          size: size,
+          triggerPrice: stopPrice,
+          orderPrice: undefined, // market order
+          rule: rule,
+        });
+
+        logger.info(`[Gate.io] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (trigger ID: ${trigger.id})`);
+
+        // Save stop-loss order to database
+        const orderId = trigger.id?.toString() || 'unknown';
+        await dbClient.execute({
+          sql: "UPDATE positions SET stop_loss = ?, sl_order_id = ?, sl_percentage = ? WHERE symbol = ?",
+          args: [stopPrice, orderId, percentage, symbol]
+        });
+
+        return {
+          success: true,
+          orderId: orderId,
+          symbol,
+          side: position.side,
+          stopPrice,
+          quantity: stopQuantity,
+          percentage,
+          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} will close ${percentage}% (${stopQuantity.toFixed(4)} contracts) when price ${position.side === 'long' ? 'drops to' : 'rises to'} ${formatPrice(stopPrice)}`,
+        };
+
+      } else {
+        return {
+          success: false,
+          message: `Unsupported exchange: ${exchangeName}`,
+        };
+      }
+
+    } catch (error: any) {
+      logger.error(`Failed to set stop-loss for ${symbol}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to set stop-loss: ${error.message}`,
       };
     }
   },

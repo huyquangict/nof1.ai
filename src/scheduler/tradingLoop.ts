@@ -712,7 +712,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
   try {
     // If cached data is provided, use it; otherwise fetch new data
     const positions = cachedPositions || await exchangeClient.getPositions();
-    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
@@ -721,6 +721,115 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
     if (positions.length === 0 && dbResult.rows.length > 0) {
       logger.warn(`Warning: Exchange returned 0 positions, but database has ${dbResult.rows.length} positions, possibly API delay, skipping sync`);
       return;
+    }
+
+    // Detect stop-loss and take-profit triggered positions before clearing database
+    const exchangeSymbols = new Set(positions.map(p => p.symbol));
+    for (const dbRow of dbResult.rows) {
+      const dbSymbol = (dbRow as any).symbol;
+
+      // Position exists in DB but not on exchange - it was closed
+      if (!exchangeSymbols.has(dbSymbol)) {
+        const slOrderId = (dbRow as any).sl_order_id;
+        const tpOrderId = (dbRow as any).tp_order_id;
+
+        // If there was a stop-loss order, check if it was triggered
+        if (slOrderId) {
+          try {
+            const order = await exchangeClient.getOrder(slOrderId);
+
+            // Check if order was filled (status might be 'finished', 'closed', 'filled')
+            if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+              logger.info(`🛑 Stop-loss TRIGGERED for ${dbSymbol} (order ${slOrderId}) - Position closed automatically by exchange`);
+
+              // Record in agent decisions for tracking
+              await dbClient.execute({
+                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                      VALUES (?, 0, 'Stop-loss triggered', 'Stop-loss executed', ?, 0, 0)`,
+                args: [
+                  new Date().toISOString(),
+                  `Stop-loss TRIGGERED: ${dbSymbol} at ${(dbRow as any).stop_loss} (order ${slOrderId})`
+                ]
+              });
+            }
+          } catch (orderError) {
+            // Order might not exist anymore, that's ok
+            logger.debug(`Could not fetch stop-loss order ${slOrderId} for ${dbSymbol}: ${(orderError as any).message}`);
+          }
+        }
+
+        // Check for multiple take-profit orders (new JSON format)
+        const tpOrdersStr = (dbRow as any).tp_orders;
+        if (tpOrdersStr) {
+          try {
+            const tpOrders = JSON.parse(tpOrdersStr);
+            for (const tp of tpOrders) {
+              if (!tp.triggered) {
+                try {
+                  const order = await exchangeClient.getOrder(tp.orderId);
+
+                  // Check if order was filled
+                  if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+                    logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
+
+                    // Record in agent decisions
+                    await dbClient.execute({
+                      sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                            VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
+                      args: [
+                        new Date().toISOString(),
+                        `Take-profit TRIGGERED: ${dbSymbol} ${tp.percentage}% @ ${tp.price} (order ${tp.orderId})`
+                      ]
+                    });
+                  }
+                } catch (orderError) {
+                  logger.debug(`Could not fetch TP order ${tp.orderId} for ${dbSymbol}: ${(orderError as any).message}`);
+                }
+              }
+            }
+          } catch (parseError) {
+            logger.warn(`Failed to parse tp_orders for ${dbSymbol}, falling back to old format`);
+
+            // Fallback: Check old format single TP
+            if (tpOrderId) {
+              try {
+                const order = await exchangeClient.getOrder(tpOrderId);
+                if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+                  logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
+                  await dbClient.execute({
+                    sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                          VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
+                    args: [
+                      new Date().toISOString(),
+                      `Take-profit TRIGGERED: ${dbSymbol} at ${(dbRow as any).profit_target} (order ${tpOrderId})`
+                    ]
+                  });
+                }
+              } catch (orderError) {
+                logger.debug(`Could not fetch take-profit order ${tpOrderId} for ${dbSymbol}: ${(orderError as any).message}`);
+              }
+            }
+          }
+        } else if (tpOrderId) {
+          // Legacy format: single TP in tp_order_id field
+          try {
+            const order = await exchangeClient.getOrder(tpOrderId);
+            if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+              logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
+              await dbClient.execute({
+                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                      VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
+                args: [
+                  new Date().toISOString(),
+                  `Take-profit TRIGGERED: ${dbSymbol} at ${(dbRow as any).profit_target} (order ${tpOrderId})`
+                ]
+              });
+            }
+          } catch (orderError) {
+            logger.debug(`Could not fetch take-profit order ${tpOrderId} for ${dbSymbol}: ${(orderError as any).message}`);
+          }
+        }
+      }
     }
 
     await dbClient.execute("DELETE FROM positions");
@@ -765,8 +874,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       await dbClient.execute({
         sql: `INSERT INTO positions
               (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, entry_order_id, opened_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, entry_order_id, opened_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           symbol,
           quantity,
@@ -780,6 +889,9 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           dbPos?.profit_target || null,
           dbPos?.sl_order_id || null,
           dbPos?.tp_order_id || null,
+          dbPos?.sl_percentage || null,
+          dbPos?.tp_percentage || null,
+          dbPos?.tp_orders || null, // Preserve tp_orders JSON array
           entryOrderId, // Preserve original order ID
           dbPos?.opened_at || new Date().toISOString(), // Preserve original opening time
         ],

@@ -160,7 +160,7 @@ export function createApiRoutes() {
       const exchangePositions = await exchangeClient.getPositions();
 
       // 从数据库获取止损止盈信息
-      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target FROM positions");
+      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
@@ -168,6 +168,16 @@ export function createApiRoutes() {
       // 格式化持仓 (positions are already filtered by adapter)
       const positions = exchangePositions.map((p) => {
           const dbPos = dbPositionsMap.get(p.symbol);
+
+          // Parse tp_orders JSON if available
+          let tpOrders = null;
+          if (dbPos?.tp_orders) {
+            try {
+              tpOrders = JSON.parse(dbPos.tp_orders as string);
+            } catch (e) {
+              // Failed to parse, ignore
+            }
+          }
 
           return {
             symbol: p.symbol,
@@ -181,6 +191,7 @@ export function createApiRoutes() {
             openValue: p.margin,
             profitTarget: dbPos?.profit_target ? Number(dbPos.profit_target) : null,
             stopLoss: dbPos?.stop_loss ? Number(dbPos.stop_loss) : null,
+            tpOrders: tpOrders,
             openedAt: new Date(p.timestamp).toISOString(),
           };
         });

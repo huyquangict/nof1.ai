@@ -577,6 +577,57 @@ export class GateClient {
       throw error;
     }
   }
+
+  /**
+   * Create price trigger order (automatic stop-loss/take-profit)
+   * @param params Trigger order parameters
+   * @returns Created trigger order
+   */
+  async createPriceTriggerOrder(params: {
+    contract: string;
+    size: number;          // negative=sell, positive=buy
+    triggerPrice: number;  // trigger price
+    orderPrice?: number;   // order price (undefined or 0 = market order)
+    rule: 1 | 2;          // 1 = price >= trigger, 2 = price <= trigger
+  }) {
+    try {
+      const priceOrder = {
+        initial: {
+          contract: params.contract,
+          size: params.size,
+          price: params.orderPrice ? params.orderPrice.toString() : '0', // 0 = market order
+          tif: params.orderPrice ? 'gtc' : 'ioc', // gtc for limit, ioc for market
+          reduce_only: true, // stop-loss always reduces position
+        },
+        trigger: {
+          strategy_type: 0, // 0 = price trigger
+          price_type: 0,    // 0 = last price
+          price: params.triggerPrice.toString(),
+          rule: params.rule, // 1 = >=, 2 = <=
+        },
+      };
+
+      logger.info(`Creating price trigger order: ${JSON.stringify(priceOrder)}`);
+
+      const result = await this.futuresApi.createPriceTriggeredOrder(
+        this.settle,
+        priceOrder
+      );
+
+      return result.body;
+    } catch (error: any) {
+      const errorDetails = {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        apiError: error.response?.body || error.response?.data,
+      };
+      logger.error("Failed to create price trigger order:", errorDetails);
+
+      const detailedMessage = errorDetails.apiError?.message || errorDetails.apiError?.label || error.message;
+      throw new Error(`Failed to create price trigger order: ${detailedMessage}`);
+    }
+  }
 }
 
 /**
