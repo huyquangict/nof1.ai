@@ -47,6 +47,7 @@ const DEFAULT_MULTIPLIERS: Record<string, number> = {
   'LTC': 1,       // 1 contract = 1 LTC
   'HBAR': 1,      // 1 contract = 1 HBAR
   'POL': 1,       // 1 contract = 1 POL
+  'ASTER': 1,     // 1 contract = 1 ASTER
 };
 
 /**
