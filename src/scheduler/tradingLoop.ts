@@ -766,6 +766,17 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
             // Check if order was filled (status might be 'finished', 'closed', 'filled')
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+              // Check if this trade is already recorded (prevent duplicates)
+              const existingTrade = await dbClient.execute({
+                sql: 'SELECT order_id FROM trades WHERE order_id = ?',
+                args: [slOrderId]
+              });
+
+              if (existingTrade.rows.length > 0) {
+                logger.debug(`SL ${slOrderId} already recorded, skipping`);
+                continue;
+              }
+
               logger.info(`🛑 Stop-loss TRIGGERED for ${dbSymbol} (order ${slOrderId}) - Position closed automatically by exchange`);
 
               // Calculate PnL
@@ -821,6 +832,22 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
                   // Check if order was filled
                   if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+                    // Check if this trade is already recorded (prevent duplicates)
+                    const existingTrade = await dbClient.execute({
+                      sql: 'SELECT order_id FROM trades WHERE order_id = ?',
+                      args: [tp.orderId]
+                    });
+
+                    if (existingTrade.rows.length > 0) {
+                      logger.debug(`TP ${tp.orderId} already recorded, marking as triggered`);
+                      tp.triggered = true;
+                      await dbClient.execute({
+                        sql: 'UPDATE positions SET tp_orders = ? WHERE symbol = ?',
+                        args: [JSON.stringify(tpOrders), dbSymbol]
+                      });
+                      continue;
+                    }
+
                     logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
 
                     // Calculate PnL for partial TP
@@ -857,6 +884,13 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                         new Date().toISOString(),
                         `Take-profit TRIGGERED: ${dbSymbol} ${tp.percentage}% @ ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${tp.orderId})`
                       ]
+                    });
+
+                    // Mark this TP as triggered in the positions table
+                    tp.triggered = true;
+                    await dbClient.execute({
+                      sql: 'UPDATE positions SET tp_orders = ? WHERE symbol = ?',
+                      args: [JSON.stringify(tpOrders), dbSymbol]
                     });
                   }
                 } catch (orderError) {
@@ -961,6 +995,127 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       }
     }
 
+    // Check take-profit orders for ALL positions (including those still open)
+    logger.debug('Checking take-profit orders for all positions...');
+    for (const dbRow of dbResult.rows) {
+      const dbSymbol = (dbRow as any).symbol;
+      const tpOrdersStr = (dbRow as any).tp_orders;
+      const entryOrderId = (dbRow as any).entry_order_id;
+
+      // Skip if no TP orders
+      if (!tpOrdersStr) continue;
+
+      // Get entry trade data for PnL calculation
+      let entryPrice = 0;
+      let quantity = 0;
+      let leverage = 1;
+      let side: 'long' | 'short' = 'long';
+
+      if (entryOrderId) {
+        try {
+          const entryTradeResult = await dbClient.execute({
+            sql: "SELECT price, quantity, leverage, side FROM trades WHERE order_id = ? AND type = 'open'",
+            args: [entryOrderId]
+          });
+          if (entryTradeResult.rows.length > 0) {
+            const entryTrade = entryTradeResult.rows[0] as any;
+            entryPrice = parseFloat(entryTrade.price);
+            quantity = parseFloat(entryTrade.quantity);
+            leverage = parseInt(entryTrade.leverage);
+            side = entryTrade.side;
+          }
+        } catch (err) {
+          logger.warn(`Could not fetch entry trade for ${dbSymbol}: ${(err as any).message}`);
+        }
+      }
+
+      // Parse and check TP orders
+      try {
+        const tpOrders = JSON.parse(tpOrdersStr);
+        for (const tp of tpOrders) {
+          if (!tp.triggered) {
+            try {
+              const order = await exchangeClient.getOrder(tp.orderId, dbSymbol);
+
+              // Check if order was filled
+              if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+                // Check if this trade is already recorded (prevent duplicates)
+                const existingTrade = await dbClient.execute({
+                  sql: 'SELECT order_id FROM trades WHERE order_id = ?',
+                  args: [tp.orderId]
+                });
+
+                if (existingTrade.rows.length > 0) {
+                  logger.debug(`TP ${tp.orderId} already recorded, marking as triggered`);
+                  tp.triggered = true;
+                  await dbClient.execute({
+                    sql: 'UPDATE positions SET tp_orders = ? WHERE symbol = ?',
+                    args: [JSON.stringify(tpOrders), dbSymbol]
+                  });
+                  continue;
+                }
+
+                logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
+
+                // Calculate PnL for partial TP
+                let pnl = 0;
+                if (entryPrice > 0 && order.price > 0) {
+                  const actualQuantity = quantity * (tp.percentage / 100); // Partial close
+                  const priceChange = side === 'long'
+                    ? (order.price - entryPrice) / entryPrice
+                    : (entryPrice - order.price) / entryPrice;
+                  pnl = priceChange * leverage * entryPrice * actualQuantity;
+                }
+
+                // Record close trade in trades table (partial close)
+                await dbClient.execute({
+                  sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                        VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                  args: [
+                    tp.orderId,
+                    dbSymbol,
+                    side,
+                    order.price,
+                    quantity * (tp.percentage / 100), // Partial quantity
+                    leverage,
+                    pnl,
+                    new Date().toISOString()
+                  ]
+                });
+
+                // Record in agent decisions
+                await dbClient.execute({
+                  sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                        VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
+                  args: [
+                    new Date().toISOString(),
+                    `Take-profit TRIGGERED: ${dbSymbol} ${tp.percentage}% @ ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${tp.orderId})`
+                  ]
+                });
+
+                // Mark this TP as triggered in the positions table
+                tp.triggered = true;
+                await dbClient.execute({
+                  sql: 'UPDATE positions SET tp_orders = ? WHERE symbol = ?',
+                  args: [JSON.stringify(tpOrders), dbSymbol]
+                });
+              }
+            } catch (orderError) {
+              logger.debug(`Could not fetch TP order ${tp.orderId} for ${dbSymbol}: ${(orderError as any).message}`);
+            }
+          }
+        }
+      } catch (parseError) {
+        logger.debug(`Failed to parse tp_orders for ${dbSymbol}: ${(parseError as any).message}`);
+      }
+    }
+
+    // Re-query positions to get updated tp_orders with triggered status
+    const updatedDbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const updatedDbPositionsMap = new Map(
+      updatedDbResult.rows.map((row: any) => [row.symbol, row])
+    );
+
     await dbClient.execute("DELETE FROM positions");
 
     let syncedCount = 0;
@@ -995,7 +1150,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           : entryPrice * (1 + 0.9 / leverage);
       }
 
-      const dbPos = dbPositionsMap.get(symbol);
+      const dbPos = updatedDbPositionsMap.get(symbol);
 
       // Preserve original entry_order_id, do not overwrite
       const entryOrderId = dbPos?.entry_order_id || `synced-${symbol}-${Date.now()}`;
