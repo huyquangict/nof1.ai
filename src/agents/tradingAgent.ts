@@ -588,8 +588,76 @@ Current Market Status for All Coins
   prompt += `Available Balance: ${accountInfo.availableBalance.toFixed(1)} USDT\n\n`;
   prompt += `Unrealized PnL: ${totalUnrealizedPnL.toFixed(2)} USDT (${totalUnrealizedPnL >= 0 ? '+' : ''}${((totalUnrealizedPnL / accountInfo.totalBalance) * 100).toFixed(2)}%)\n\n`;
 
-  // Trade history removed to save prompt tokens (~2,000 chars)
-  // AI can make decisions based on current market data and positions
+  // Per-symbol trade history (last 5 trades per symbol) - helps AI learn from recent performance
+  const showSymbolHistory = process.env.SHOW_SYMBOL_HISTORY === 'true';
+  if (showSymbolHistory && tradeHistory && tradeHistory.length > 0) {
+    // Group trades by symbol and get last 5 for each
+    const symbolHistory = new Map<string, any[]>();
+
+    // Process trades in reverse order (newest first)
+    for (const trade of tradeHistory) {
+      const symbol = trade.symbol;
+      if (!symbolHistory.has(symbol)) {
+        symbolHistory.set(symbol, []);
+      }
+      const trades = symbolHistory.get(symbol)!;
+      if (trades.length < 5) {
+        trades.push(trade);
+      }
+    }
+
+    if (symbolHistory.size > 0) {
+      prompt += `📜 RECENT TRADING HISTORY PER SYMBOL (Last 5 trades each - Learn from your performance!):\n\n`;
+
+      for (const [symbol, trades] of symbolHistory) {
+        prompt += `${symbol}:\n`;
+
+        let winCount = 0;
+        let lossCount = 0;
+        let totalPnl = 0;
+
+        for (const trade of trades) {
+          const type = trade.type; // 'open' or 'close'
+          const side = trade.side; // 'long' or 'short'
+          const price = parseFloat(trade.price) || 0;
+          const pnl = parseFloat(trade.pnl) || 0;
+          const timestamp = new Date(trade.timestamp).toLocaleString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+
+          if (type === 'close') {
+            if (pnl > 0) winCount++;
+            else if (pnl < 0) lossCount++;
+            totalPnl += pnl;
+
+            const pnlStr = pnl >= 0 ? `+${pnl.toFixed(2)}` : pnl.toFixed(2);
+            const result = pnl > 0 ? '✅ WIN' : (pnl < 0 ? '❌ LOSS' : '⚪ BE');
+            prompt += `  - [${timestamp}] ${side.toUpperCase()} CLOSE @ ${price.toFixed(2)} → ${pnlStr} USDT ${result}\n`;
+          } else {
+            prompt += `  - [${timestamp}] ${side.toUpperCase()} OPEN @ ${price.toFixed(2)}\n`;
+          }
+        }
+
+        // Summary for this symbol
+        if (winCount + lossCount > 0) {
+          const winRate = ((winCount / (winCount + lossCount)) * 100).toFixed(0);
+          const totalPnlStr = totalPnl >= 0 ? `+${totalPnl.toFixed(2)}` : totalPnl.toFixed(2);
+          prompt += `  Summary: ${winCount}W/${lossCount}L (${winRate}% win rate), Total PnL: ${totalPnlStr} USDT\n`;
+        }
+
+        prompt += `\n`;
+      }
+
+      prompt += `💡 Use this history to:\n`;
+      prompt += `- Avoid repeating the same mistakes on each symbol\n`;
+      prompt += `- Identify which symbols you trade well vs poorly\n`;
+      prompt += `- Adjust your strategy per symbol based on recent performance\n\n`;
+    }
+  }
 
   // Current positions and performance
   if (positions.length > 0) {
