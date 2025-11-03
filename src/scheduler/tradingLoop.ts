@@ -732,6 +732,32 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       if (!exchangeSymbols.has(dbSymbol)) {
         const slOrderId = (dbRow as any).sl_order_id;
         const tpOrderId = (dbRow as any).tp_order_id;
+        const entryOrderId = (dbRow as any).entry_order_id;
+        const openedAt = (dbRow as any).opened_at;
+
+        // Try to get the entry trade to calculate PnL
+        let entryPrice = 0;
+        let quantity = 0;
+        let leverage = 1;
+        let side: 'long' | 'short' = 'long';
+
+        if (entryOrderId) {
+          try {
+            const entryTradeResult = await dbClient.execute({
+              sql: "SELECT price, quantity, leverage, side FROM trades WHERE order_id = ? AND type = 'open'",
+              args: [entryOrderId]
+            });
+            if (entryTradeResult.rows.length > 0) {
+              const entryTrade = entryTradeResult.rows[0] as any;
+              entryPrice = parseFloat(entryTrade.price);
+              quantity = parseFloat(entryTrade.quantity);
+              leverage = parseInt(entryTrade.leverage);
+              side = entryTrade.side;
+            }
+          } catch (err) {
+            logger.warn(`Could not fetch entry trade for ${dbSymbol}: ${(err as any).message}`);
+          }
+        }
 
         // If there was a stop-loss order, check if it was triggered
         if (slOrderId) {
@@ -742,13 +768,38 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
               logger.info(`🛑 Stop-loss TRIGGERED for ${dbSymbol} (order ${slOrderId}) - Position closed automatically by exchange`);
 
+              // Calculate PnL
+              let pnl = 0;
+              if (entryPrice > 0 && order.price > 0) {
+                const priceChange = side === 'long'
+                  ? (order.price - entryPrice) / entryPrice
+                  : (entryPrice - order.price) / entryPrice;
+                pnl = priceChange * leverage * entryPrice * quantity;
+              }
+
+              // Record close trade in trades table
+              await dbClient.execute({
+                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                args: [
+                  slOrderId,
+                  dbSymbol,
+                  side,
+                  order.price,
+                  quantity,
+                  leverage,
+                  pnl,
+                  new Date().toISOString()
+                ]
+              });
+
               // Record in agent decisions for tracking
               await dbClient.execute({
                 sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
                       VALUES (?, 0, 'Stop-loss triggered', 'Stop-loss executed', ?, 0, 0)`,
                 args: [
                   new Date().toISOString(),
-                  `Stop-loss TRIGGERED: ${dbSymbol} at ${(dbRow as any).stop_loss} (order ${slOrderId})`
+                  `Stop-loss TRIGGERED: ${dbSymbol} at ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${slOrderId})`
                 ]
               });
             }
@@ -772,13 +823,39 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
                     logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
 
+                    // Calculate PnL for partial TP
+                    let pnl = 0;
+                    if (entryPrice > 0 && order.price > 0) {
+                      const actualQuantity = quantity * (tp.percentage / 100); // Partial close
+                      const priceChange = side === 'long'
+                        ? (order.price - entryPrice) / entryPrice
+                        : (entryPrice - order.price) / entryPrice;
+                      pnl = priceChange * leverage * entryPrice * actualQuantity;
+                    }
+
+                    // Record close trade in trades table (partial close)
+                    await dbClient.execute({
+                      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                      args: [
+                        tp.orderId,
+                        dbSymbol,
+                        side,
+                        order.price,
+                        quantity * (tp.percentage / 100), // Partial quantity
+                        leverage,
+                        pnl,
+                        new Date().toISOString()
+                      ]
+                    });
+
                     // Record in agent decisions
                     await dbClient.execute({
                       sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
                             VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                       args: [
                         new Date().toISOString(),
-                        `Take-profit TRIGGERED: ${dbSymbol} ${tp.percentage}% @ ${tp.price} (order ${tp.orderId})`
+                        `Take-profit TRIGGERED: ${dbSymbol} ${tp.percentage}% @ ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${tp.orderId})`
                       ]
                     });
                   }
@@ -796,12 +873,38 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                 const order = await exchangeClient.getOrder(tpOrderId);
                 if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
                   logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
+
+                  // Calculate PnL
+                  let pnl = 0;
+                  if (entryPrice > 0 && order.price > 0) {
+                    const priceChange = side === 'long'
+                      ? (order.price - entryPrice) / entryPrice
+                      : (entryPrice - order.price) / entryPrice;
+                    pnl = priceChange * leverage * entryPrice * quantity;
+                  }
+
+                  // Record close trade
+                  await dbClient.execute({
+                    sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                          VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                    args: [
+                      tpOrderId,
+                      dbSymbol,
+                      side,
+                      order.price,
+                      quantity,
+                      leverage,
+                      pnl,
+                      new Date().toISOString()
+                    ]
+                  });
+
                   await dbClient.execute({
                     sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
                           VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                     args: [
                       new Date().toISOString(),
-                      `Take-profit TRIGGERED: ${dbSymbol} at ${(dbRow as any).profit_target} (order ${tpOrderId})`
+                      `Take-profit TRIGGERED: ${dbSymbol} at ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${tpOrderId})`
                     ]
                   });
                 }
@@ -816,12 +919,38 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
             const order = await exchangeClient.getOrder(tpOrderId);
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
               logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
+
+              // Calculate PnL
+              let pnl = 0;
+              if (entryPrice > 0 && order.price > 0) {
+                const priceChange = side === 'long'
+                  ? (order.price - entryPrice) / entryPrice
+                  : (entryPrice - order.price) / entryPrice;
+                pnl = priceChange * leverage * entryPrice * quantity;
+              }
+
+              // Record close trade
+              await dbClient.execute({
+                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                args: [
+                  tpOrderId,
+                  dbSymbol,
+                  side,
+                  order.price,
+                  quantity,
+                  leverage,
+                  pnl,
+                  new Date().toISOString()
+                ]
+              });
+
               await dbClient.execute({
                 sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
                       VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                 args: [
                   new Date().toISOString(),
-                  `Take-profit TRIGGERED: ${dbSymbol} at ${(dbRow as any).profit_target} (order ${tpOrderId})`
+                  `Take-profit TRIGGERED: ${dbSymbol} at ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${tpOrderId})`
                 ]
               });
             }
