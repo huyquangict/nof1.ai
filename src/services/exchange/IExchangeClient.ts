@@ -192,8 +192,9 @@ export interface IExchangeClient {
   /**
    * Get order status/details
    * @param orderId Exchange-specific order ID
+   * @param symbol Optional symbol (required for Binance to fetch closed orders)
    */
-  getOrder(orderId: string): Promise<Order>;
+  getOrder(orderId: string, symbol?: string): Promise<Order>;
 
   /**
    * Get all open orders

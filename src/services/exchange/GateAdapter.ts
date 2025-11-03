@@ -201,7 +201,8 @@ export class GateAdapter implements IExchangeClient {
     await this.client.cancelOrder(orderId);
   }
 
-  async getOrder(orderId: string): Promise<Order> {
+  async getOrder(orderId: string, symbol?: string): Promise<Order> {
+    // Gate.io doesn't require symbol for fetching orders, ignore it
     const raw = await this.client.getOrder(orderId);
     const size = parseInt(raw.size || "0");
 

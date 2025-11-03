@@ -762,7 +762,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
         // If there was a stop-loss order, check if it was triggered
         if (slOrderId) {
           try {
-            const order = await exchangeClient.getOrder(slOrderId);
+            const order = await exchangeClient.getOrder(slOrderId, dbSymbol);
 
             // Check if order was filled (status might be 'finished', 'closed', 'filled')
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
@@ -817,7 +817,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
             for (const tp of tpOrders) {
               if (!tp.triggered) {
                 try {
-                  const order = await exchangeClient.getOrder(tp.orderId);
+                  const order = await exchangeClient.getOrder(tp.orderId, dbSymbol);
 
                   // Check if order was filled
                   if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
@@ -870,7 +870,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
             // Fallback: Check old format single TP
             if (tpOrderId) {
               try {
-                const order = await exchangeClient.getOrder(tpOrderId);
+                const order = await exchangeClient.getOrder(tpOrderId, dbSymbol);
                 if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
                   logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 
@@ -916,7 +916,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
         } else if (tpOrderId) {
           // Legacy format: single TP in tp_order_id field
           try {
-            const order = await exchangeClient.getOrder(tpOrderId);
+            const order = await exchangeClient.getOrder(tpOrderId, dbSymbol);
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
               logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 

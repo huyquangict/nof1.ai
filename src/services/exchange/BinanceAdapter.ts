@@ -314,15 +314,24 @@ export class BinanceAdapter implements IExchangeClient {
     await this.exchange.cancelOrder(orderId, ccxtSymbol);
   }
 
-  async getOrder(orderId: string): Promise<Order> {
-    // Similar issue: need symbol
+  async getOrder(orderId: string, symbol?: string): Promise<Order> {
+    // If symbol is provided, use it directly
+    if (symbol) {
+      const ccxtSymbol = this.normalizeSymbol(symbol);
+      try {
+        const fetchedOrder = await this.exchange.fetchOrder(orderId, ccxtSymbol);
+        return this.mapOrder(fetchedOrder);
+      } catch (error) {
+        throw new Error(`Order ${orderId} not found for symbol ${symbol}: ${(error as any).message}`);
+      }
+    }
+
+    // Otherwise, try to find in open orders first
     const openOrders = await this.getOpenOrders();
     const order = openOrders.find((o) => o.id === orderId);
 
     if (!order) {
-      // Try to fetch from all symbols - less efficient but works
-      // For now, throw error
-      throw new Error(`Order ${orderId} not found. CCXT requires symbol for fetchOrder.`);
+      throw new Error(`Order ${orderId} not found. CCXT requires symbol for fetchOrder. Please provide symbol parameter.`);
     }
 
     const ccxtSymbol = this.normalizeSymbol(order.symbol);
