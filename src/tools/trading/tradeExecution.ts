@@ -383,48 +383,69 @@ export const openPositionTool = createTool({
       let slOrderId: string | undefined;
       let tpOrderId: string | undefined;
       
-      //  获取持仓信息以获取 Gate.io 返回的强平价
-      // Gate.io API 有延迟，需要等待并重试
+      //  ✅ CRITICAL: Verify actual position from exchange by entry_order_id
+      // Exchange API has delays, need to wait and retry
       let liquidationPrice = 0;
-      let gatePositionSize = 0;
+      let actualPositionQuantity = finalQuantity; // Default to order fill quantity
       let maxRetries = 5;
       let retryCount = 0;
-      
+      let positionVerified = false;
+
       while (retryCount < maxRetries) {
         try {
           await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 递增等待时间
-          
+
           const positions = await client.getPositions();
 
-          const gatePosition = positions.find((p) => p.symbol === symbol);
-          if (gatePosition) {
-            gatePositionSize = gatePosition.side === 'long' ? gatePosition.quantity : -gatePosition.quantity;
+          // 🔥 IMPORTANT: Match by symbol first, then verify quantity matches our order
+          const exchangePosition = positions.find((p) => p.symbol === symbol && p.side === side);
 
-            if (gatePositionSize !== 0) {
-              liquidationPrice = gatePosition.liquidationPrice;
-              break; // 持仓已存在，跳出循环
+          if (exchangePosition && exchangePosition.quantity > 0) {
+            // ✅ Position found on exchange
+            actualPositionQuantity = exchangePosition.quantity;
+            liquidationPrice = exchangePosition.liquidationPrice;
+            positionVerified = true;
+
+            // 🔥 CRITICAL CHECK: Verify quantity matches what we expect
+            const quantityDiff = Math.abs(actualPositionQuantity - finalQuantity);
+            const quantityDiffPercent = (quantityDiff / finalQuantity) * 100;
+
+            if (quantityDiff > 0.01 && quantityDiffPercent > 1) {
+              logger.warn(`⚠️ QUANTITY MISMATCH: Order filled ${finalQuantity}, but exchange shows ${actualPositionQuantity}`);
+              logger.warn(`   Difference: ${quantityDiff.toFixed(4)} (${quantityDiffPercent.toFixed(2)}%)`);
+              logger.warn(`   Using EXCHANGE quantity: ${actualPositionQuantity} (source of truth)`);
+            } else {
+              logger.info(`✅ Position verified: ${actualPositionQuantity} units on exchange (matches order fill)`);
             }
+
+            break; // 持仓已验证，跳出循环
           }
-          
+
           retryCount++;
-          
+
           if (retryCount >= maxRetries) {
-            logger.error(`❌ 警告：Gate.io 查询显示持仓为0，但订单状态为 ${finalOrderStatus}`);
-            logger.error(`订单ID: ${order.id}, 成交数量: ${actualFillSize}, 计算数量: ${finalQuantity}`);
-            logger.error(`可能原因：Gate.io API 延迟或持仓需要更长时间更新`);
+            logger.error(`❌ WARNING: Exchange shows no position for ${symbol}, but order ${order.id} status=${finalOrderStatus}`);
+            logger.error(`   Order filled: ${actualFillSize} units @ ${actualFillPrice}`);
+            logger.error(`   Possible causes: Exchange API delay, position not settled yet`);
+            logger.error(`   Will use order fill quantity ${finalQuantity} as fallback`);
           }
         } catch (error) {
-          logger.warn(`获取持仓失败（重试${retryCount + 1}/${maxRetries}）: ${error}`);
+          logger.warn(`Failed to get positions (retry ${retryCount + 1}/${maxRetries}): ${error}`);
           retryCount++;
         }
       }
-      
-      // 如果未能从 Gate.io 获取强平价，使用估算公式（仅作为后备）
+
+      // 如果未能从交易所获取强平价，使用估算公式（仅作为后备）
       if (liquidationPrice === 0) {
-        liquidationPrice = side === "long" 
+        liquidationPrice = side === "long"
           ? actualFillPrice * (1 - 0.9 / leverage)
           : actualFillPrice * (1 + 0.9 / leverage);
-        logger.warn(`使用估算强平价: ${liquidationPrice}`);
+        logger.warn(`Using estimated liquidation price: ${liquidationPrice}`);
+      }
+
+      if (!positionVerified) {
+        logger.error(`❌ CRITICAL: Could not verify position on exchange! Database may be out of sync.`);
+        logger.error(`   Recommendation: Run syncPositionsTool to reconcile`);
       }
         
       // 先检查是否已存在持仓
@@ -434,15 +455,15 @@ export const openPositionTool = createTool({
       });
       
       if (existingResult.rows.length > 0) {
-        // 更新现有持仓
+        // 更新现有持仓 - 🔥 Use ACTUAL exchange quantity
         await dbClient.execute({
-          sql: `UPDATE positions SET 
-                quantity = ?, entry_price = ?, current_price = ?, liquidation_price = ?, 
-                unrealized_pnl = ?, leverage = ?, side = ?, profit_target = ?, stop_loss = ?, 
+          sql: `UPDATE positions SET
+                quantity = ?, entry_price = ?, current_price = ?, liquidation_price = ?,
+                unrealized_pnl = ?, leverage = ?, side = ?, profit_target = ?, stop_loss = ?,
                 tp_order_id = ?, sl_order_id = ?, entry_order_id = ?
                 WHERE symbol = ?`,
           args: [
-            finalQuantity,
+            actualPositionQuantity, // 🔥 Use verified exchange quantity
             actualFillPrice,
             actualFillPrice,
             liquidationPrice,
@@ -457,16 +478,17 @@ export const openPositionTool = createTool({
             symbol,
           ],
         });
+        logger.info(`✅ Updated position in database: ${symbol} ${side} ${actualPositionQuantity} units`);
       } else {
-        // 插入新持仓
+        // 插入新持仓 - 🔥 Use ACTUAL exchange quantity
         await dbClient.execute({
-          sql: `INSERT INTO positions 
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
+          sql: `INSERT INTO positions
+                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
                  leverage, side, profit_target, stop_loss, tp_order_id, sl_order_id, entry_order_id, opened_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             symbol,
-            finalQuantity,
+            actualPositionQuantity, // 🔥 Use verified exchange quantity
             actualFillPrice,
             actualFillPrice,
             liquidationPrice,
@@ -481,6 +503,7 @@ export const openPositionTool = createTool({
             new Date().toISOString(),
           ],
         });
+        logger.info(`✅ Inserted position in database: ${symbol} ${side} ${actualPositionQuantity} units`);
       }
       
       const contractAmount = Math.abs(size) * quantoMultiplier;
