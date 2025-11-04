@@ -312,28 +312,98 @@ export const syncPositionsTool = createTool({
     try {
       const positions = await client.getPositions();
 
-      // Get existing SL/TP data before sync
+      // Get ALL existing position data from database (including for missing position detection)
       const existingDataResult = await dbClient.execute(
-        "SELECT symbol, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
+        "SELECT symbol, quantity, entry_price, current_price, side, leverage, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
       );
 
       const existingDataMap = new Map<string, any>();
       for (const row of existingDataResult.rows) {
         const r = row as any;
         existingDataMap.set(r.symbol, {
+          quantity: r.quantity,
+          entry_price: r.entry_price,
+          current_price: r.current_price,
+          side: r.side,
+          leverage: r.leverage,
           tp_orders: r.tp_orders,
           sl_order_id: r.sl_order_id,
           tp_order_id: r.tp_order_id,
           sl_percentage: r.sl_percentage,
           tp_percentage: r.tp_percentage,
-          stop_loss: r.stop_loss,           // ADD: preserve stop-loss price
-          profit_target: r.profit_target,   // ADD: preserve take-profit price
+          stop_loss: r.stop_loss,
+          profit_target: r.profit_target,
           entry_order_id: r.entry_order_id,
           opened_at: r.opened_at,
           confidence: r.confidence,
           risk_usd: r.risk_usd,
           peak_pnl_percent: r.peak_pnl_percent,
         });
+      }
+
+      // 🔥 CRITICAL: Record close trades for positions that no longer exist on exchange
+      const exchangeSymbols = new Set(positions.map(p => p.symbol));
+      const dbSymbols = Array.from(existingDataMap.keys());
+
+      for (const dbSymbol of dbSymbols) {
+        if (!exchangeSymbols.has(dbSymbol)) {
+          // Position was closed on exchange but not recorded in trades table
+          const dbPos = existingDataMap.get(dbSymbol);
+
+          logger.warn(`⚠️  Position ${dbSymbol} exists in DB but not on exchange - recording retrospective close trade`);
+
+          // Get current market price as estimated exit price
+          try {
+            const ticker = await client.getFuturesTicker(dbSymbol);
+            const exitPrice = ticker.markPrice;
+            const entryPrice = dbPos.entry_price || exitPrice;
+            const quantity = dbPos.quantity || 0;
+            const side = dbPos.side || 'long';
+            const leverage = dbPos.leverage || 1;
+
+            // Calculate estimated PnL with quantoMultiplier
+            const contract = client.normalizeSymbol(dbSymbol);
+            const quantoMultiplier = await getQuantoMultiplier(contract);
+
+            const priceChange = side === 'long'
+              ? (exitPrice - entryPrice)
+              : (entryPrice - exitPrice);
+
+            const grossPnl = priceChange * quantity * quantoMultiplier;
+
+            // Calculate fees
+            const entryNotional = entryPrice * quantity * quantoMultiplier;
+            const exitNotional = exitPrice * quantity * quantoMultiplier;
+            const entryFee = entryNotional * 0.0005;
+            const exitFee = exitNotional * 0.0005;
+            const totalFee = entryFee + exitFee;
+
+            const pnl = grossPnl - totalFee;
+
+            // Record close trade
+            await dbClient.execute({
+              sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                    VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
+              args: [
+                'sync_cleanup',
+                dbSymbol,
+                side,
+                exitPrice,
+                quantity,
+                leverage,
+                pnl,
+                totalFee,
+                new Date().toISOString(),
+                'unknown' // Position was closed but we don't know how (SL/TP/manual)
+              ]
+            });
+
+            logger.info(`✅ Recorded retrospective close for ${dbSymbol}: entry=${entryPrice}, exit=${exitPrice}, PnL=${pnl.toFixed(2)} USDT`);
+
+          } catch (error: any) {
+            logger.error(`Failed to record retrospective close for ${dbSymbol}: ${error.message}`);
+          }
+        }
       }
 
       // 清空本地持仓表
