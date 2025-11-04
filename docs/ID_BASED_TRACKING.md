@@ -148,6 +148,70 @@ for (const tp of tpOrders) {
 }
 ```
 
+## Trade History Linking
+
+### Entry-Close Trade Linking
+
+All close trades are linked back to their entry trades via `entry_order_id`:
+
+```typescript
+// trades table schema
+interface Trade {
+  id: number;
+  order_id: string;        // ID of this trade's order
+  entry_order_id?: string; // ID of entry order (for close trades)
+  symbol: string;
+  side: 'long' | 'short';
+  type: 'open' | 'close';
+  // ... other fields
+}
+
+// Example: Complete position lifecycle
+// Open trade
+{
+  id: 1,
+  order_id: "t-12345678",
+  entry_order_id: null,      // NULL for open trades
+  type: "open",
+  // ...
+}
+
+// Close trade (linked to entry)
+{
+  id: 2,
+  order_id: "t-12345690",    // SL order ID
+  entry_order_id: "t-12345678", // 🔥 Links back to entry
+  type: "close",
+  close_reason: "stop_loss",
+  // ...
+}
+```
+
+### Query Examples
+
+```sql
+-- Find all trades for a position
+SELECT * FROM trades
+WHERE order_id = 't-12345678' OR entry_order_id = 't-12345678'
+ORDER BY timestamp;
+
+-- Verify PnL by joining entry and close
+SELECT
+  open.order_id as entry_order,
+  close.order_id as close_order,
+  close.close_reason,
+  open.price as entry_price,
+  close.price as exit_price,
+  close.pnl
+FROM trades open
+JOIN trades close ON close.entry_order_id = open.order_id
+WHERE open.symbol = 'BTC' AND open.type = 'open';
+
+-- Find orphaned close trades (missing entry link)
+SELECT * FROM trades
+WHERE type = 'close' AND entry_order_id IS NULL;
+```
+
 ## TP Orders Format
 
 Take-profit orders are stored as a JSON array of objects:
@@ -332,11 +396,40 @@ npm run build      # Build successful in 331ms
 3. **Webhook Support**: Use exchange webhooks for real-time trigger detection instead of polling
 4. **Partial TP Tracking**: Track how many TPs have triggered and adjust position accordingly
 
+## Migration: Adding entry_order_id to Existing Database
+
+If you have an existing database without the `entry_order_id` column, run the migration:
+
+```bash
+npx tsx --env-file=.env src/database/migrations/add-entry-order-id-to-trades.ts
+```
+
+The migration will:
+1. Add `entry_order_id TEXT` column to trades table
+2. Intelligently populate existing close trades by matching:
+   - Same symbol
+   - Same side (long/short)
+   - Most recent open trade before close timestamp
+3. Create index for query performance
+4. Report success/failures
+
+**Example Output:**
+```
+✅ Populated 17 / 17 close trades with entry_order_id
+  ✅ Trade #2 (SOL close) → entry_order_id = 167563220505
+  ✅ Trade #4 (LTC close) → entry_order_id = 39725883169
+  ...
+```
+
+For fresh installations, the column is already included in `CREATE_TABLES_SQL`.
+
 ## Related Files
 
-- `src/tools/trading/tradeExecution.ts` - openPositionTool with quantity verification
-- `src/tools/trading/accountManagement.ts` - syncPositionsTool with ID-based verification
-- `src/scheduler/tradingLoop.ts` - syncPositionsFromGate with trigger detection
+- `src/tools/trading/tradeExecution.ts` - openPositionTool with quantity verification + close with entry_order_id
+- `src/tools/trading/accountManagement.ts` - syncPositionsTool with ID-based verification + entry_order_id linking
+- `src/scheduler/tradingLoop.ts` - syncPositionsFromGate with trigger detection + entry_order_id recording
+- `src/database/schema.ts` - Updated Trade interface and CREATE TABLE with entry_order_id
+- `src/database/migrations/add-entry-order-id-to-trades.ts` - Migration script
 - `docs/ID_BASED_TRACKING.md` - This documentation
 
 ---
