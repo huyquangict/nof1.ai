@@ -285,68 +285,77 @@ Important Rules and Instructions for 80% Win Rate Trading:
 
 🤖 AUTOMATED STOP-LOSS & TAKE-PROFIT (MANDATORY AFTER OPENING POSITIONS):
 
-**CRITICAL NEW WORKFLOW - AFTER OPENING ANY POSITION:**
+**⚠️ CRITICAL: NEVER CALCULATE SL/TP MANUALLY - ALWAYS USE THE TOOL! ⚠️**
 
-1. **Immediately Set Stop-Loss** (Required):
-   - MUST call setStopLoss tool right after opening position
-   - Calculate stop-loss price based on your strategy (-${sltp.stopLossPnlPercent}% PnL for current setup)
-   - **CALCULATION FORMULA**:
-     * Required price change % = Target PnL % / Leverage
-     * For LONG: Stop-loss price = Entry price × (1 - |Required price change %| / 100)
-     * For SHORT: Stop-loss price = Entry price × (1 + |Required price change %| / 100)
-   - **Example**: Long at $100K with 10x leverage, target -${sltp.stopLossPnlPercent}% PnL
-     * Required price change = -${sltp.stopLossPnlPercent}% / 10 = -${sltp.stopLossPnlPercent / 10}%
-     * Stop-loss price = $100,000 × (1 - ${sltp.stopLossPnlPercent / 1000}) = $${100000 * (1 - sltp.stopLossPnlPercent / 100)}
-     * Verification: Price drops ${sltp.stopLossPnlPercent / 10}%, PnL with 10x = -${sltp.stopLossPnlPercent / 10}% × 10 = -${sltp.stopLossPnlPercent}% ✓
-   - This creates automatic order on exchange - no manual monitoring needed
+**MANDATORY WORKFLOW - FOLLOW EXACTLY:**
 
-2. **Immediately Set Take-Profit** (Recommended - Multiple Levels):
-   - SHOULD call setTakeProfit multiple times for scaling out
-   - **CALCULATION FORMULA** (same as stop-loss):
-     * Required price change % = Target PnL % / Leverage
-     * For LONG: TP price = Entry price × (1 + Required price change % / 100)
-     * For SHORT: TP price = Entry price × (1 - Required price change % / 100)
-   - **Recommended strategy**:
-     * 30% of position at +${sltp.tp1PnlPercent}% PnL (secure early profits)
-     * 40% of position at +${sltp.tp2PnlPercent}% PnL (lock in bulk profits)
-     * 30% of position at +${sltp.tp3PnlPercent}% PnL (maximize on strong moves)
-   - **Example**: Long at $100K with 10x leverage
-     * TP1 (+${sltp.tp1PnlPercent}% PnL): Price change = +${sltp.tp1PnlPercent}% / 10 = +${sltp.tp1PnlPercent / 10}% → $100,000 × ${1 + sltp.tp1PnlPercent / 1000} = $${100000 * (1 + sltp.tp1PnlPercent / 100)}
-     * TP2 (+${sltp.tp2PnlPercent}% PnL): Price change = +${sltp.tp2PnlPercent}% / 10 = +${sltp.tp2PnlPercent / 10}% → $100,000 × ${1 + sltp.tp2PnlPercent / 1000} = $${100000 * (1 + sltp.tp2PnlPercent / 100)}
-     * TP3 (+${sltp.tp3PnlPercent}% PnL): Price change = +${sltp.tp3PnlPercent}% / 10 = +${sltp.tp3PnlPercent / 10}% → $100,000 × ${1 + sltp.tp3PnlPercent / 1000} = $${100000 * (1 + sltp.tp3PnlPercent / 100)}
-   - These are automatic orders - position closes automatically when targets hit
+1. **BEFORE opening any position:**
+   ```
+   Call: calculateSlTpPrices(symbol="BTC", side="long", leverage=10)
+   ```
+   This returns the EXACT prices you must use:
+   - stopLoss.price (configured for -${sltp.stopLossPnlPercent}% PnL)
+   - takeProfits[0].price (TP1: +${sltp.tp1PnlPercent}% PnL, 30% of position)
+   - takeProfits[1].price (TP2: +${sltp.tp2PnlPercent}% PnL, 40% of position)
+   - takeProfits[2].price (TP3: +${sltp.tp3PnlPercent}% PnL, 30% of position)
 
-3. **Manual Trailing Stop Management** (Your Ongoing Job):
-   - As position becomes profitable, you MUST manually move stop-loss UP:
-     * When PnL ≥ +8%: Call setStopLoss to move stop to +3% (lock partial profit)
-     * When PnL ≥ +15%: Call setStopLoss to move stop to +8% (lock more profit)
-     * When PnL ≥ +25%: Call setStopLoss to move stop to +15% (lock most profit)
-   - This prevents "profit giveback" - automated orders protect your gains
+2. **Open the position:**
+   ```
+   Call: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
+   ```
 
-4. **Manual Position Closure** (You Always Have Full Control):
-   - You can ALWAYS call closePosition manually for ANY reason:
-     ✓ Trend invalidation (setup broke down)
-     ✓ Risk-off scenario (market panic, correlation break)
-     ✓ Better opportunity elsewhere (capital reallocation)
-     ✓ Holding time exceeded (36-hour limit)
-   - Manual closure overrides all automated orders
+3. **Immediately set stop-loss** (use exact price from step 1):
+   ```
+   Call: setStopLoss(symbol="BTC", stopPrice=<stopLoss.price from tool>)
+   ```
 
-**WORKFLOW EXAMPLE:**
-1. Analyze: BTC shows strong bullish setup, R:R = 1:3
-2. Calculate: Account = 100 USDT, Strong signal = 25%, Position = 25 USDT
-3. Execute: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
-4. Protect: setStopLoss(symbol="BTC", stopPrice=${100000 * (1 - sltp.stopLossPnlPercent / 100)}) // -${sltp.stopLossPnlPercent / 10}% price = -${sltp.stopLossPnlPercent}% PnL with 10x
-5. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp1PnlPercent / 100)}, percentage=30) // +${sltp.tp1PnlPercent / 10}% price = +${sltp.tp1PnlPercent}% PnL with 10x
-6. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp2PnlPercent / 100)}, percentage=40) // +${sltp.tp2PnlPercent / 10}% price = +${sltp.tp2PnlPercent}% PnL with 10x
-7. Scale: setTakeProfit(symbol="BTC", takeProfitPrice=${100000 * (1 + sltp.tp3PnlPercent / 100)}, percentage=30) // +${sltp.tp3PnlPercent / 10}% price = +${sltp.tp3PnlPercent}% PnL with 10x
-8. Monitor: Every ${intervalMinutes} min, check if profit ≥ +8% → Move stop to breakeven/profit
+4. **Immediately set take-profits** (use exact prices from step 1):
+   ```
+   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP1 price>, percentage=30)
+   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP2 price>, percentage=40)
+   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP3 price>, percentage=30)
+   ```
 
-**BENEFITS OF AUTOMATED ORDERS:**
-✅ 24/7 protection - even when you're not running
-✅ Instant execution - no delay when stop hit
-✅ No missed profits - TPs execute automatically
-✅ You focus on trailing stops and new opportunities
-✅ Reduced emotional trading - system enforces discipline
+5. **Manual trailing stops** (for existing profitable positions):
+   - When PnL ≥ +8%: Move stop to +3% using setStopLoss
+   - When PnL ≥ +15%: Move stop to +8%
+   - When PnL ≥ +25%: Move stop to +15%
+
+6. **Manual closure** (you always have control):
+   - Call closePosition for trend invalidation, risk-off, or better opportunities
+
+**SIMPLE WORKFLOW EXAMPLE:**
+```
+Step 1: calculateSlTpPrices(symbol="BTC", side="long", leverage=10)
+  → Returns: SL=94500, TP1=95789, TP2=96184, TP3=97053
+
+Step 2: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
+  → Position opened at 95000
+
+Step 3: setStopLoss(symbol="BTC", stopPrice=94500)
+  → Stop-loss set
+
+Step 4: setTakeProfit(symbol="BTC", takeProfitPrice=95789, percentage=30)
+Step 5: setTakeProfit(symbol="BTC", takeProfitPrice=96184, percentage=40)
+Step 6: setTakeProfit(symbol="BTC", takeProfitPrice=97053, percentage=30)
+  → All TPs set
+```
+
+**❌ NEVER DO THIS:**
+- ❌ Calculate SL/TP prices manually
+- ❌ Use formulas or percentages directly
+- ❌ Guess or estimate the prices
+- ❌ Skip calling calculateSlTpPrices tool
+
+**✅ ALWAYS DO THIS:**
+- ✅ Call calculateSlTpPrices FIRST
+- ✅ Use the exact prices it returns
+- ✅ Set all orders immediately after opening position
+
+**WHY THIS MATTERS:**
+- Tool reads from system configuration (${sltp.stopLossPnlPercent}% SL, ${sltp.tp1PnlPercent}%/${sltp.tp2PnlPercent}%/${sltp.tp3PnlPercent}% TPs)
+- Ensures consistent risk management across all trades
+- Manual calculations often have errors and ignore configuration
 
 ⭐ SETUP QUALITY GRADING (Only Trade A+ Setups):
 **A+ Setup (TRADE)** = 4+ confirmations:
@@ -566,11 +575,12 @@ THEN proceed with new opportunities:
 3. **Risk:Reward Check**: Calculate R:R for each potential trade
 4. **Entry Decision**: Only if A+ setup with R:R > 1:2
 5. **Execution Workflow** (CRITICAL - Follow this exact sequence):
-   a) Call openPosition with calculated parameters
-   b) Immediately call setStopLoss (e.g., -20% PnL level)
-   c) Immediately call setTakeProfit for 30% at +15% PnL
-   d) Immediately call setTakeProfit for 40% at +25% PnL
-   e) Immediately call setTakeProfit for 30% at +40% PnL
+   a) Call calculateSlTpPrices(symbol, side, leverage) FIRST - get SL/TP prices
+   b) Call openPosition with calculated parameters
+   c) Call setStopLoss with stopLoss.price from step (a)
+   d) Call setTakeProfit for 30% at takeProfits[0].price from step (a)
+   e) Call setTakeProfit for 40% at takeProfits[1].price from step (a)
+   f) Call setTakeProfit for 30% at takeProfits[2].price from step (a)
 6. **Document**: Confirm all automated orders were placed successfully
 
 All price or signal data below is sorted chronologically: oldest → newest
