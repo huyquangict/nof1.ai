@@ -1136,3 +1136,126 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* 🔥 ID-Based Tracking Styles */
+
+/* Order ID - clickable/copyable */
+.order-id {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    cursor: pointer;
+    color: #6c757d;
+    transition: color 0.2s;
+}
+
+.order-id:hover {
+    color: #007bff;
+    text-decoration: underline;
+}
+
+/* Entry link for close trades */
+.entry-link .value {
+    cursor: pointer;
+    color: #17a2b8;
+    transition: color 0.2s;
+}
+
+.entry-link .value:hover {
+    color: #138496;
+    text-decoration: underline;
+}
+
+/* Close reason badges */
+.close-reason-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    margin-left: 8px;
+    text-transform: uppercase;
+}
+
+.close-reason-badge.manual {
+    background-color: #6c757d;
+    color: white;
+}
+
+.close-reason-badge.stop_loss {
+    background-color: #dc3545;
+    color: white;
+}
+
+.close-reason-badge.take_profit,
+.close-reason-badge.take_profit_partial {
+    background-color: #28a745;
+    color: white;
+}
+
+.close-reason-badge.time_limit {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.close-reason-badge.drawdown {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.close-reason-badge.unknown {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+/* Highlighted trade (when jumping to entry) */
+.trade-item.highlighted {
+    animation: highlight-pulse 2s ease-out;
+    border: 2px solid #007bff !important;
+}
+
+@keyframes highlight-pulse {
+    0%, 100% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 9999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast.toast-success {
+    background-color: #28a745;
+}
+
+.toast.toast-error {
+    background-color: #dc3545;
+}
+
+.toast.toast-warn {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.toast.toast-info {
+    background-color: #17a2b8;
+}

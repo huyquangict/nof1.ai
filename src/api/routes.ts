@@ -159,8 +159,8 @@ export function createApiRoutes() {
       const exchangeClient = createExchangeClient();
       const exchangePositions = await exchangeClient.getPositions();
 
-      // 从数据库获取止损止盈信息
-      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders FROM positions");
+      // 从数据库获取止损止盈信息和订单ID
+      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, entry_order_id, sl_order_id FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
@@ -193,6 +193,9 @@ export function createApiRoutes() {
             stopLoss: dbPos?.stop_loss ? Number(dbPos.stop_loss) : null,
             tpOrders: tpOrders,
             openedAt: new Date(p.timestamp).toISOString(),
+            // 🔥 ID-based tracking fields
+            entryOrderId: dbPos?.entry_order_id || null,
+            slOrderId: dbPos?.sl_order_id || null,
           };
         });
       
@@ -318,6 +321,7 @@ export function createApiRoutes() {
         return {
           id: row.id,
           orderId: row.order_id,
+          entryOrderId: row.entry_order_id || null, // 🔥 Link to entry order (for close trades)
           symbol: row.symbol,
           side: row.side, // long/short
           type: row.type, // open/close

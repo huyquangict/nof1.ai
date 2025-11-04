@@ -320,7 +320,7 @@ async function loadTradesData() {
                 minute: '2-digit',
                 second: '2-digit'
             });
-            
+
             // 对于平仓交易，显示盈亏
             const pnlHtml = trade.type === 'close' && trade.pnl !== null && trade.pnl !== undefined
                 ? `<div class="trade-field">
@@ -328,11 +328,36 @@ async function loadTradesData() {
                     <span class="value ${trade.pnl >= 0 ? 'profit' : 'loss'}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} USDT</span>
                    </div>`
                 : '';
-            
+
+            // 🔥 Order ID display with copy button
+            const orderIdHtml = trade.orderId
+                ? `<div class="trade-field">
+                    <span class="label">订单ID</span>
+                    <span class="value order-id" onclick="copyToClipboard('${trade.orderId}')" title="点击复制">
+                        ${trade.orderId.substring(0, 12)}...
+                    </span>
+                   </div>`
+                : '';
+
+            // 🔥 Entry link for close trades
+            const entryLinkHtml = trade.type === 'close' && trade.entryOrderId
+                ? `<div class="trade-field entry-link">
+                    <span class="label">关联开仓</span>
+                    <span class="value" onclick="scrollToTrade('${trade.entryOrderId}')" title="跳转到开仓交易">
+                        🔗 ${trade.entryOrderId.substring(0, 12)}...
+                    </span>
+                   </div>`
+                : '';
+
+            // 🔥 Close reason badge for close trades
+            const closeReasonBadge = trade.type === 'close' && trade.closeReason
+                ? `<span class="close-reason-badge ${trade.closeReason}">${getCloseReasonText(trade.closeReason)}</span>`
+                : '';
+
             return `
-                <div class="trade-item">
+                <div class="trade-item" data-order-id="${trade.orderId}" data-entry-order-id="${trade.entryOrderId || ''}">
                     <div class="trade-header">
-                        <div class="trade-symbol">${trade.symbol}</div>
+                        <div class="trade-symbol">${trade.symbol} ${closeReasonBadge}</div>
                         <div class="trade-time">${timeStr}</div>
                     </div>
                     <div class="trade-info">
@@ -361,6 +386,8 @@ async function loadTradesData() {
                             <span class="value">${trade.fee.toFixed(4)}</span>
                         </div>
                         ${pnlHtml}
+                        ${orderIdHtml}
+                        ${entryLinkHtml}
                     </div>
                 </div>
             `;
@@ -440,4 +467,61 @@ function copyLog(index) {
         console.error('复制失败:', err);
         alert('复制失败，请手动复制');
     });
+}
+
+// 🔥 Helper functions for ID-based tracking
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Show toast notification
+        showToast('订单ID已复制: ' + text.substring(0, 16) + '...');
+    }).catch(err => {
+        console.error('复制失败:', err);
+        showToast('复制失败', 'error');
+    });
+}
+
+function scrollToTrade(entryOrderId) {
+    const tradeEl = document.querySelector(`[data-order-id="${entryOrderId}"]`);
+    if (tradeEl) {
+        // Highlight the entry trade
+        tradeEl.classList.add('highlighted');
+        tradeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+            tradeEl.classList.remove('highlighted');
+        }, 3000);
+    } else {
+        showToast('未找到关联的开仓交易', 'warn');
+    }
+}
+
+function getCloseReasonText(closeReason) {
+    const reasons = {
+        'manual': '手动',
+        'stop_loss': '止损',
+        'take_profit': '止盈',
+        'take_profit_partial': '部分止盈',
+        'time_limit': '超时',
+        'drawdown': '回撤',
+        'unknown': '未知'
+    };
+    return reasons[closeReason] || closeReason;
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
