@@ -40,6 +40,7 @@ export interface Trade {
   fee?: number;
   timestamp: string;
   status: 'pending' | 'filled' | 'cancelled';
+  close_reason?: 'manual' | 'stop_loss' | 'take_profit' | 'take_profit_partial' | 'time_limit' | 'drawdown'; // How position was closed
 }
 
 export interface Position {
@@ -129,7 +130,8 @@ CREATE TABLE IF NOT EXISTS trades (
   pnl REAL,
   fee REAL,
   timestamp TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending'
+  status TEXT NOT NULL DEFAULT 'pending',
+  close_reason TEXT  -- How position was closed: manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown
 );
 
 -- 持仓表

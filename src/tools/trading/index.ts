@@ -34,6 +34,9 @@ export {
   openPositionTool,
   closePositionTool,
   cancelOrderTool,
+  cancelAllOrdersForSymbolTool,
+  cancelAllTakeProfitOrdersTool,
+  cancelStopLossOrderTool,
   setStopLossTool,
   setTakeProfitTool,
 } from "./tradeExecution";
@@ -45,6 +48,7 @@ export {
   getOpenOrdersTool,
   checkOrderStatusTool,
   calculateRiskTool,
+  calculateSlTpPricesTool,
   syncPositionsTool,
 } from "./accountManagement";
 

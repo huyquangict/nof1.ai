@@ -552,7 +552,7 @@ class TradingMonitor {
 
             if (!data.trades || data.trades.length === 0) {
                 if (tradesBody) {
-                    tradesBody.innerHTML = '<tr><td colspan="9" class="empty-state">No trade history</td></tr>';
+                    tradesBody.innerHTML = '<tr><td colspan="10" class="empty-state">No trade history</td></tr>';
                 }
                 if (countEl) {
                     countEl.textContent = '';
@@ -588,6 +588,20 @@ class TradingMonitor {
                         ? `<span class="${trade.pnl >= 0 ? 'profit' : 'loss'}">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>`
                         : '<span class="na">-</span>';
 
+                    // Close reason display (only for closed positions)
+                    let closeReasonHtml = '<span class="na">-</span>';
+                    if (trade.type === 'close' && trade.closeReason) {
+                        const reasonMap = {
+                            'manual': '📝 Manual',
+                            'stop_loss': '🛑 Stop Loss',
+                            'take_profit': '🎯 Take Profit',
+                            'take_profit_partial': '🎯 TP Partial',
+                            'time_limit': '⏰ Time Limit',
+                            'drawdown': '📉 Drawdown'
+                        };
+                        closeReasonHtml = `<span class="close-reason">${reasonMap[trade.closeReason] || trade.closeReason}</span>`;
+                    }
+
                     return `
                         <tr>
                             <td>${timeStr}</td>
@@ -599,6 +613,7 @@ class TradingMonitor {
                             <td>${trade.leverage}x</td>
                             <td>${trade.fee.toFixed(4)}</td>
                             <td>${pnlHtml}</td>
+                            <td>${closeReasonHtml}</td>
                         </tr>
                     `;
                 }).join('');

@@ -790,8 +790,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
               // Record close trade in trades table
               await dbClient.execute({
-                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
                 args: [
                   slOrderId,
                   dbSymbol,
@@ -800,7 +800,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   quantity,
                   leverage,
                   pnl,
-                  new Date().toISOString()
+                  new Date().toISOString(),
+                  'stop_loss'
                 ]
               });
 
@@ -862,8 +863,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
                     // Record close trade in trades table (partial close)
                     await dbClient.execute({
-                      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
                       args: [
                         tp.orderId,
                         dbSymbol,
@@ -872,7 +873,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                         quantity * (tp.percentage / 100), // Partial quantity
                         leverage,
                         pnl,
-                        new Date().toISOString()
+                        new Date().toISOString(),
+                        'take_profit_partial'
                       ]
                     });
 
@@ -919,8 +921,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
                   // Record close trade
                   await dbClient.execute({
-                    sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                          VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                    sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                          VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
                     args: [
                       tpOrderId,
                       dbSymbol,
@@ -929,7 +931,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                       quantity,
                       leverage,
                       pnl,
-                      new Date().toISOString()
+                      new Date().toISOString(),
+                      'take_profit'
                     ]
                   });
 
@@ -965,8 +968,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
               // Record close trade
               await dbClient.execute({
-                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
                 args: [
                   tpOrderId,
                   dbSymbol,
@@ -975,7 +978,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   quantity,
                   leverage,
                   pnl,
-                  new Date().toISOString()
+                  new Date().toISOString(),
+                  'take_profit'
                 ]
               });
 
@@ -1069,8 +1073,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
                 // Record close trade in trades table (partial close)
                 await dbClient.execute({
-                  sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                        VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed')`,
+                  sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                        VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
                   args: [
                     tp.orderId,
                     dbSymbol,
@@ -1079,7 +1083,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                     quantity * (tp.percentage / 100), // Partial quantity
                     leverage,
                     pnl,
-                    new Date().toISOString()
+                    new Date().toISOString(),
+                    'take_profit_partial'
                   ]
                 });
 
@@ -1830,9 +1835,21 @@ async function executeTradingDecision() {
             logger.info(`  Entry price: ${pos.entry_price.toFixed(4)}, Exit price: ${finalPrice.toFixed(4)}, Quantity: ${actualQuantity} units`);
             logger.info(`  Net P&L: ${pnl.toFixed(2)} USDT, Fee: ${totalFee.toFixed(4)} USDT`);
 
+            // Determine close_reason based on closeReason text
+            let dbCloseReason: string;
+            if (closeReason.includes('36-hour') || closeReason.includes('Holding time')) {
+              dbCloseReason = 'time_limit';
+            } else if (closeReason.includes('drawdown protection')) {
+              dbCloseReason = 'drawdown';
+            } else if (closeReason.includes('trailing take profit')) {
+              dbCloseReason = 'take_profit';
+            } else {
+              dbCloseReason = 'stop_loss'; // dynamic stop loss or other
+            }
+
             await dbClient.execute({
-              sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 order.id?.toString() || "",
                 symbol,
@@ -1845,6 +1862,7 @@ async function executeTradingDecision() {
                 totalFee,
                 getChinaTimeISO(),
                 orderFilled ? "filled" : "pending",
+                dbCloseReason, // How position was closed
               ],
             });
             logger.info(`Forced liquidation recorded to database: ${symbol}, P&L=${pnl.toFixed(2)} USDT, reason=${closeReason}`);

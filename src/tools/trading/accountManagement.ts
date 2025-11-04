@@ -312,16 +312,41 @@ export const syncPositionsTool = createTool({
     try {
       const positions = await client.getPositions();
 
+      // Get existing SL/TP data before sync
+      const existingDataResult = await dbClient.execute(
+        "SELECT symbol, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
+      );
+
+      const existingDataMap = new Map<string, any>();
+      for (const row of existingDataResult.rows) {
+        const r = row as any;
+        existingDataMap.set(r.symbol, {
+          tp_orders: r.tp_orders,
+          sl_order_id: r.sl_order_id,
+          tp_order_id: r.tp_order_id,
+          sl_percentage: r.sl_percentage,
+          tp_percentage: r.tp_percentage,
+          entry_order_id: r.entry_order_id,
+          opened_at: r.opened_at,
+          confidence: r.confidence,
+          risk_usd: r.risk_usd,
+          peak_pnl_percent: r.peak_pnl_percent,
+        });
+      }
+
       // 清空本地持仓表
       await dbClient.execute("DELETE FROM positions");
 
-      // 插入当前持仓
+      // 插入当前持仓，保留SL/TP数据
       for (const p of positions) {
+        const existingData = existingDataMap.get(p.symbol);
+
         await dbClient.execute({
           sql: `INSERT INTO positions
                 (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-                 leverage, side, entry_order_id, opened_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 leverage, side, entry_order_id, opened_at, tp_orders, sl_order_id, tp_order_id,
+                 sl_percentage, tp_percentage, confidence, risk_usd, peak_pnl_percent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             p.symbol,
             p.quantity,
@@ -331,8 +356,16 @@ export const syncPositionsTool = createTool({
             p.unrealizedPnl,
             p.leverage,
             p.side,
-            "synced",
-            new Date().toISOString(),
+            existingData?.entry_order_id || "synced",
+            existingData?.opened_at || new Date().toISOString(),
+            existingData?.tp_orders || null,
+            existingData?.sl_order_id || null,
+            existingData?.tp_order_id || null,
+            existingData?.sl_percentage || null,
+            existingData?.tp_percentage || null,
+            existingData?.confidence || null,
+            existingData?.risk_usd || null,
+            existingData?.peak_pnl_percent || 0,
           ],
         });
       }
@@ -347,6 +380,118 @@ export const syncPositionsTool = createTool({
         success: false,
         error: error.message,
         message: `同步持仓失败: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Calculate Stop-Loss and Take-Profit Prices Tool
+ * Calculates optimal SL/TP prices based on environment configuration settings.
+ * Uses PnL percentages from .env (POSITION_STOP_LOSS_PNL_PERCENT, POSITION_TP1/2/3_PNL_PERCENT)
+ */
+export const calculateSlTpPricesTool = createTool({
+  name: "calculateSlTpPrices",
+  description: "Calculate stop-loss and take-profit prices based on system configuration (environment settings). IMPORTANT: Use this tool to get recommended SL/TP prices before setting them. The tool calculates prices based on: 1) Current/entry price, 2) Position side (long/short), 3) Leverage, 4) Configured PnL percentages from system settings. Returns multiple TP levels (TP1, TP2, TP3) at 30%, 40%, 30% position splits.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
+    side: z.enum(["long", "short"]).describe("Position side: long or short"),
+    leverage: z.number().min(1).max(RISK_PARAMS.MAX_LEVERAGE).describe("Position leverage"),
+    entryPrice: z.number().optional().describe("Entry price (optional, will use current price if not provided)"),
+  }),
+  execute: async ({ symbol, side, leverage, entryPrice }) => {
+    const client = createExchangeClient();
+
+    try {
+      // Get current price if entry price not provided
+      let price = entryPrice;
+      if (!price) {
+        const ticker = await client.getFuturesTicker(symbol);
+        price = ticker.lastPrice;
+      }
+
+      // Get PnL percentages from environment
+      const slPnlPercent = parseFloat(process.env.POSITION_STOP_LOSS_PNL_PERCENT || "20");
+      const tp1PnlPercent = parseFloat(process.env.POSITION_TP1_PNL_PERCENT || "15");
+      const tp2PnlPercent = parseFloat(process.env.POSITION_TP2_PNL_PERCENT || "25");
+      const tp3PnlPercent = parseFloat(process.env.POSITION_TP3_PNL_PERCENT || "40");
+
+      // Convert PnL % to price change % (PnL already includes leverage effect)
+      // Formula: price_change_% = PnL_% / leverage
+      const slPriceChangePercent = slPnlPercent / leverage;
+      const tp1PriceChangePercent = tp1PnlPercent / leverage;
+      const tp2PriceChangePercent = tp2PnlPercent / leverage;
+      const tp3PriceChangePercent = tp3PnlPercent / leverage;
+
+      let stopLossPrice: number;
+      let tp1Price: number;
+      let tp2Price: number;
+      let tp3Price: number;
+
+      if (side === 'long') {
+        // Long position:
+        // SL: price goes down → negative PnL → stop price < entry
+        // TP: price goes up → positive PnL → TP price > entry
+        stopLossPrice = price * (1 - slPriceChangePercent / 100);
+        tp1Price = price * (1 + tp1PriceChangePercent / 100);
+        tp2Price = price * (1 + tp2PriceChangePercent / 100);
+        tp3Price = price * (1 + tp3PriceChangePercent / 100);
+      } else {
+        // Short position:
+        // SL: price goes up → negative PnL → stop price > entry
+        // TP: price goes down → positive PnL → TP price < entry
+        stopLossPrice = price * (1 + slPriceChangePercent / 100);
+        tp1Price = price * (1 - tp1PriceChangePercent / 100);
+        tp2Price = price * (1 - tp2PriceChangePercent / 100);
+        tp3Price = price * (1 - tp3PriceChangePercent / 100);
+      }
+
+      return {
+        success: true,
+        symbol,
+        side,
+        leverage,
+        entryPrice: price,
+        stopLoss: {
+          price: stopLossPrice,
+          pnlPercent: -slPnlPercent,
+          priceChangePercent: side === 'long' ? -slPriceChangePercent : slPriceChangePercent,
+          percentage: 100,
+        },
+        takeProfits: [
+          {
+            level: 1,
+            price: tp1Price,
+            pnlPercent: tp1PnlPercent,
+            priceChangePercent: side === 'long' ? tp1PriceChangePercent : -tp1PriceChangePercent,
+            percentage: 30,
+          },
+          {
+            level: 2,
+            price: tp2Price,
+            pnlPercent: tp2PnlPercent,
+            priceChangePercent: side === 'long' ? tp2PriceChangePercent : -tp2PriceChangePercent,
+            percentage: 40,
+          },
+          {
+            level: 3,
+            price: tp3Price,
+            pnlPercent: tp3PnlPercent,
+            priceChangePercent: side === 'long' ? tp3PriceChangePercent : -tp3PriceChangePercent,
+            percentage: 30,
+          },
+        ],
+        message: `📊 SL/TP Calculation for ${symbol} ${side.toUpperCase()} @ ${formatPrice(price)} (${leverage}x):\n` +
+          `🛑 Stop-Loss: ${formatPrice(stopLossPrice)} (-${slPnlPercent}% PnL, ${side === 'long' ? '-' : '+'}${slPriceChangePercent.toFixed(2)}% price)\n` +
+          `🎯 TP1 (30%): ${formatPrice(tp1Price)} (+${tp1PnlPercent}% PnL, ${side === 'long' ? '+' : '-'}${tp1PriceChangePercent.toFixed(2)}% price)\n` +
+          `🎯 TP2 (40%): ${formatPrice(tp2Price)} (+${tp2PnlPercent}% PnL, ${side === 'long' ? '+' : '-'}${tp2PriceChangePercent.toFixed(2)}% price)\n` +
+          `🎯 TP3 (30%): ${formatPrice(tp3Price)} (+${tp3PnlPercent}% PnL, ${side === 'long' ? '+' : '-'}${tp3PriceChangePercent.toFixed(2)}% price)`,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to calculate SL/TP prices: ${error.message}`,
       };
     }
   },

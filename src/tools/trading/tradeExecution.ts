@@ -50,12 +50,13 @@ function formatPrice(price: number): string {
   return price.toFixed(2);
 }
 
+
 /**
  * 开仓工具
  */
 export const openPositionTool = createTool({
   name: "openPosition",
-  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。交易手续费约0.05%，避免频繁交易。开仓时不设置止盈止损，你需要在每个周期主动决策是否平仓。",
+  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 开仓前使用cancelAllOrdersForSymbol清理该币种的所有挂单，避免遗留的止盈止损订单影响新仓位。3) 交易手续费约0.05%，避免频繁交易。4) 开仓时不设置止盈止损，你需要在每个周期主动决策是否平仓，或使用setTakeProfit/setStopLoss工具设置。",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
     side: z.enum(["long", "short"]).describe("方向：long=做多，short=做空"),
@@ -742,8 +743,8 @@ export const closePositionTool = createTool({
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
       
       await dbClient.execute({
-        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           order.id?.toString() || "",
           symbol,
@@ -756,6 +757,7 @@ export const closePositionTool = createTool({
           totalFee,         // 总手续费（开仓+平仓）
           getChinaTimeISO(),
           dbStatus,
+          'manual',         // Manual close by LLM
         ],
       });
       
@@ -862,12 +864,285 @@ export const cancelOrderTool = createTool({
 });
 
 /**
+ * Cancel All Orders for Symbol Tool
+ * Cancels all open orders (SL/TP) for a specific symbol.
+ * Use this to clean up orphaned orders before opening a new position.
+ */
+export const cancelAllOrdersForSymbolTool = createTool({
+  name: "cancelAllOrdersForSymbol",
+  description: "Cancel ALL open orders (both stop-loss and take-profit) for a specific symbol. IMPORTANT: Use this ONLY before opening a new position for a symbol to clean up orphaned orders from previous closed positions. Do NOT use this when you only want to modify TP or SL - use cancelAllTakeProfitOrders or cancelStopLossOrder instead.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code to cancel all orders for"),
+  }),
+  execute: async ({ symbol }) => {
+    const client = createExchangeClient();
+
+    try {
+      // Get all open orders for this symbol
+      const openOrders = await client.getOpenOrders(symbol);
+
+      if (openOrders.length === 0) {
+        return {
+          success: true,
+          symbol,
+          canceledCount: 0,
+          message: `No open orders found for ${symbol}`,
+        };
+      }
+
+      logger.info(`🧹 Canceling ${openOrders.length} open orders for ${symbol}...`);
+
+      let successCount = 0;
+      let failCount = 0;
+      const canceledOrders: string[] = [];
+      const errors: string[] = [];
+
+      // Cancel all open orders
+      for (const order of openOrders) {
+        try {
+          await client.cancelOrder(order.id);
+          successCount++;
+          canceledOrders.push(order.id);
+          logger.info(`  ✅ Canceled order ${order.id} for ${symbol}`);
+        } catch (error: any) {
+          failCount++;
+          errors.push(`${order.id}: ${error.message}`);
+          logger.warn(`  ⚠️  Failed to cancel order ${order.id}: ${error.message}`);
+        }
+      }
+
+      const message = successCount > 0
+        ? `✅ Canceled ${successCount} order(s) for ${symbol}${failCount > 0 ? `, ${failCount} failed` : ''}`
+        : `❌ Failed to cancel all ${failCount} order(s) for ${symbol}`;
+
+      return {
+        success: successCount > 0,
+        symbol,
+        canceledCount: successCount,
+        failedCount: failCount,
+        canceledOrders,
+        errors: errors.length > 0 ? errors : undefined,
+        message,
+      };
+    } catch (error: any) {
+      logger.error(`❌ Failed to get/cancel orders for ${symbol}: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to cancel orders for ${symbol}: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Cancel All Take-Profit Orders Tool
+ * Cancels only the take-profit orders for a symbol, keeps stop-loss order intact.
+ * Use this when you want to replace/modify TP levels without affecting SL.
+ */
+export const cancelAllTakeProfitOrdersTool = createTool({
+  name: "cancelAllTakeProfitOrders",
+  description: "Cancel all take-profit orders for a specific symbol while keeping the stop-loss order intact. IMPORTANT: Use this when you want to replace or modify TP levels without affecting the existing SL. After canceling, you can set new TPs with setTakeProfit.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code to cancel TPs for"),
+  }),
+  execute: async ({ symbol }) => {
+    const client = createExchangeClient();
+
+    try {
+      // 1. Get position from database to find TP order IDs
+      const dbResult = await dbClient.execute({
+        sql: "SELECT tp_orders, sl_order_id FROM positions WHERE symbol = ?",
+        args: [symbol]
+      });
+
+      if (dbResult.rows.length === 0) {
+        return {
+          success: false,
+          message: `No position found for ${symbol}`,
+        };
+      }
+
+      const row = dbResult.rows[0] as any;
+      const tpOrdersStr = row.tp_orders;
+      const slOrderId = row.sl_order_id;
+
+      if (!tpOrdersStr) {
+        return {
+          success: true,
+          symbol,
+          canceledCount: 0,
+          message: `No take-profit orders found for ${symbol}`,
+        };
+      }
+
+      let tpOrders: TakeProfitOrder[] = [];
+      try {
+        tpOrders = JSON.parse(tpOrdersStr);
+      } catch (e) {
+        return {
+          success: false,
+          message: `Failed to parse TP orders for ${symbol}`,
+        };
+      }
+
+      const activeTPs = tpOrders.filter(tp => !tp.triggered);
+      if (activeTPs.length === 0) {
+        return {
+          success: true,
+          symbol,
+          canceledCount: 0,
+          message: `No active take-profit orders found for ${symbol}`,
+        };
+      }
+
+      logger.info(`🧹 Canceling ${activeTPs.length} take-profit order(s) for ${symbol} (keeping SL: ${slOrderId || 'none'})...`);
+
+      let successCount = 0;
+      let failCount = 0;
+      const canceledOrders: string[] = [];
+      const errors: string[] = [];
+
+      // Cancel all TP orders
+      for (const tp of activeTPs) {
+        try {
+          await client.cancelOrder(tp.orderId);
+          successCount++;
+          canceledOrders.push(tp.orderId);
+          logger.info(`  ✅ Canceled TP order ${tp.orderId} for ${symbol}`);
+        } catch (error: any) {
+          failCount++;
+          errors.push(`${tp.orderId}: ${error.message}`);
+          logger.warn(`  ⚠️  Failed to cancel TP order ${tp.orderId}: ${error.message}`);
+        }
+      }
+
+      // Clear tp_orders in database
+      if (successCount > 0) {
+        await dbClient.execute({
+          sql: "UPDATE positions SET tp_orders = NULL WHERE symbol = ?",
+          args: [symbol]
+        });
+      }
+
+      const message = successCount > 0
+        ? `✅ Canceled ${successCount} TP order(s) for ${symbol}${failCount > 0 ? `, ${failCount} failed` : ''} (SL preserved)`
+        : `❌ Failed to cancel all ${failCount} TP order(s) for ${symbol}`;
+
+      return {
+        success: successCount > 0,
+        symbol,
+        canceledCount: successCount,
+        failedCount: failCount,
+        canceledOrders,
+        errors: errors.length > 0 ? errors : undefined,
+        message,
+      };
+    } catch (error: any) {
+      logger.error(`❌ Failed to cancel TP orders for ${symbol}: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to cancel TP orders for ${symbol}: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Cancel Stop-Loss Order Tool
+ * Cancels only the stop-loss order for a symbol, keeps take-profit orders intact.
+ * Use this when you want to replace/modify SL without affecting TPs.
+ */
+export const cancelStopLossOrderTool = createTool({
+  name: "cancelStopLossOrder",
+  description: "Cancel the stop-loss order for a specific symbol while keeping all take-profit orders intact. IMPORTANT: Use this when you want to replace or modify SL without affecting the existing TPs. After canceling, you can set a new SL with setStopLoss.",
+  parameters: z.object({
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code to cancel SL for"),
+  }),
+  execute: async ({ symbol }) => {
+    const client = createExchangeClient();
+
+    try {
+      // 1. Get position from database to find SL order ID
+      const dbResult = await dbClient.execute({
+        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        args: [symbol]
+      });
+
+      if (dbResult.rows.length === 0) {
+        return {
+          success: false,
+          message: `No position found for ${symbol}`,
+        };
+      }
+
+      const row = dbResult.rows[0] as any;
+      const slOrderId = row.sl_order_id;
+      const tpOrdersStr = row.tp_orders;
+
+      if (!slOrderId) {
+        return {
+          success: true,
+          symbol,
+          message: `No stop-loss order found for ${symbol}`,
+        };
+      }
+
+      // Count active TPs for logging
+      let activeTpCount = 0;
+      if (tpOrdersStr) {
+        try {
+          const tpOrders = JSON.parse(tpOrdersStr);
+          activeTpCount = tpOrders.filter((tp: TakeProfitOrder) => !tp.triggered).length;
+        } catch (e) {}
+      }
+
+      logger.info(`🧹 Canceling stop-loss order ${slOrderId} for ${symbol} (keeping ${activeTpCount} TP order(s))...`);
+
+      try {
+        await client.cancelOrder(slOrderId);
+
+        // Clear sl_order_id in database
+        await dbClient.execute({
+          sql: "UPDATE positions SET sl_order_id = NULL, sl_percentage = NULL WHERE symbol = ?",
+          args: [symbol]
+        });
+
+        logger.info(`  ✅ Canceled SL order ${slOrderId} for ${symbol}`);
+
+        return {
+          success: true,
+          symbol,
+          orderId: slOrderId,
+          message: `✅ Canceled stop-loss order for ${symbol} (${activeTpCount} TP order(s) preserved)`,
+        };
+      } catch (error: any) {
+        logger.error(`  ❌ Failed to cancel SL order ${slOrderId}: ${error.message}`);
+        return {
+          success: false,
+          error: error.message,
+          message: `Failed to cancel stop-loss order: ${error.message}`,
+        };
+      }
+    } catch (error: any) {
+      logger.error(`❌ Failed to cancel SL order for ${symbol}: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to cancel SL order for ${symbol}: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
  * Set Take Profit Tool - Create automatic take-profit orders for existing position
  * Supports multiple TP levels (e.g., 30% at +5%, 40% at +10%, 30% at +15%)
  */
 export const setTakeProfitTool = createTool({
   name: "setTakeProfit",
-  description: "Set one or more take-profit orders for an existing position. Supports multiple TP levels for scaling out (e.g., 30% at +5%, 40% at +10%, 30% at +15%). Take-profits execute automatically when price reaches each target. Can be called multiple times to add more TPs. IMPORTANT: Long positions must have TP > current price, short positions must have TP < current price. Total percentage across all TPs cannot exceed 100%.",
+  description: "Set one or more take-profit orders for an existing position. Supports multiple TP levels for scaling out (e.g., 30% at +5%, 40% at +10%, 30% at +15%). Take-profits execute automatically when price reaches each target. Can be called multiple times to add more TPs. IMPORTANT: 1) Long positions must have TP > current price, short positions must have TP < current price. 2) Total percentage across all TPs cannot exceed 100%. 3) If you want to REPLACE existing TPs (not add), first use cancelAllTakeProfitOrders to remove old TPs (keeps SL intact), then set new ones. 4) Use getPositions to check current TP setup before modifying.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
     takeProfitPrice: z.number().describe("Take-profit trigger price (long: TP > current, short: TP < current)"),
@@ -1065,7 +1340,7 @@ export const setTakeProfitTool = createTool({
  */
 export const setStopLossTool = createTool({
   name: "setStopLoss",
-  description: "Set a stop-loss order for an existing position (automatic market close order). Stop-loss will execute automatically when price reaches the trigger price, no manual monitoring needed. Used for risk management and profit protection. IMPORTANT: Stop price must be set correctly - long positions must have stop price < current price, short positions must have stop price > current price.",
+  description: "Set a stop-loss order for an existing position (automatic market close order). Stop-loss will execute automatically when price reaches the trigger price, no manual monitoring needed. Used for risk management and profit protection. IMPORTANT: 1) Stop price must be set correctly - long positions must have stop price < current price, short positions must have stop price > current price. 2) If you want to REPLACE existing SL (not add), first use cancelStopLossOrder to remove old SL (keeps TPs intact), then set new one. 3) Use getPositions to check current SL setup before modifying.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
     stopPrice: z.number().describe("Stop-loss trigger price (long: stop price < current, short: stop price > current)"),

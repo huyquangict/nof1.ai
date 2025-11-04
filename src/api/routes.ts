@@ -328,6 +328,7 @@ export function createApiRoutes() {
           fee: Number.parseFloat(row.fee || "0"),
           timestamp: row.timestamp,
           status: row.status,
+          closeReason: row.close_reason, // How position was closed (manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown)
         };
       });
       
