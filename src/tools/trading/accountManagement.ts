@@ -497,3 +497,153 @@ export const calculateSlTpPricesTool = createTool({
   },
 });
 
+/**
+ * Get market fundamentals (market cap, volume, rank) from Binance
+ * IMPORTANT: This uses an unofficial Binance API and may be rate-limited or change
+ */
+export const getMarketFundamentalsTool = createTool({
+  name: "getMarketFundamentals",
+  description: "Get market fundamentals for trading symbols including market cap, 24h volume, market rank, circulating supply, and daily change. Use this to assess coin size, liquidity, and relative risk. Larger market cap = more stable, higher volume = better liquidity. Call this once at start of each trading cycle to understand the fundamental landscape.",
+  parameters: z.object({
+    symbols: z.array(z.enum(RISK_PARAMS.TRADING_SYMBOLS)).optional().describe("Symbols to get data for (optional, defaults to all trading symbols)"),
+  }),
+  execute: async ({ symbols }) => {
+    try {
+      const symbolsToFetch = symbols || RISK_PARAMS.TRADING_SYMBOLS;
+
+      // Fetch data from Binance unofficial API
+      const response = await fetch("https://www.binance.com/bapi/apex/v1/friendly/apex/marketing/complianceSymbolList", {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Binance API returned ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.data) {
+        throw new Error("Invalid response from Binance API");
+      }
+
+      // Filter to only our trading symbols
+      const allCoins = data.data;
+      const results: any[] = [];
+
+      for (const symbol of symbolsToFetch) {
+        // Binance uses BTCUSDT format
+        const binanceSymbol = `${symbol}USDT`;
+        const coinData = allCoins.find((c: any) => c.symbol === binanceSymbol);
+
+        if (coinData) {
+          results.push({
+            symbol,
+            name: coinData.name,
+            fullName: coinData.fullName,
+            price: coinData.price,
+            marketCap: coinData.marketCap,
+            marketCapFormatted: formatMarketCap(coinData.marketCap),
+            volume24h: coinData.volume,
+            volume24hFormatted: formatMarketCap(coinData.volume),
+            rank: coinData.rank,
+            dayChange: coinData.dayChange,
+            circulatingSupply: coinData.circulatingSupply,
+            maxSupply: coinData.maxSupply,
+            marketCapDominance: coinData.marketCapDominance,
+            tags: coinData.tags || [],
+          });
+        }
+      }
+
+      // Sort by rank
+      results.sort((a, b) => a.rank - b.rank);
+
+      // Calculate total market cap and dominance
+      const totalMarketCap = results.reduce((sum, coin) => sum + (coin.marketCap || 0), 0);
+
+      // Add relative metrics
+      for (const coin of results) {
+        coin.dominancePercent = totalMarketCap > 0
+          ? ((coin.marketCap / totalMarketCap) * 100).toFixed(2)
+          : "0.00";
+      }
+
+      // Format summary message
+      let summary = "📊 Market Fundamentals Summary:\n\n";
+      for (const coin of results) {
+        const supplyInfo = coin.maxSupply
+          ? `${(coin.circulatingSupply / coin.maxSupply * 100).toFixed(1)}% of max`
+          : "No max supply";
+
+        summary += `${coin.symbol} (${coin.fullName}) - Rank #${coin.rank}\n`;
+        summary += `  💰 Market Cap: $${coin.marketCapFormatted} (${coin.dominancePercent}% of portfolio)\n`;
+        summary += `  📊 24h Volume: $${coin.volume24hFormatted}\n`;
+        summary += `  📈 24h Change: ${coin.dayChange >= 0 ? '+' : ''}${coin.dayChange.toFixed(2)}%\n`;
+        summary += `  💎 Supply: ${formatNumber(coin.circulatingSupply)} (${supplyInfo})\n`;
+        if (coin.tags.length > 0) {
+          summary += `  🏷️ Tags: ${coin.tags.join(", ")}\n`;
+        }
+        summary += '\n';
+      }
+
+      // Add analysis insights
+      summary += "💡 Analysis Insights:\n";
+      const largeCapCoins = results.filter(c => c.marketCap > 100_000_000_000); // > $100B
+      const midCapCoins = results.filter(c => c.marketCap >= 10_000_000_000 && c.marketCap <= 100_000_000_000); // $10B-$100B
+      const smallCapCoins = results.filter(c => c.marketCap < 10_000_000_000); // < $10B
+
+      summary += `  - Large Cap (>$100B): ${largeCapCoins.map(c => c.symbol).join(", ") || "None"} → Lower risk, lower volatility\n`;
+      summary += `  - Mid Cap ($10B-$100B): ${midCapCoins.map(c => c.symbol).join(", ") || "None"} → Balanced risk/reward\n`;
+      summary += `  - Small Cap (<$10B): ${smallCapCoins.map(c => c.symbol).join(", ") || "None"} → Higher risk, higher potential returns\n`;
+
+      // Volume analysis
+      const avgVolume = results.reduce((sum, c) => sum + c.volume24h, 0) / results.length;
+      const highVolumeCoins = results.filter(c => c.volume24h > avgVolume * 1.5);
+      if (highVolumeCoins.length > 0) {
+        summary += `  - High liquidity: ${highVolumeCoins.map(c => c.symbol).join(", ")} → Easier to enter/exit positions\n`;
+      }
+
+      return {
+        success: true,
+        data: results,
+        summary,
+        totalMarketCap,
+        averageVolume: avgVolume,
+        message: summary,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to fetch market fundamentals: ${error.message}. This uses an unofficial API and may be temporarily unavailable.`,
+      };
+    }
+  },
+});
+
+/**
+ * Format large numbers (market cap, volume) to human-readable format
+ */
+function formatMarketCap(value: number): string {
+  if (value >= 1_000_000_000_000) {
+    return `${(value / 1_000_000_000_000).toFixed(2)}T`;
+  }
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+  return value.toFixed(2);
+}
+
+/**
+ * Format numbers with commas
+ */
+function formatNumber(value: number): string {
+  return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+

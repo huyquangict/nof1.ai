@@ -50,5 +50,6 @@ export {
   calculateRiskTool,
   calculateSlTpPricesTool,
   syncPositionsTool,
+  getMarketFundamentalsTool,
 } from "./accountManagement";
 
