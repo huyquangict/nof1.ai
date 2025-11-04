@@ -40,6 +40,29 @@ const dbClient = createClient({
 // Supported trading symbols - read from config
 const SYMBOLS = [...RISK_PARAMS.TRADING_SYMBOLS] as string[];
 
+// Timeframe configuration - parse from environment variable
+interface TimeframeConfig {
+  interval: string;
+  candleCount: number;
+}
+
+const TIMEFRAME_CONFIGS: Record<string, TimeframeConfig> = {
+  "1m": { interval: "1m", candleCount: 60 },
+  "3m": { interval: "3m", candleCount: 100 },
+  "5m": { interval: "5m", candleCount: 100 },
+  "15m": { interval: "15m", candleCount: 96 },
+  "30m": { interval: "30m", candleCount: 90 },
+  "1h": { interval: "1h", candleCount: 120 },
+  "4h": { interval: "4h", candleCount: 60 },
+  "8h": { interval: "8h", candleCount: 30 },
+};
+
+// Parse enabled timeframes from environment variable
+const ENABLED_TIMEFRAMES = (process.env.ENABLED_TIMEFRAMES || "1m,3m,5m,15m,30m,1h,4h,8h")
+  .split(",")
+  .map(tf => tf.trim())
+  .filter(tf => TIMEFRAME_CONFIGS[tf]); // Only include valid timeframes
+
 // Trading start time
 let tradingStartTime = new Date();
 let iterationCount = 0;
@@ -108,47 +131,60 @@ async function collectMarketData() {
         }
       }
 
-      // Fetch candlestick data for all timeframes (removed 1m/3m - too noisy for 10-min cycle)
-      const candles5m = await exchangeClient.getFuturesCandles(symbol, "5m", 100);
-      const candles15m = await exchangeClient.getFuturesCandles(symbol, "15m", 96);
-      const candles30m = await exchangeClient.getFuturesCandles(symbol, "30m", 90);
-      const candles1h = await exchangeClient.getFuturesCandles(symbol, "1h", 120);
-      const candles4h = await exchangeClient.getFuturesCandles(symbol, "4h", 60);
-      const candles8h = await exchangeClient.getFuturesCandles(symbol, "8h", 30);
+      // Fetch candlestick data for all enabled timeframes
+      const candlesData: Record<string, any[]> = {};
+      const indicatorsData: Record<string, any> = {};
 
-      // Calculate indicators for each timeframe
-      const indicators5m = calculateIndicators(candles5m);
-      const indicators15m = calculateIndicators(candles15m);
-      const indicators30m = calculateIndicators(candles30m);
-      const indicators1h = calculateIndicators(candles1h);
-      const indicators4h = calculateIndicators(candles4h);
-      const indicators8h = calculateIndicators(candles8h);
+      for (const timeframe of ENABLED_TIMEFRAMES) {
+        const config = TIMEFRAME_CONFIGS[timeframe];
+        try {
+          candlesData[timeframe] = await exchangeClient.getFuturesCandles(
+            symbol,
+            config.interval as any,
+            config.candleCount
+          );
+          indicatorsData[timeframe] = calculateIndicators(candlesData[timeframe]);
+        } catch (error) {
+          logger.warn(`Failed to fetch ${symbol} ${timeframe} candles:`, error as any);
+          candlesData[timeframe] = [];
+          indicatorsData[timeframe] = {};
+        }
+      }
 
-      // Calculate 5-minute time series indicators (use all data points for calculation, but only display the last 10)
-      const intradaySeries = calculateIntradaySeries(candles5m);
+      // Calculate 3-minute time series indicators (use smallest available timeframe, fallback to 5m)
+      let intradaySeries: any;
+      if (candlesData["3m"]?.length > 0) {
+        intradaySeries = calculateIntradaySeries(candlesData["3m"]);
+      } else if (candlesData["5m"]?.length > 0) {
+        intradaySeries = calculateIntradaySeries(candlesData["5m"]);
+      } else {
+        intradaySeries = { midPrices: [], ema20Series: [], macdSeries: [], rsi7Series: [], rsi14Series: [] };
+      }
 
       // Calculate 1-hour indicators as longer-term context
-      const longerTermContext = calculateLongerTermContext(candles1h);
+      const longerTermContext = candlesData["1h"]?.length > 0
+        ? calculateLongerTermContext(candlesData["1h"])
+        : { ema20Series: [], ema50Series: [], atr3Series: [], atr14Series: [], volumeSeries: [], macdSeries: [], rsi14Series: [] };
 
-      // Use 5-minute candlestick data as main indicators (for compatibility)
-      const indicators = indicators5m;
+      // Use 5-minute candlestick data as main indicators (for compatibility), fallback to first available timeframe
+      const indicators = indicatorsData["5m"] || indicatorsData[ENABLED_TIMEFRAMES[0]] || {};
 
       // Validate technical indicators validity and data completeness
       const dataTimestamp = new Date().toISOString();
+
+      // Build candle count object dynamically
+      const candleCount: Record<string, number> = {};
+      for (const timeframe of ENABLED_TIMEFRAMES) {
+        candleCount[timeframe] = candlesData[timeframe]?.length || 0;
+      }
+
       const dataQuality = {
         price: Number.isFinite(ticker.lastPrice),
         ema20: Number.isFinite(indicators.ema20),
         macd: Number.isFinite(indicators.macd),
         rsi14: Number.isFinite(indicators.rsi14) && indicators.rsi14 >= 0 && indicators.rsi14 <= 100,
         volume: Number.isFinite(indicators.volume) && indicators.volume >= 0,
-        candleCount: {
-          "5m": candles5m.length,
-          "15m": candles15m.length,
-          "30m": candles30m.length,
-          "1h": candles1h.length,
-          "4h": candles4h.length,
-          "8h": candles8h.length,
-        }
+        candleCount,
       };
 
       // Log data quality issues
@@ -183,6 +219,14 @@ async function collectMarketData() {
       let openInterest = { latest: 0, average: 0 };
       // Note: Not all exchanges provide open interest data
 
+      // Build timeframes object dynamically
+      const timeframes: Record<string, any> = {};
+      for (const timeframe of ENABLED_TIMEFRAMES) {
+        if (indicatorsData[timeframe] && Object.keys(indicatorsData[timeframe]).length > 0) {
+          timeframes[timeframe] = indicatorsData[timeframe];
+        }
+      }
+
       // Add multi-timeframe indicators to market data
       marketData[symbol] = {
         price: ticker.lastPrice,
@@ -194,15 +238,8 @@ async function collectMarketData() {
         // Add time series data (refer to 1.md format)
         intradaySeries,
         longerTermContext,
-        // Add multi-timeframe indicators directly
-        timeframes: {
-          "5m": indicators5m,
-          "15m": indicators15m,
-          "30m": indicators30m,
-          "1h": indicators1h,
-          "4h": indicators4h,
-          "8h": indicators8h,
-        },
+        // Add multi-timeframe indicators directly (dynamically populated)
+        timeframes,
       };
 
       // Save technical indicators to database (ensure all values are valid)
@@ -2181,6 +2218,7 @@ export function startTradingLoop() {
 
   logger.info(`Starting trading loop, interval: ${intervalMinutes} minutes`);
   logger.info(`Supported symbols: ${SYMBOLS.join(", ")}`);
+  logger.info(`Enabled timeframes: ${ENABLED_TIMEFRAMES.join(", ")}`);
 
   // Execute once immediately
   executeTradingDecision();

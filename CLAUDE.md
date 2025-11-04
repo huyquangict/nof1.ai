@@ -99,7 +99,7 @@ npm run docker:build
 
 1. **Trading Loop** (`src/scheduler/tradingLoop.ts`):
    - Executes at configurable intervals (default: 5 minutes)
-   - Collects multi-timeframe market data (1m, 3m, 5m, 15m, 30m, 1h)
+   - Collects multi-timeframe market data (configurable via `ENABLED_TIMEFRAMES`: 1m, 3m, 5m, 15m, 30m, 1h, 4h, 8h)
    - Fetches account information and positions
    - **Performs mandatory risk checks BEFORE AI execution** (36-hour limit, stop-loss, trailing take-profit, drawdown protection)
    - Generates comprehensive prompt with market data, positions, and account info
@@ -215,6 +215,13 @@ TRADING_STRATEGY=balanced
 REVERSE_POSITIONS=false              # When true, reverses all position directions
                                      # AI opens LONG → System executes SHORT (and vice versa)
                                      # Useful for contrarian trading or inverse strategies
+
+# Enabled Timeframes (comma-separated)
+ENABLED_TIMEFRAMES=1m,3m,5m,15m,30m,1h,4h,8h  # Default: all timeframes
+# Available: 1m, 3m, 5m, 15m, 30m, 1h, 4h, 8h
+# Note: More timeframes = more API calls + longer decision time
+# Recommended for 5-10 min cycles: 5m,15m,30m,1h,4h
+# Recommended for 1-3 min cycles: 1m,3m,5m,15m,30m,1h
 
 # Risk Controls
 ACCOUNT_DRAWDOWN_WARNING_PERCENT=10       # Warning threshold
