@@ -25,6 +25,9 @@ import { createExchangeClient } from "../../services/exchange";
 import { createClient } from "@libsql/client";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
+import { createPinoLogger } from "@voltagent/logger";
+
+const logger = createPinoLogger({ name: "account-management-tools" });
 
 const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
@@ -301,60 +304,216 @@ export const calculateRiskTool = createTool({
 
 /**
  * 同步持仓到数据库工具
+ * 🔥 ID-BASED TRACKING: Uses entry_order_id, sl_order_id, tp_orders to verify everything
  */
 export const syncPositionsTool = createTool({
   name: "syncPositions",
-  description: "同步交易所持仓数据到本地数据库",
+  description: "同步交易所持仓数据到本地数据库，使用订单ID验证持仓和止损止盈状态",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
 
     try {
-      const positions = await client.getPositions();
+      logger.info("🔄 Starting ID-based position sync...");
 
-      // Get ALL existing position data from database (including for missing position detection)
+      // 1️⃣ Get current positions from exchange
+      const exchangePositions = await client.getPositions();
+      logger.info(`📊 Exchange has ${exchangePositions.length} active positions`);
+
+      // 2️⃣ Get ALL existing positions from database with their IDs
       const existingDataResult = await dbClient.execute(
-        "SELECT symbol, quantity, entry_price, current_price, side, leverage, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
+        "SELECT symbol, quantity, entry_price, current_price, side, leverage, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent, liquidation_price, unrealized_pnl FROM positions"
       );
 
-      const existingDataMap = new Map<string, any>();
+      logger.info(`💾 Database has ${existingDataResult.rows.length} position records`);
+
+      // 3️⃣ Check each DB position's SL/TP order status by ID
+      const validPositions: Map<string, any> = new Map(); // key = symbol
+      const triggeredOrders: Array<{ symbol: string, orderId: string, type: 'SL' | 'TP', status: string }> = [];
+
       for (const row of existingDataResult.rows) {
-        const r = row as any;
-        existingDataMap.set(r.symbol, {
-          quantity: r.quantity,
-          entry_price: r.entry_price,
-          current_price: r.current_price,
-          side: r.side,
-          leverage: r.leverage,
-          tp_orders: r.tp_orders,
-          sl_order_id: r.sl_order_id,
-          tp_order_id: r.tp_order_id,
-          sl_percentage: r.sl_percentage,
-          tp_percentage: r.tp_percentage,
-          stop_loss: r.stop_loss,
-          profit_target: r.profit_target,
-          entry_order_id: r.entry_order_id,
-          opened_at: r.opened_at,
-          confidence: r.confidence,
-          risk_usd: r.risk_usd,
-          peak_pnl_percent: r.peak_pnl_percent,
-        });
+        const dbPos = row as any;
+        const symbol = dbPos.symbol;
+        logger.info(`\n🔍 Checking DB position: ${symbol} (entry_order_id: ${dbPos.entry_order_id})`);
+
+        // ✅ Verify entry order (if we have entry_order_id and it's not "synced")
+        if (dbPos.entry_order_id && dbPos.entry_order_id !== "synced" && dbPos.entry_order_id !== "") {
+          try {
+            const entryOrder = await client.getOrder(dbPos.entry_order_id);
+            logger.info(`  ✅ Entry order ${dbPos.entry_order_id}: ${entryOrder.status} (filled: ${entryOrder.filled}/${entryOrder.quantity})`);
+
+            if (entryOrder.status === 'cancelled' || entryOrder.status === 'rejected') {
+              logger.warn(`  ⚠️  Entry order was ${entryOrder.status} - position is invalid`);
+              continue; // Skip this position
+            }
+          } catch (error: any) {
+            logger.warn(`  ⚠️  Could not verify entry order ${dbPos.entry_order_id}: ${error.message}`);
+            // Continue anyway - might be old order ID that exchange no longer has
+          }
+        }
+
+        // 🛑 Check SL order status
+        if (dbPos.sl_order_id && dbPos.sl_order_id !== "") {
+          try {
+            const slOrder = await client.getOrder(dbPos.sl_order_id);
+            logger.info(`  🛑 SL order ${dbPos.sl_order_id}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
+
+            if (slOrder.status === 'filled' || slOrder.status === 'finished') {
+              logger.warn(`  🔥 STOP-LOSS TRIGGERED for ${symbol}! Order ${dbPos.sl_order_id} was filled`);
+              triggeredOrders.push({ symbol, orderId: dbPos.sl_order_id, type: 'SL', status: slOrder.status });
+
+              // Record SL trigger close trade
+              await recordSlTpTrigger(client, dbPos, slOrder, 'SL');
+
+              // Position should be closed - don't keep in validPositions
+              continue;
+            } else if (slOrder.status === 'cancelled') {
+              logger.warn(`  ⚠️  SL order was cancelled - removing SL tracking`);
+              dbPos.sl_order_id = null;
+              dbPos.stop_loss = null;
+            }
+          } catch (error: any) {
+            logger.warn(`  ⚠️  Could not verify SL order ${dbPos.sl_order_id}: ${error.message}`);
+            // Keep the SL order ID - might just be API error
+          }
+        }
+
+        // 🎯 Check TP orders status (array of {orderId, price, percentage, triggered} objects)
+        if (dbPos.tp_orders && dbPos.tp_orders !== "") {
+          try {
+            const tpOrdersArray = JSON.parse(dbPos.tp_orders);
+            const stillActiveTP: any[] = [];
+
+            for (const tp of tpOrdersArray) {
+              const tpOrderId = tp.orderId || tp; // Handle both object format and string format
+              try {
+                const tpOrder = await client.getOrder(tpOrderId);
+                logger.info(`  🎯 TP order ${tpOrderId}: ${tpOrder.status} (filled: ${tpOrder.filled}/${tpOrder.quantity})`);
+
+                if (tpOrder.status === 'filled' || tpOrder.status === 'finished') {
+                  logger.warn(`  🔥 TAKE-PROFIT TRIGGERED for ${symbol}! Order ${tpOrderId} was filled`);
+                  triggeredOrders.push({ symbol, orderId: tpOrderId, type: 'TP', status: tpOrder.status });
+
+                  // Record TP trigger close trade (might be partial)
+                  await recordSlTpTrigger(client, dbPos, tpOrder, 'TP');
+
+                  // Mark as triggered but keep in array
+                  if (typeof tp === 'object') {
+                    tp.triggered = true;
+                  }
+                  // Don't add to stillActiveTP
+                } else if (tpOrder.status === 'open' || tpOrder.status === 'pending') {
+                  stillActiveTP.push(tp); // Keep original object format
+                } else if (tpOrder.status === 'cancelled') {
+                  logger.warn(`  ⚠️  TP order ${tpOrderId} was cancelled - removing from tracking`);
+                  // Don't add to stillActiveTP
+                }
+              } catch (error: any) {
+                logger.warn(`  ⚠️  Could not verify TP order ${tpOrderId}: ${error.message}`);
+                stillActiveTP.push(tp); // Keep it - might just be API error
+              }
+            }
+
+            // Update TP orders list to only active ones
+            dbPos.tp_orders = stillActiveTP.length > 0 ? JSON.stringify(stillActiveTP) : null;
+
+            if (stillActiveTP.length === 0 && tpOrdersArray.length > 0) {
+              logger.info(`  ✅ All TP orders filled/cancelled - clearing TP tracking`);
+              dbPos.profit_target = null;
+            }
+          } catch (error: any) {
+            logger.warn(`  ⚠️  Could not parse tp_orders JSON: ${error.message}`);
+          }
+        }
+
+        // ✅ Position is still valid
+        validPositions.set(symbol, dbPos);
+        logger.info(`  ✅ Position ${symbol} verified and valid`);
       }
 
-      // 🔥 CRITICAL: Record close trades for positions that no longer exist on exchange
-      const exchangeSymbols = new Set(positions.map(p => p.symbol));
-      const dbSymbols = Array.from(existingDataMap.keys());
+      logger.info(`\n✅ Verified ${validPositions.size} valid positions in database`);
+      logger.info(`🔥 Detected ${triggeredOrders.length} triggered SL/TP orders`);
 
-      for (const dbSymbol of dbSymbols) {
-        if (!exchangeSymbols.has(dbSymbol)) {
-          // Position was closed on exchange but not recorded in trades table
-          const dbPos = existingDataMap.get(dbSymbol);
+      // 4️⃣ Match exchange positions with database positions
+      // Clear and rebuild positions table
+      await dbClient.execute("DELETE FROM positions");
 
-          logger.warn(`⚠️  Position ${dbSymbol} exists in DB but not on exchange - recording retrospective close trade`);
+      let syncedCount = 0;
+      for (const exchangePos of exchangePositions) {
+        const symbol = exchangePos.symbol;
+        const dbPos = validPositions.get(symbol);
 
-          // Get current market price as estimated exit price
+        if (dbPos) {
+          // ✅ Position exists in both DB and exchange - update with exchange data + keep our tracking IDs
+          logger.info(`  ♻️  Syncing existing position: ${symbol}`);
+
+          await dbClient.execute({
+            sql: `INSERT INTO positions
+                  (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
+                   leverage, side, entry_order_id, opened_at, tp_orders, sl_order_id, tp_order_id,
+                   sl_percentage, tp_percentage, stop_loss, profit_target, confidence, risk_usd, peak_pnl_percent)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              symbol,
+              exchangePos.quantity,  // 🔥 Use exchange quantity (source of truth)
+              dbPos.entry_price || exchangePos.entryPrice,  // Prefer DB entry price (more accurate)
+              exchangePos.currentPrice,
+              exchangePos.liquidationPrice,
+              exchangePos.unrealizedPnl,
+              exchangePos.leverage,
+              exchangePos.side,
+              dbPos.entry_order_id,  // 🔥 Keep our entry order ID
+              dbPos.opened_at,
+              dbPos.tp_orders,  // 🔥 Keep verified TP orders
+              dbPos.sl_order_id,  // 🔥 Keep verified SL order ID
+              dbPos.tp_order_id,
+              dbPos.sl_percentage,
+              dbPos.tp_percentage,
+              dbPos.stop_loss,  // 🔥 Keep our SL price
+              dbPos.profit_target,  // 🔥 Keep our TP price
+              dbPos.confidence,
+              dbPos.risk_usd,
+              dbPos.peak_pnl_percent || 0,
+            ],
+          });
+          syncedCount++;
+        } else {
+          // ⚠️ Position exists on exchange but NOT in our database
+          // This happens when position was opened outside our system or after database reset
+          logger.warn(`  ⚠️  Found untracked position on exchange: ${symbol} ${exchangePos.side} ${exchangePos.quantity}`);
+
+          await dbClient.execute({
+            sql: `INSERT INTO positions
+                  (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
+                   leverage, side, entry_order_id, opened_at, peak_pnl_percent)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              symbol,
+              exchangePos.quantity,
+              exchangePos.entryPrice,
+              exchangePos.currentPrice,
+              exchangePos.liquidationPrice,
+              exchangePos.unrealizedPnl,
+              exchangePos.leverage,
+              exchangePos.side,
+              "external",  // Mark as externally created
+              new Date().toISOString(),
+              0,
+            ],
+          });
+          syncedCount++;
+        }
+      }
+
+      // 5️⃣ Check for positions in DB that are NOT on exchange anymore
+      const exchangeSymbols = new Set(exchangePositions.map(p => p.symbol));
+      for (const [symbol, dbPos] of validPositions.entries()) {
+        if (!exchangeSymbols.has(symbol)) {
+          logger.warn(`⚠️  Position ${symbol} exists in DB but NOT on exchange - was likely closed externally`);
+
+          // Try to get current price and record retrospective close
           try {
-            const ticker = await client.getFuturesTicker(dbSymbol);
+            const ticker = await client.getFuturesTicker(symbol);
             const exitPrice = ticker.markPrice;
             const entryPrice = dbPos.entry_price || exitPrice;
             const quantity = dbPos.quantity || 0;
@@ -362,7 +521,7 @@ export const syncPositionsTool = createTool({
             const leverage = dbPos.leverage || 1;
 
             // Calculate estimated PnL with quantoMultiplier
-            const contract = client.normalizeSymbol(dbSymbol);
+            const contract = client.normalizeSymbol(symbol);
             const quantoMultiplier = await getQuantoMultiplier(contract);
 
             const priceChange = side === 'long'
@@ -386,7 +545,7 @@ export const syncPositionsTool = createTool({
                     VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
               args: [
                 'sync_cleanup',
-                dbSymbol,
+                symbol,
                 side,
                 exitPrice,
                 quantity,
@@ -398,58 +557,26 @@ export const syncPositionsTool = createTool({
               ]
             });
 
-            logger.info(`✅ Recorded retrospective close for ${dbSymbol}: entry=${entryPrice}, exit=${exitPrice}, PnL=${pnl.toFixed(2)} USDT`);
-
+            logger.info(`  ✅ Recorded retrospective close: entry=${entryPrice}, exit=${exitPrice}, PnL=${pnl.toFixed(2)} USDT`);
           } catch (error: any) {
-            logger.error(`Failed to record retrospective close for ${dbSymbol}: ${error.message}`);
+            logger.error(`  Failed to record retrospective close for ${symbol}: ${error.message}`);
           }
         }
       }
 
-      // 清空本地持仓表
-      await dbClient.execute("DELETE FROM positions");
-
-      // 插入当前持仓，保留SL/TP数据
-      for (const p of positions) {
-        const existingData = existingDataMap.get(p.symbol);
-
-        await dbClient.execute({
-          sql: `INSERT INTO positions
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-                 leverage, side, entry_order_id, opened_at, tp_orders, sl_order_id, tp_order_id,
-                 sl_percentage, tp_percentage, stop_loss, profit_target, confidence, risk_usd, peak_pnl_percent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            p.symbol,
-            p.quantity,
-            p.entryPrice,
-            p.currentPrice,
-            p.liquidationPrice,
-            p.unrealizedPnl,
-            p.leverage,
-            p.side,
-            existingData?.entry_order_id || "synced",
-            existingData?.opened_at || new Date().toISOString(),
-            existingData?.tp_orders || null,
-            existingData?.sl_order_id || null,
-            existingData?.tp_order_id || null,
-            existingData?.sl_percentage || null,
-            existingData?.tp_percentage || null,
-            existingData?.stop_loss || null,           // ADD: restore stop-loss price
-            existingData?.profit_target || null,       // ADD: restore take-profit price
-            existingData?.confidence || null,
-            existingData?.risk_usd || null,
-            existingData?.peak_pnl_percent || 0,
-          ],
-        });
-      }
+      logger.info(`\n✅ Position sync complete:`);
+      logger.info(`   - Synced positions: ${syncedCount}`);
+      logger.info(`   - Triggered SL/TP: ${triggeredOrders.length}`);
 
       return {
         success: true,
-        syncedCount: positions.length,
-        message: "持仓同步完成",
+        syncedCount,
+        triggeredCount: triggeredOrders.length,
+        triggeredOrders,
+        message: `✅ 持仓同步完成: ${syncedCount} 个持仓, ${triggeredOrders.length} 个触发的止损/止盈`,
       };
     } catch (error: any) {
+      logger.error(`❌ Sync failed: ${error.message}`);
       return {
         success: false,
         error: error.message,
@@ -458,6 +585,66 @@ export const syncPositionsTool = createTool({
     }
   },
 });
+
+/**
+ * Helper function to record SL/TP trigger close trade
+ */
+async function recordSlTpTrigger(
+  client: any,
+  dbPos: any,
+  triggeredOrder: any,
+  triggerType: 'SL' | 'TP'
+) {
+  try {
+    const symbol = dbPos.symbol;
+    const side = dbPos.side;
+    const leverage = dbPos.leverage || 1;
+    const entryPrice = dbPos.entry_price;
+    const exitPrice = triggeredOrder.price || triggeredOrder.filled; // Actual fill price
+    const quantity = triggeredOrder.filled; // Actual filled quantity
+
+    // Calculate PnL
+    const contract = client.normalizeSymbol(symbol);
+    const quantoMultiplier = await getQuantoMultiplier(contract);
+
+    const priceChange = side === 'long'
+      ? (exitPrice - entryPrice)
+      : (entryPrice - exitPrice);
+
+    const grossPnl = priceChange * quantity * quantoMultiplier;
+
+    // Calculate fees
+    const entryNotional = entryPrice * quantity * quantoMultiplier;
+    const exitNotional = exitPrice * quantity * quantoMultiplier;
+    const entryFee = entryNotional * 0.0005;
+    const exitFee = exitNotional * 0.0005;
+    const totalFee = entryFee + exitFee;
+
+    const pnl = grossPnl - totalFee;
+
+    // Record close trade
+    await dbClient.execute({
+      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
+            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
+      args: [
+        triggeredOrder.id || 'unknown',
+        symbol,
+        side,
+        exitPrice,
+        quantity,
+        leverage,
+        pnl,
+        totalFee,
+        new Date().toISOString(),
+        triggerType === 'SL' ? 'stop_loss' : 'take_profit'
+      ]
+    });
+
+    logger.info(`  ✅ Recorded ${triggerType} trigger close: entry=${entryPrice}, exit=${exitPrice}, qty=${quantity}, PnL=${pnl.toFixed(2)} USDT`);
+  } catch (error: any) {
+    logger.error(`  Failed to record ${triggerType} trigger: ${error.message}`);
+  }
+}
 
 /**
  * Calculate Stop-Loss and Take-Profit Prices Tool
