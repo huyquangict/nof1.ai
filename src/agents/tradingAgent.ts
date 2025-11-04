@@ -555,6 +555,12 @@ For EACH open position, check:
 □ Trend invalidated? → Call closePosition (don't wait for automated stop)
 
 THEN proceed with new opportunities:
+0. **Market Fundamentals (ONCE per day)**: Call getMarketFundamentals() to understand:
+   - Coin size: Large cap (>$100B) = stable, Small cap (<$10B) = volatile
+   - Liquidity: High volume = easy entry/exit, Low volume = slippage risk
+   - Market rank: Top 10 coins = safer, Lower rank = higher risk
+   - **Use for position sizing**: Reduce size 50% for small cap coins
+   - **Use for risk assessment**: Prioritize large cap in uncertain markets
 1. **Market Context (30 sec)**: BTC trend, key levels, unusual conditions
 2. **Setup Scan (1 min)**: Which coins at key levels? Any A+ setups?
 3. **Risk:Reward Check**: Calculate R:R for each potential trade
