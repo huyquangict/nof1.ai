@@ -319,7 +319,7 @@ class TradingMonitor {
             if (!data.positions || data.positions.length === 0) {
                 // Update table
                 if (positionsBody) {
-                    positionsBody.innerHTML = '<tr><td colspan="9" class="empty-state">No positions</td></tr>';
+                    positionsBody.innerHTML = '<tr><td colspan="12" class="empty-state">No positions</td></tr>';
                 }
                 // Update small cards
                 if (positionsCardsContainer) {
@@ -371,6 +371,16 @@ class TradingMonitor {
                         }
                     }
 
+                    // 🔥 Entry Order ID display
+                    const entryOrderHtml = pos.entryOrderId
+                        ? `<span class="order-id" onclick="navigator.clipboard.writeText('${pos.entryOrderId}')" title="Click to copy">${pos.entryOrderId.substring(0, 10)}...</span>`
+                        : '<span class="na">-</span>';
+
+                    // 🔥 SL Order ID display
+                    const slOrderHtml = pos.slOrderId
+                        ? `<span class="order-id" onclick="navigator.clipboard.writeText('${pos.slOrderId}')" title="Click to copy">${pos.slOrderId.substring(0, 10)}...</span>`
+                        : '<span class="na">-</span>';
+
                     return `
                         <tr>
                             <td>${pos.symbol}</td>
@@ -387,6 +397,8 @@ class TradingMonitor {
                             <td class="${pos.unrealizedPnl >= 0 ? 'positive' : 'negative'}">
                                 ${pos.unrealizedPnl >= 0 ? '+' : ''}${profitPercent}%
                             </td>
+                            <td>${entryOrderHtml}</td>
+                            <td>${slOrderHtml}</td>
                         </tr>
                     `;
                 }).join('');
@@ -421,6 +433,15 @@ class TradingMonitor {
                         }
                     }
 
+                    // 🔥 Order IDs for position cards
+                    let orderIdsText = '';
+                    if (pos.entryOrderId || pos.slOrderId) {
+                        const entryId = pos.entryOrderId ? `Entry: ${pos.entryOrderId.substring(0, 8)}...` : '';
+                        const slId = pos.slOrderId ? `SL: ${pos.slOrderId.substring(0, 8)}...` : '';
+                        const idsArray = [entryId, slId].filter(id => id);
+                        orderIdsText = `<div class="position-card-ids" title="Click to see full IDs in table">${idsArray.join(' | ')}</div>`;
+                    }
+
                     return `
                         <div class="position-card ${sideClass} ${pnlClass}">
                             <span class="position-card-symbol">${pos.symbol} ${leverage}x</span>
@@ -429,6 +450,7 @@ class TradingMonitor {
                             </span>
                             ${stopLossText}
                             ${takeProfitText}
+                            ${orderIdsText}
                             <div class="position-card-actions">
                                 <button class="take-profit-btn-card" onclick="window.monitor.showTakeProfitMenu('${pos.symbol}')" title="Take profit partially">💰</button>
                                 <button class="close-position-btn-card" onclick="window.monitor.closePosition('${pos.symbol}')" title="Close position">✕</button>
@@ -552,7 +574,7 @@ class TradingMonitor {
 
             if (!data.trades || data.trades.length === 0) {
                 if (tradesBody) {
-                    tradesBody.innerHTML = '<tr><td colspan="10" class="empty-state">No trade history</td></tr>';
+                    tradesBody.innerHTML = '<tr><td colspan="12" class="empty-state">No trade history</td></tr>';
                 }
                 if (countEl) {
                     countEl.textContent = '';
@@ -567,12 +589,13 @@ class TradingMonitor {
             if (tradesBody) {
                 tradesBody.innerHTML = data.trades.map(trade => {
                     const date = new Date(trade.timestamp);
-                    const timeStr = date.toLocaleString('zh-CN', {
+                    const timeStr = date.toLocaleString('en-US', {
                         month: '2-digit',
                         day: '2-digit',
                         hour: '2-digit',
                         minute: '2-digit',
-                        second: '2-digit'
+                        second: '2-digit',
+                        hour12: false
                     });
 
                     // Type display
@@ -602,8 +625,18 @@ class TradingMonitor {
                         closeReasonHtml = `<span class="close-reason">${reasonMap[trade.closeReason] || trade.closeReason}</span>`;
                     }
 
+                    // 🔥 Order ID display (clickable for copying)
+                    const orderIdHtml = trade.orderId
+                        ? `<span class="order-id" onclick="navigator.clipboard.writeText('${trade.orderId}')" title="Click to copy">${trade.orderId.substring(0, 10)}...</span>`
+                        : '<span class="na">-</span>';
+
+                    // 🔥 Entry link for close trades
+                    const entryLinkHtml = trade.type === 'close' && trade.entryOrderId
+                        ? `<span class="entry-link" onclick="highlightTrade('${trade.entryOrderId}')" title="Jump to entry trade">🔗 ${trade.entryOrderId.substring(0, 10)}...</span>`
+                        : '<span class="na">-</span>';
+
                     return `
-                        <tr>
+                        <tr data-order-id="${trade.orderId}">
                             <td>${timeStr}</td>
                             <td><span class="symbol">${trade.symbol}</span></td>
                             <td><span class="type ${typeClass}">${typeText}</span></td>
@@ -614,6 +647,8 @@ class TradingMonitor {
                             <td>${trade.fee.toFixed(4)}</td>
                             <td>${pnlHtml}</td>
                             <td>${closeReasonHtml}</td>
+                            <td>${orderIdHtml}</td>
+                            <td>${entryLinkHtml}</td>
                         </tr>
                     `;
                 }).join('');
@@ -1016,6 +1051,24 @@ class TradingMonitor {
     // Initialize timeframe selector (switching functionality disabled)
     initTimeframeSelector() {
         // Timeframe is fixed to 24 hours, switching no longer supported
+    }
+}
+
+// 🔥 Global helper function for highlighting trades
+function highlightTrade(orderId) {
+    const row = document.querySelector(`tr[data-order-id="${orderId}"]`);
+    if (row) {
+        // Remove any existing highlights
+        document.querySelectorAll('tr.highlighted').forEach(el => el.classList.remove('highlighted'));
+
+        // Add highlight and scroll to row
+        row.classList.add('highlighted');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Remove highlight after 3 seconds
+        setTimeout(() => row.classList.remove('highlighted'), 3000);
+    } else {
+        console.warn('Entry trade not found:', orderId);
     }
 }
 

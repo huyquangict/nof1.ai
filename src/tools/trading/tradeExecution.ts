@@ -56,7 +56,7 @@ function formatPrice(price: number): string {
  */
 export const openPositionTool = createTool({
   name: "openPosition",
-  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 开仓前使用cancelAllOrdersForSymbol清理该币种的所有挂单，避免遗留的止盈止损订单影响新仓位。3) 交易手续费约0.05%，避免频繁交易。4) 开仓时不设置止盈止损，你需要在每个周期主动决策是否平仓，或使用setTakeProfit/setStopLoss工具设置。",
+  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 自动取消该币种的所有遗留SL/TP订单（defensive programming - 无需手动调用cancelAllOrdersForSymbol）。3) 交易手续费约0.05%，避免频繁交易。4) 开仓时不设置止盈止损，你需要在每个周期主动决策是否平仓，或使用setTakeProfit/setStopLoss工具设置。",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
     side: z.enum(["long", "short"]).describe("方向：long=做多，short=做空"),
@@ -259,6 +259,54 @@ export const openPositionTool = createTool({
       let actualMargin = (Math.abs(size) * quantoMultiplier * currentPrice) / leverage;
       
       logger.info(`开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverage}x)`);
+
+      // 🔥 Cancel any orphaned SL/TP orders from previous positions BEFORE opening new position (defensive programming)
+      const prevPosResult = await dbClient.execute({
+        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        args: [symbol],
+      });
+
+      if (prevPosResult.rows.length > 0) {
+        const prevPosition = prevPosResult.rows[0] as any;
+        let canceledCount = 0;
+
+        // Cancel old stop-loss order
+        if (prevPosition.sl_order_id) {
+          try {
+            await client.cancelOrder(prevPosition.sl_order_id, symbol);
+            logger.info(`🔄 Cancelled orphaned SL order ${prevPosition.sl_order_id} before opening new ${symbol} position`);
+            canceledCount++;
+          } catch (e: any) {
+            logger.warn(`⚠️ Could not cancel orphaned SL order ${prevPosition.sl_order_id}: ${e.message}`);
+          }
+        }
+
+        // Cancel old take-profit orders
+        if (prevPosition.tp_orders) {
+          try {
+            const tpOrders = JSON.parse(prevPosition.tp_orders);
+            if (Array.isArray(tpOrders)) {
+              for (const tp of tpOrders) {
+                if (tp.orderId && !tp.triggered) {
+                  try {
+                    await client.cancelOrder(tp.orderId, symbol);
+                    logger.info(`🔄 Cancelled orphaned TP order ${tp.orderId} before opening new ${symbol} position`);
+                    canceledCount++;
+                  } catch (e: any) {
+                    logger.warn(`⚠️ Could not cancel orphaned TP order ${tp.orderId}: ${e.message}`);
+                  }
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Error parsing tp_orders JSON: ${e.message}`);
+          }
+        }
+
+        if (canceledCount > 0) {
+          logger.info(`✅ Cleaned up ${canceledCount} orphaned orders for ${symbol} before opening new position`);
+        }
+      }
 
       //  市价单开仓（不设置止盈止损）
       const order = await client.placeOrder({
@@ -537,7 +585,7 @@ export const openPositionTool = createTool({
  */
 export const closePositionTool = createTool({
   name: "closePosition",
-  description: "平仓 - 关闭指定币种的持仓",
+  description: "平仓 - 关闭指定币种的持仓。自动取消该币种的所有SL/TP订单（defensive programming - 确保平仓后不会有遗留订单触发）。",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
     percentage: z.number().min(1).max(100).default(100).describe("平仓百分比（1-100）"),
@@ -615,6 +663,47 @@ export const closePositionTool = createTool({
       let pnl = grossPnl - totalFees;
       
       logger.info(`平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${closeSize}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)})`);
+
+      // 🔥 Cancel all SL/TP orders BEFORE closing position (defensive programming)
+      const posResult = await dbClient.execute({
+        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        args: [symbol],
+      });
+
+      if (posResult.rows.length > 0) {
+        const dbPosition = posResult.rows[0] as any;
+
+        // Cancel stop-loss order
+        if (dbPosition.sl_order_id) {
+          try {
+            await client.cancelOrder(dbPosition.sl_order_id, symbol);
+            logger.info(`🔄 Cancelled SL order ${dbPosition.sl_order_id} before closing ${symbol}`);
+          } catch (e: any) {
+            logger.warn(`⚠️ Could not cancel SL order ${dbPosition.sl_order_id}: ${e.message}`);
+          }
+        }
+
+        // Cancel all take-profit orders
+        if (dbPosition.tp_orders) {
+          try {
+            const tpOrders = JSON.parse(dbPosition.tp_orders);
+            if (Array.isArray(tpOrders)) {
+              for (const tp of tpOrders) {
+                if (tp.orderId && !tp.triggered) {
+                  try {
+                    await client.cancelOrder(tp.orderId, symbol);
+                    logger.info(`🔄 Cancelled TP order ${tp.orderId} before closing ${symbol}`);
+                  } catch (e: any) {
+                    logger.warn(`⚠️ Could not cancel TP order ${tp.orderId}: ${e.message}`);
+                  }
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Error parsing tp_orders JSON: ${e.message}`);
+          }
+        }
+      }
 
       //  市价单平仓
       const order = await client.placeOrder({
@@ -798,50 +887,7 @@ export const closePositionTool = createTool({
           entryOrderId,     // 🔥 Link to entry order
         ],
       });
-      
-      // 从数据库获取止损止盈订单ID（如果存在）
-      const posResult = await dbClient.execute({
-        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
-        args: [symbol],
-      });
 
-      // 取消止损止盈订单（先检查订单状态）
-      if (posResult.rows.length > 0) {
-        const dbPosition = posResult.rows[0] as any;
-
-        // Cancel stop-loss order
-        if (dbPosition.sl_order_id) {
-          try {
-            await client.cancelOrder(dbPosition.sl_order_id, symbol);
-            logger.info(`✅ Canceled stop-loss order ${dbPosition.sl_order_id} for ${symbol}`);
-          } catch (e: any) {
-            // Order may have already been triggered or canceled
-            logger.warn(`⚠️ Could not cancel stop-loss order ${dbPosition.sl_order_id}: ${e.message}`);
-          }
-        }
-
-        // Cancel all take-profit orders (from JSON array)
-        if (dbPosition.tp_orders) {
-          try {
-            const tpOrders = JSON.parse(dbPosition.tp_orders);
-            if (Array.isArray(tpOrders)) {
-              for (const tp of tpOrders) {
-                if (tp.orderId && !tp.triggered) {
-                  try {
-                    await client.cancelOrder(tp.orderId, symbol);
-                    logger.info(`✅ Canceled take-profit order ${tp.orderId} (TP${tp.level || ''}) for ${symbol}`);
-                  } catch (e: any) {
-                    logger.warn(`⚠️ Could not cancel take-profit order ${tp.orderId}: ${e.message}`);
-                  }
-                }
-              }
-            }
-          } catch (e: any) {
-            logger.warn(`⚠️ Error parsing tp_orders JSON: ${e.message}`);
-          }
-        }
-      }
-      
       // 如果全部平仓，从持仓表删除；否则不操作（交由同步任务更新）
       if (percentage === 100) {
         await dbClient.execute({
@@ -1184,7 +1230,7 @@ export const cancelStopLossOrderTool = createTool({
  */
 export const setTakeProfitTool = createTool({
   name: "setTakeProfit",
-  description: "Set one or more take-profit orders for an existing position. Supports multiple TP levels for scaling out (e.g., 30% at +5%, 40% at +10%, 30% at +15%). Take-profits execute automatically when price reaches each target. Can be called multiple times to add more TPs. IMPORTANT: 1) Long positions must have TP > current price, short positions must have TP < current price. 2) Total percentage across all TPs cannot exceed 100%. 3) If you want to REPLACE existing TPs (not add), first use cancelAllTakeProfitOrders to remove old TPs (keeps SL intact), then set new ones. 4) Use getPositions to check current TP setup before modifying.",
+  description: "Set one or more take-profit orders for an existing position. Supports multiple TP levels for scaling out (e.g., 30% at +5%, 40% at +10%, 30% at +15%). Take-profits execute automatically when price reaches each target. Can be called multiple times to add more TPs. IMPORTANT: 1) Long positions must have TP > current price, short positions must have TP < current price. 2) If adding new TP would exceed 100% total coverage, automatically cancels ALL existing TPs first (defensive programming - prevents orphaned orders). 3) Safe to call multiple times - system handles conflicts automatically.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
     takeProfitPrice: z.number().describe("Take-profit trigger price (long: TP > current, short: TP < current)"),
@@ -1224,7 +1270,7 @@ export const setTakeProfitTool = createTool({
       }
 
       // 3. Calculate total existing percentage (excluding triggered TPs)
-      const totalExistingPercent = existingTPs
+      let totalExistingPercent = existingTPs
         .filter(tp => !tp.triggered)
         .reduce((sum, tp) => sum + tp.percentage, 0);
 
@@ -1242,13 +1288,30 @@ export const setTakeProfitTool = createTool({
         }
       }
 
-      // 5. Validate total percentage doesn't exceed 100%
+      // 5. Auto-cancel all existing TPs if new total would exceed 100% (defensive programming)
       const newTotalPercent = totalExistingPercent + tpPercentage;
       if (newTotalPercent > 100) {
-        return {
-          success: false,
-          message: `Total TP coverage would exceed 100% (existing: ${totalExistingPercent.toFixed(0)}%, new: ${tpPercentage}%, total: ${newTotalPercent.toFixed(0)}%)`,
-        };
+        logger.info(`🔄 Total TP would exceed 100% (existing: ${totalExistingPercent.toFixed(0)}%, new: ${tpPercentage}%). Auto-cancelling all existing TPs for ${symbol}...`);
+
+        // Cancel all existing active TPs
+        const activeTPs = existingTPs.filter(tp => !tp.triggered);
+        let canceledCount = 0;
+
+        for (const tp of activeTPs) {
+          try {
+            await client.cancelOrder(tp.orderId);
+            canceledCount++;
+            logger.info(`🔄 Cancelled TP order ${tp.orderId} @ ${formatPrice(tp.price)} (${tp.percentage}%)`);
+          } catch (error: any) {
+            logger.warn(`⚠️ Failed to cancel TP order ${tp.orderId} (might be already triggered/cancelled): ${error.message}`);
+          }
+        }
+
+        logger.info(`✅ Cancelled ${canceledCount} existing TP orders for ${symbol}, proceeding with new TP @ ${tpPercentage}%`);
+
+        // Reset existing TPs
+        existingTPs = [];
+        totalExistingPercent = 0;
       }
 
       // 6. Get current price
@@ -1382,7 +1445,7 @@ export const setTakeProfitTool = createTool({
  */
 export const setStopLossTool = createTool({
   name: "setStopLoss",
-  description: "Set a stop-loss order for an existing position (automatic market close order). Stop-loss will execute automatically when price reaches the trigger price, no manual monitoring needed. Used for risk management and profit protection. IMPORTANT: 1) Stop price must be set correctly - long positions must have stop price < current price, short positions must have stop price > current price. 2) If you want to REPLACE existing SL (not add), first use cancelStopLossOrder to remove old SL (keeps TPs intact), then set new one. 3) Use getPositions to check current SL setup before modifying.",
+  description: "Set a stop-loss order for an existing position (automatic market close order). Stop-loss will execute automatically when price reaches the trigger price, no manual monitoring needed. Used for risk management and profit protection. IMPORTANT: 1) Stop price must be set correctly - long positions must have stop price < current price, short positions must have stop price > current price. 2) Automatically cancels any existing SL order before creating new one (defensive programming - no orphaned orders). 3) Safe to call multiple times - old SL is always removed first.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
     stopPrice: z.number().describe("Stop-loss trigger price (long: stop price < current, short: stop price > current)"),
@@ -1403,11 +1466,31 @@ export const setStopLossTool = createTool({
         };
       }
 
-      // 2. Get current price
+      // 2. Auto-cancel existing SL order if exists (defensive programming)
+      const dbResult = await dbClient.execute({
+        sql: "SELECT sl_order_id FROM positions WHERE symbol = ?",
+        args: [symbol]
+      });
+
+      if (dbResult.rows.length > 0) {
+        const existingSlOrderId = (dbResult.rows[0] as any).sl_order_id;
+
+        if (existingSlOrderId) {
+          try {
+            await client.cancelOrder(existingSlOrderId);
+            logger.info(`🔄 Auto-cancelled old SL order ${existingSlOrderId} before creating new one for ${symbol}`);
+          } catch (error: any) {
+            // If cancel fails (order might already be triggered/cancelled), log but continue
+            logger.warn(`⚠️ Failed to cancel old SL order ${existingSlOrderId} (might be already cancelled/triggered): ${error.message}`);
+          }
+        }
+      }
+
+      // 3. Get current price
       const ticker = await client.getFuturesTicker(symbol);
       const currentPrice = ticker.lastPrice;
 
-      // 3. Validate stop price
+      // 4. Validate stop price
       if (position.side === 'long' && stopPrice >= currentPrice) {
         return {
           success: false,
@@ -1422,10 +1505,10 @@ export const setStopLossTool = createTool({
         };
       }
 
-      // 4. Calculate stop quantity
+      // 5. Calculate stop quantity
       const stopQuantity = (position.quantity * percentage) / 100;
 
-      // 5. Use different API based on exchange
+      // 6. Use different API based on exchange
       const exchangeName = client.getExchangeName();
 
       if (exchangeName === 'Binance') {
