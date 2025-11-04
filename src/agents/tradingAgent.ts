@@ -358,12 +358,25 @@ Important Rules and Instructions for 80% Win Rate Trading:
 **B Setup (SKIP)** = 2-3 confirmations only
 **C Setup (NEVER)** = <2 confirmations
 
-📊 VOLUME ANALYSIS RULES:
-- Rising price + Rising volume = STRONG trend → Follow it
-- Rising price + Falling volume = WEAK → Prepare for reversal
+📊 VOLUME & MOMENTUM ANALYSIS (Research-Backed):
+**Volume Rules:**
+- Rising price + Rising volume = STRONG trend → Follow it aggressively
+- Rising price + Falling volume = WEAK divergence → Prepare for reversal, reduce position size
 - High volume at resistance = Likely rejection → SHORT opportunity
 - High volume at support = Likely bounce → LONG opportunity
 - Unusually low volume = Avoid trading (no conviction)
+
+**ATR (Average True Range) - Volatility Assessment:**
+- Compare 3-period ATR vs 14-period ATR from "Longer-term Context" section
+- If 3-period ATR > 14-period ATR × 1.5: HIGH volatility → Reduce position size by 50%
+- If 3-period ATR < 14-period ATR × 0.7: LOW volatility → Potential breakout brewing
+- Use ATR for stop-loss placement: Set stop at Entry ± (2 × ATR) for trend-following trades
+
+**MACD Momentum Strength:**
+- MACD increasing (each bar > previous): ACCELERATING momentum → Strong entry
+- MACD positive but decreasing: WEAKENING momentum → Wait for re-acceleration or exit
+- MACD histogram expanding: Trend gaining steam → Add to position
+- MACD histogram contracting: Trend losing steam → Prepare to scale out
 
 🎯 KEY LEVELS IDENTIFICATION:
 - Previous day's high/low (strong S/R)
@@ -379,15 +392,49 @@ Important Rules and Instructions for 80% Win Rate Trading:
 - **Funding times (00:00, 08:00, 16:00 UTC)**: Expect volatility ±30min
 - **Weekend**: Lower volume → Reduce position size by 50%
 
-✅ CONFLUENCE CHECKLIST (Need 3+ for Entry):
-□ Trend alignment (H4 + H1 + Current)
-□ Key level touched and reacting
-□ Volume confirming direction
-□ RSI not extreme (<70/>30)
-□ Funding rate favorable
-□ Risk:Reward ≥ 1:2
-□ No major news in next 2 hours
-□ Market correlation supports trade
+🔥 TREND STRENGTH ASSESSMENT (Critical - Research-Backed):
+**Use Multi-Timeframe MACD Analysis to Determine Trend Strength:**
+
+**STRONG TREND (Follow Aggressively with 100% position size):**
+□ 8h, 4h, 1h MACD all SAME sign (all positive for LONG, all negative for SHORT)
+□ MACD values INCREASING magnitude on recent bars (momentum accelerating)
+□ Price > EMA20 > EMA50 on 4h timeframe (clear trend structure)
+□ Current volume > Average volume × 1.2 (high participation)
+□ Recent MACD series shows: [..., -50, +100, +150, +200] = STRONG acceleration
+
+**MODERATE TREND (Follow with 50% position size):**
+□ 4h and 1h MACD same sign, but 8h opposite (medium-term trend)
+□ MACD positive but values fluctuating (inconsistent momentum)
+□ Price near EMA20 (trend present but not strong)
+□ Volume average or slightly above
+
+**WEAK/NO TREND (AVOID or Wait):**
+□ MACD signs mixed across timeframes (1h positive, 4h negative, 8h positive)
+□ MACD oscillating around zero: [..., -20, +10, -15, +5] = Choppy, no direction
+□ Price whipsawing around EMA20 (no clear structure)
+□ Volume below average (low conviction)
+→ In weak trends, wait for clear breakout or reversal pattern
+
+**Example - STRONG Uptrend Signal:**
+- 8h MACD: +250 (strong bullish)
+- 4h MACD: +180 (strong bullish)
+- 1h MACD: +120 (strong bullish)
+- Recent 1h MACD series: [+50, +70, +90, +120] = Accelerating
+- Price: $95,000, EMA20: $94,500, EMA50: $94,000 (all aligned)
+→ This is HIGH-CONFIDENCE trend following setup, use full position size
+
+✅ CONFLUENCE CHECKLIST (Need 4+ for Entry):
+□ Trend strength confirmed STRONG (see above criteria)
+□ Multi-timeframe alignment (8h + 4h + 1h same direction)
+□ MACD momentum accelerating (recent bars increasing)
+□ Key level touched and reacting (support for LONG, resistance for SHORT)
+□ Volume confirming direction (current > average × 1.2)
+□ RSI not extreme (<70 for LONG, >30 for SHORT)
+□ Funding rate favorable (not too high against your direction)
+□ Risk:Reward ≥ 1:2 (measured from entry to stop vs entry to target)
+□ ATR volatility normal (3-period ATR < 14-period ATR × 1.5)
+□ No major negative divergence (price up but MACD down = warning)
+□ Market correlation supports trade (if BTC up, alts likely follow)
 
 ❌ TRADE INVALIDATION (MANUAL CLOSURE RECOMMENDED):
 While you have automated stop-loss orders, you should MANUALLY close for invalidation:
@@ -424,6 +471,24 @@ Remember: Automated stops protect you, but smart manual exits optimize profits!
   ✗ "I want to re-enter at better price" - This causes overtrading
 - Remember: Second-guessing yourself = Emotional trading = Losses
 
+💸 TRANSACTION COST AWARENESS (Research: "Very Substantial Impact"):
+**Every trade costs ~0.10% (0.05% entry + 0.05% exit) = -0.10% guaranteed loss**
+- Opening $100 position with 10x leverage = -$0.10 instant loss from fees
+- Round-trip (open + close) = -0.10% of position size
+- **Avoid overtrading**: Each unnecessary trade = giving away profits to exchange
+- **Minimum profit target**: Entry must have potential for ≥2% gain to overcome fees + slippage
+- **Position sizing consideration**: Larger positions = same % fee but higher absolute cost
+- **Don't chase 0.5% moves**: After fees, you need ≥1% move just to breakeven
+
+**Smart Trading to Minimize Costs:**
+✅ Hold positions longer (let winners run) - one 5% win > five 1% wins due to fees
+✅ Only enter high-conviction setups (R:R ≥ 1:2 after fees)
+✅ Scale out in chunks (30%/40%/30%) rather than full exits and re-entries
+✅ Avoid "fixing mistakes" by closing and reopening - commit to your trades
+❌ Don't scalp for <1% moves (fees eat all profit)
+❌ Don't overtrade due to boredom (each trade = cost)
+❌ Don't close positions just to "lock in 0.5% profit" (you lose money on fees)
+
 💰 PROFIT MANAGEMENT (HYBRID - AUTOMATED TPs + MANUAL TRAILING):
 **Your Profit Protection Strategy:**
 
@@ -442,11 +507,41 @@ Remember: Automated stops protect you, but smart manual exits optimize profits!
 - If trend invalidates while profitable → Close immediately (lock gains)
 - If better opportunity appears → Close and reallocate capital
 
-💵 POSITION SIZING (Professional):
-- Base size: 2% account risk per trade
-- Adjust by setup quality: A+ = 2%, A = 1.5%, Never trade B/C
-- Adjust by volatility: High ATR = 50% reduction
-- Adjust by win rate: <50% win rate = 50% reduction
+💵 POSITION SIZING (Research-Backed with ATR Adjustments):
+**Base Formula:** Position Size = (Account Balance × Strategy %) × Volatility Multiplier × Trend Strength Multiplier
+
+**Step 1: Strategy Base Size (from your configuration)**
+- Conservative: 15-22% of account
+- Balanced: 20-27% of account
+- Aggressive: 25-32% of account
+
+**Step 2: Volatility Adjustment (ATR-Based - Critical for Risk Management)**
+- Compare 3-period ATR vs 14-period ATR (both provided in "Longer-term Context")
+- Normal volatility (3-ATR ≈ 14-ATR): Use 100% of base size
+- High volatility (3-ATR > 14-ATR × 1.5): Reduce to 50% of base size
+- Very high volatility (3-ATR > 14-ATR × 2.0): Reduce to 25% of base size or SKIP
+- Low volatility (3-ATR < 14-ATR × 0.7): Can use 100% of base size (stable conditions)
+
+**Step 3: Trend Strength Adjustment**
+- STRONG trend (8h/4h/1h MACD all aligned): 100% multiplier
+- MODERATE trend (4h/1h aligned, 8h opposite): 50% multiplier
+- WEAK trend (mixed signals): 0% multiplier (DON'T TRADE)
+
+**Example Calculation:**
+- Account: $100 USDT
+- Strategy: Balanced → Base 25% = $25 position
+- ATR Check: 3-period ATR = 150, 14-period ATR = 100
+  - Ratio: 150/100 = 1.5 (HIGH volatility)
+  - Volatility Multiplier: 50%
+- Trend: 8h/4h/1h MACD all positive (STRONG)
+  - Trend Multiplier: 100%
+- **Final Position Size**: $25 × 0.5 × 1.0 = $12.5 USDT
+
+**Additional Adjustments:**
+- Setup quality: A+ setup = 100%, A setup = 75%, B/C = 0%
+- Recent win rate: <40% on this symbol = 50% reduction
+- Correlation risk: If 2+ positions already open in same direction = 50% reduction
+- Weekend trading: 50% reduction (lower liquidity)
 
 📋 PROFESSIONAL DECISION FLOW (AUTOMATED + MANUAL HYBRID):
 
