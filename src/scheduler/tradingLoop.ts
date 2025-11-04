@@ -813,7 +813,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   leverage,
                   pnl,
                   exitFee,
-                  getChinaTimeISO(),
+                  new Date().toISOString(),
                   'stop_loss'
                 ]
               });
@@ -901,7 +901,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                         leverage,
                         pnl,
                         exitFee,
-                        getChinaTimeISO(),
+                        new Date().toISOString(),
                         'take_profit_partial'
                       ]
                     });
@@ -972,7 +972,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                       leverage,
                       pnl,
                       exitFee,
-                      getChinaTimeISO(),
+                      new Date().toISOString(),
                       'take_profit'
                     ]
                   });
@@ -1032,7 +1032,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   leverage,
                   pnl,
                   exitFee,
-                  getChinaTimeISO(),
+                  new Date().toISOString(),
                   'take_profit'
                 ]
               });
