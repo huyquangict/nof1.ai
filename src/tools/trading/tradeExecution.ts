@@ -374,7 +374,7 @@ export const openPositionTool = createTool({
           finalQuantity,   // 使用实际成交数量
           leverage,
           fee,            // 手续费
-          getChinaTimeISO(),
+          new Date().toISOString(),
           dbStatus,
         ],
       });
@@ -478,7 +478,7 @@ export const openPositionTool = createTool({
             tpOrderId || null,
             slOrderId || null,
             order.id?.toString() || "",
-            getChinaTimeISO(),
+            new Date().toISOString(),
           ],
         });
       }
@@ -755,7 +755,7 @@ export const closePositionTool = createTool({
           leverage,
           pnl,              // 净盈亏（已扣除手续费）
           totalFee,         // 总手续费（开仓+平仓）
-          getChinaTimeISO(),
+          new Date().toISOString(),
           dbStatus,
           'manual',         // Manual close by LLM
         ],
