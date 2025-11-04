@@ -300,18 +300,35 @@ export class BinanceAdapter implements IExchangeClient {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<void> {
-    // Note: CCXT requires symbol for Binance cancelOrder
-    // We may need to store order->symbol mapping or get it from open orders
-    const openOrders = await this.getOpenOrders();
-    const order = openOrders.find((o) => o.id === orderId);
-
-    if (!order) {
-      throw new Error(`Order ${orderId} not found in open orders`);
+  async cancelOrder(orderId: string, symbol?: string): Promise<void> {
+    // If symbol is provided, use it directly
+    if (symbol) {
+      const ccxtSymbol = this.normalizeSymbol(symbol);
+      await this.exchange.cancelOrder(orderId, ccxtSymbol);
+      return;
     }
 
-    const ccxtSymbol = this.normalizeSymbol(order.symbol);
-    await this.exchange.cancelOrder(orderId, ccxtSymbol);
+    // Otherwise, search through all trading symbols to find the order
+    // This is necessary because CCXT requires symbol for Binance cancelOrder
+    const tradingSymbols = process.env.TRADING_SYMBOLS?.split(',').map(s => s.trim()) || ['BTC', 'ETH', 'SOL'];
+
+    for (const sym of tradingSymbols) {
+      try {
+        const orders = await this.getOpenOrders(sym);
+        const order = orders.find((o) => o.id === orderId);
+
+        if (order) {
+          const ccxtSymbol = this.normalizeSymbol(order.symbol);
+          await this.exchange.cancelOrder(orderId, ccxtSymbol);
+          return;
+        }
+      } catch (e) {
+        // Continue searching other symbols
+        continue;
+      }
+    }
+
+    throw new Error(`Order ${orderId} not found in open orders for any trading symbol`);
   }
 
   async getOrder(orderId: string, symbol?: string): Promise<Order> {

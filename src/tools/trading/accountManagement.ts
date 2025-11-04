@@ -314,7 +314,7 @@ export const syncPositionsTool = createTool({
 
       // Get existing SL/TP data before sync
       const existingDataResult = await dbClient.execute(
-        "SELECT symbol, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
+        "SELECT symbol, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent FROM positions"
       );
 
       const existingDataMap = new Map<string, any>();
@@ -326,6 +326,8 @@ export const syncPositionsTool = createTool({
           tp_order_id: r.tp_order_id,
           sl_percentage: r.sl_percentage,
           tp_percentage: r.tp_percentage,
+          stop_loss: r.stop_loss,           // ADD: preserve stop-loss price
+          profit_target: r.profit_target,   // ADD: preserve take-profit price
           entry_order_id: r.entry_order_id,
           opened_at: r.opened_at,
           confidence: r.confidence,
@@ -345,8 +347,8 @@ export const syncPositionsTool = createTool({
           sql: `INSERT INTO positions
                 (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
                  leverage, side, entry_order_id, opened_at, tp_orders, sl_order_id, tp_order_id,
-                 sl_percentage, tp_percentage, confidence, risk_usd, peak_pnl_percent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 sl_percentage, tp_percentage, stop_loss, profit_target, confidence, risk_usd, peak_pnl_percent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             p.symbol,
             p.quantity,
@@ -363,6 +365,8 @@ export const syncPositionsTool = createTool({
             existingData?.tp_order_id || null,
             existingData?.sl_percentage || null,
             existingData?.tp_percentage || null,
+            existingData?.stop_loss || null,           // ADD: restore stop-loss price
+            existingData?.profit_target || null,       // ADD: restore take-profit price
             existingData?.confidence || null,
             existingData?.risk_usd || null,
             existingData?.peak_pnl_percent || 0,

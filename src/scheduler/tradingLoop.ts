@@ -779,19 +779,31 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
               logger.info(`🛑 Stop-loss TRIGGERED for ${dbSymbol} (order ${slOrderId}) - Position closed automatically by exchange`);
 
-              // Calculate PnL
+              // Get quanto multiplier for correct PnL calculation
+              const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+
+              // Calculate fee (0.05% of notional value)
+              const exitNotional = order.price * quantity * quantoMultiplier;
+              const exitFee = exitNotional * 0.0005;
+
+              // Calculate PnL with proper formula
               let pnl = 0;
               if (entryPrice > 0 && order.price > 0) {
                 const priceChange = side === 'long'
-                  ? (order.price - entryPrice) / entryPrice
-                  : (entryPrice - order.price) / entryPrice;
-                pnl = priceChange * leverage * entryPrice * quantity;
+                  ? (order.price - entryPrice)
+                  : (entryPrice - order.price);
+                pnl = priceChange * quantity * quantoMultiplier;
+
+                // Subtract fees (entry + exit)
+                const entryNotional = entryPrice * quantity * quantoMultiplier;
+                const entryFee = entryNotional * 0.0005;
+                pnl = pnl - entryFee - exitFee;
               }
 
               // Record close trade in trades table
               await dbClient.execute({
                 sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
                 args: [
                   slOrderId,
                   dbSymbol,
@@ -800,7 +812,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   quantity,
                   leverage,
                   pnl,
-                  new Date().toISOString(),
+                  exitFee,
+                  getChinaTimeISO(),
                   'stop_loss'
                 ]
               });
@@ -851,29 +864,44 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
 
                     logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
 
-                    // Calculate PnL for partial TP
+                    // Get quanto multiplier for correct PnL calculation
+                    const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+
+                    // Calculate partial quantity
+                    const actualQuantity = quantity * (tp.percentage / 100);
+
+                    // Calculate fee (0.05% of notional value)
+                    const exitNotional = order.price * actualQuantity * quantoMultiplier;
+                    const exitFee = exitNotional * 0.0005;
+
+                    // Calculate PnL with proper formula
                     let pnl = 0;
                     if (entryPrice > 0 && order.price > 0) {
-                      const actualQuantity = quantity * (tp.percentage / 100); // Partial close
                       const priceChange = side === 'long'
-                        ? (order.price - entryPrice) / entryPrice
-                        : (entryPrice - order.price) / entryPrice;
-                      pnl = priceChange * leverage * entryPrice * actualQuantity;
+                        ? (order.price - entryPrice)
+                        : (entryPrice - order.price);
+                      pnl = priceChange * actualQuantity * quantoMultiplier;
+
+                      // Subtract fees (entry + exit, proportional to partial quantity)
+                      const entryNotional = entryPrice * actualQuantity * quantoMultiplier;
+                      const entryFee = entryNotional * 0.0005;
+                      pnl = pnl - entryFee - exitFee;
                     }
 
                     // Record close trade in trades table (partial close)
                     await dbClient.execute({
                       sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-                            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
+                            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
                       args: [
                         tp.orderId,
                         dbSymbol,
                         side,
                         order.price,
-                        quantity * (tp.percentage / 100), // Partial quantity
+                        actualQuantity,
                         leverage,
                         pnl,
-                        new Date().toISOString(),
+                        exitFee,
+                        getChinaTimeISO(),
                         'take_profit_partial'
                       ]
                     });
@@ -910,19 +938,31 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                 if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
                   logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 
-                  // Calculate PnL
+                  // Get quanto multiplier for correct PnL calculation
+                  const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+
+                  // Calculate fee (0.05% of notional value)
+                  const exitNotional = order.price * quantity * quantoMultiplier;
+                  const exitFee = exitNotional * 0.0005;
+
+                  // Calculate PnL with proper formula
                   let pnl = 0;
                   if (entryPrice > 0 && order.price > 0) {
                     const priceChange = side === 'long'
-                      ? (order.price - entryPrice) / entryPrice
-                      : (entryPrice - order.price) / entryPrice;
-                    pnl = priceChange * leverage * entryPrice * quantity;
+                      ? (order.price - entryPrice)
+                      : (entryPrice - order.price);
+                    pnl = priceChange * quantity * quantoMultiplier;
+
+                    // Subtract fees (entry + exit)
+                    const entryNotional = entryPrice * quantity * quantoMultiplier;
+                    const entryFee = entryNotional * 0.0005;
+                    pnl = pnl - entryFee - exitFee;
                   }
 
                   // Record close trade
                   await dbClient.execute({
                     sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-                          VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
+                          VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
                     args: [
                       tpOrderId,
                       dbSymbol,
@@ -931,7 +971,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                       quantity,
                       leverage,
                       pnl,
-                      new Date().toISOString(),
+                      exitFee,
+                      getChinaTimeISO(),
                       'take_profit'
                     ]
                   });
@@ -957,19 +998,31 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
             if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
               logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 
-              // Calculate PnL
+              // Get quanto multiplier for correct PnL calculation
+              const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+
+              // Calculate fee (0.05% of notional value)
+              const exitNotional = order.price * quantity * quantoMultiplier;
+              const exitFee = exitNotional * 0.0005;
+
+              // Calculate PnL with proper formula
               let pnl = 0;
               if (entryPrice > 0 && order.price > 0) {
                 const priceChange = side === 'long'
-                  ? (order.price - entryPrice) / entryPrice
-                  : (entryPrice - order.price) / entryPrice;
-                pnl = priceChange * leverage * entryPrice * quantity;
+                  ? (order.price - entryPrice)
+                  : (entryPrice - order.price);
+                pnl = priceChange * quantity * quantoMultiplier;
+
+                // Subtract fees (entry + exit)
+                const entryNotional = entryPrice * quantity * quantoMultiplier;
+                const entryFee = entryNotional * 0.0005;
+                pnl = pnl - entryFee - exitFee;
               }
 
               // Record close trade
               await dbClient.execute({
                 sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, 0, ?, 'closed', ?)`,
+                      VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
                 args: [
                   tpOrderId,
                   dbSymbol,
@@ -978,7 +1031,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
                   quantity,
                   leverage,
                   pnl,
-                  new Date().toISOString(),
+                  exitFee,
+                  getChinaTimeISO(),
                   'take_profit'
                 ]
               });

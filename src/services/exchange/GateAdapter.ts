@@ -197,7 +197,8 @@ export class GateAdapter implements IExchangeClient {
     };
   }
 
-  async cancelOrder(orderId: string): Promise<void> {
+  async cancelOrder(orderId: string, symbol?: string): Promise<void> {
+    // Gate.io doesn't require symbol for cancelOrder, ignore it
     await this.client.cancelOrder(orderId);
   }
 

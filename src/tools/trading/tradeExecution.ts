@@ -763,39 +763,43 @@ export const closePositionTool = createTool({
       
       // 从数据库获取止损止盈订单ID（如果存在）
       const posResult = await dbClient.execute({
-        sql: "SELECT sl_order_id, tp_order_id FROM positions WHERE symbol = ?",
+        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
         args: [symbol],
       });
-      
+
       // 取消止损止盈订单（先检查订单状态）
       if (posResult.rows.length > 0) {
         const dbPosition = posResult.rows[0] as any;
-        
+
+        // Cancel stop-loss order
         if (dbPosition.sl_order_id) {
           try {
-            // 先获取订单状态
-            const orderDetail = await client.getOrder(dbPosition.sl_order_id);
-            // 只取消未完成的订单（open状态）
-            if (orderDetail.status === 'open') {
-              await client.cancelOrder(dbPosition.sl_order_id);
-            }
+            await client.cancelOrder(dbPosition.sl_order_id, symbol);
+            logger.info(`✅ Canceled stop-loss order ${dbPosition.sl_order_id} for ${symbol}`);
           } catch (e: any) {
-            // 订单可能已经不存在或已被取消
-            logger.warn(`无法取消止损订单 ${dbPosition.sl_order_id}: ${e.message}`);
+            // Order may have already been triggered or canceled
+            logger.warn(`⚠️ Could not cancel stop-loss order ${dbPosition.sl_order_id}: ${e.message}`);
           }
         }
-        
-        if (dbPosition.tp_order_id) {
+
+        // Cancel all take-profit orders (from JSON array)
+        if (dbPosition.tp_orders) {
           try {
-            // 先获取订单状态
-            const orderDetail = await client.getOrder(dbPosition.tp_order_id);
-            // 只取消未完成的订单（open状态）
-            if (orderDetail.status === 'open') {
-              await client.cancelOrder(dbPosition.tp_order_id);
+            const tpOrders = JSON.parse(dbPosition.tp_orders);
+            if (Array.isArray(tpOrders)) {
+              for (const tp of tpOrders) {
+                if (tp.orderId && !tp.triggered) {
+                  try {
+                    await client.cancelOrder(tp.orderId, symbol);
+                    logger.info(`✅ Canceled take-profit order ${tp.orderId} (TP${tp.level || ''}) for ${symbol}`);
+                  } catch (e: any) {
+                    logger.warn(`⚠️ Could not cancel take-profit order ${tp.orderId}: ${e.message}`);
+                  }
+                }
+              }
             }
           } catch (e: any) {
-            // 订单可能已经不存在或已被取消
-            logger.warn(`无法取消止盈订单 ${dbPosition.tp_order_id}: ${e.message}`);
+            logger.warn(`⚠️ Error parsing tp_orders JSON: ${e.message}`);
           }
         }
       }

@@ -187,7 +187,7 @@ export interface IExchangeClient {
    * Cancel an open order
    * @param orderId Exchange-specific order ID
    */
-  cancelOrder(orderId: string): Promise<void>;
+  cancelOrder(orderId: string, symbol?: string): Promise<void>;
 
   /**
    * Get order status/details
