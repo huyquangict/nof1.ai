@@ -757,6 +757,20 @@ export const closePositionTool = createTool({
       logger.info(`  总手续费: ${totalFee.toFixed(4)} USDT`);
       logger.info(`  净盈亏: ${pnl.toFixed(2)} USDT`);
       
+      // 获取entry_order_id from database for linking
+      let entryOrderId: string | null = null;
+      try {
+        const posResult = await dbClient.execute({
+          sql: "SELECT entry_order_id FROM positions WHERE symbol = ?",
+          args: [symbol]
+        });
+        if (posResult.rows.length > 0) {
+          entryOrderId = (posResult.rows[0] as any).entry_order_id || null;
+        }
+      } catch (error: any) {
+        logger.warn(`Could not fetch entry_order_id: ${error.message}`);
+      }
+
       // 记录平仓交易
       // side: 原持仓方向（long/short）
       // 实际执行方向: long平仓=卖出, short平仓=买入
@@ -764,10 +778,10 @@ export const closePositionTool = createTool({
       // fee: 总手续费（开仓+平仓）
       // 映射状态：Gate.io finished -> filled, open -> pending
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
-      
+
       await dbClient.execute({
-        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason, entry_order_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           order.id?.toString() || "",
           symbol,
@@ -781,6 +795,7 @@ export const closePositionTool = createTool({
           new Date().toISOString(),
           dbStatus,
           'manual',         // Manual close by LLM
+          entryOrderId,     // 🔥 Link to entry order
         ],
       });
       

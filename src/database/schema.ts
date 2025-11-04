@@ -41,6 +41,7 @@ export interface Trade {
   timestamp: string;
   status: 'pending' | 'filled' | 'cancelled';
   close_reason?: 'manual' | 'stop_loss' | 'take_profit' | 'take_profit_partial' | 'time_limit' | 'drawdown'; // How position was closed
+  entry_order_id?: string; // ID of the entry order (for close trades, links back to the open trade)
 }
 
 export interface Position {
@@ -131,8 +132,11 @@ CREATE TABLE IF NOT EXISTS trades (
   fee REAL,
   timestamp TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
-  close_reason TEXT  -- How position was closed: manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown
+  close_reason TEXT,  -- How position was closed: manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown
+  entry_order_id TEXT  -- ID of entry order (for close trades, links back to open trade)
 );
+
+CREATE INDEX IF NOT EXISTS idx_trades_entry_order_id ON trades(entry_order_id);
 
 -- 持仓表
 CREATE TABLE IF NOT EXISTS positions (

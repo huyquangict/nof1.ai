@@ -539,10 +539,10 @@ export const syncPositionsTool = createTool({
 
             const pnl = grossPnl - totalFee;
 
-            // Record close trade
+            // Record close trade with entry_order_id link
             await dbClient.execute({
-              sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-                    VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
+              sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason, entry_order_id)
+                    VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?, ?)`,
               args: [
                 'sync_cleanup',
                 symbol,
@@ -553,7 +553,8 @@ export const syncPositionsTool = createTool({
                 pnl,
                 totalFee,
                 new Date().toISOString(),
-                'unknown' // Position was closed but we don't know how (SL/TP/manual)
+                'unknown', // Position was closed but we don't know how (SL/TP/manual)
+                dbPos.entry_order_id || null  // 🔥 Link to entry order
               ]
             });
 
@@ -622,10 +623,10 @@ async function recordSlTpTrigger(
 
     const pnl = grossPnl - totalFee;
 
-    // Record close trade
+    // Record close trade with entry_order_id link
     await dbClient.execute({
-      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason)
-            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?)`,
+      sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason, entry_order_id)
+            VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?, ?)`,
       args: [
         triggeredOrder.id || 'unknown',
         symbol,
@@ -636,7 +637,8 @@ async function recordSlTpTrigger(
         pnl,
         totalFee,
         new Date().toISOString(),
-        triggerType === 'SL' ? 'stop_loss' : 'take_profit'
+        triggerType === 'SL' ? 'stop_loss' : 'take_profit',
+        dbPos.entry_order_id || null  // 🔥 Link to entry order
       ]
     });
 
