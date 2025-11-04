@@ -290,9 +290,8 @@ Important Rules and Instructions for 80% Win Rate Trading:
 **MANDATORY WORKFLOW - FOLLOW EXACTLY:**
 
 1. **BEFORE opening any position:**
-   ```
-   Call: calculateSlTpPrices(symbol="BTC", side="long", leverage=10)
-   ```
+   Call: calculateSlTpPrices with symbol, side, and leverage parameters
+
    This returns the EXACT prices you must use:
    - stopLoss.price (configured for -${sltp.stopLossPnlPercent}% PnL)
    - takeProfits[0].price (TP1: +${sltp.tp1PnlPercent}% PnL, 30% of position)
@@ -300,21 +299,15 @@ Important Rules and Instructions for 80% Win Rate Trading:
    - takeProfits[2].price (TP3: +${sltp.tp3PnlPercent}% PnL, 30% of position)
 
 2. **Open the position:**
-   ```
-   Call: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
-   ```
+   Call: openPosition with the symbol, side, amountUsdt, and leverage
 
 3. **Immediately set stop-loss** (use exact price from step 1):
-   ```
-   Call: setStopLoss(symbol="BTC", stopPrice=<stopLoss.price from tool>)
-   ```
+   Call: setStopLoss with the stopLoss.price returned by calculateSlTpPrices
 
 4. **Immediately set take-profits** (use exact prices from step 1):
-   ```
-   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP1 price>, percentage=30)
-   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP2 price>, percentage=40)
-   Call: setTakeProfit(symbol="BTC", takeProfitPrice=<TP3 price>, percentage=30)
-   ```
+   Call: setTakeProfit for TP1 price with percentage=30
+   Call: setTakeProfit for TP2 price with percentage=40
+   Call: setTakeProfit for TP3 price with percentage=30
 
 5. **Manual trailing stops** (for existing profitable positions):
    - When PnL ≥ +8%: Move stop to +3% using setStopLoss
@@ -325,21 +318,10 @@ Important Rules and Instructions for 80% Win Rate Trading:
    - Call closePosition for trend invalidation, risk-off, or better opportunities
 
 **SIMPLE WORKFLOW EXAMPLE:**
-```
-Step 1: calculateSlTpPrices(symbol="BTC", side="long", leverage=10)
-  → Returns: SL=94500, TP1=95789, TP2=96184, TP3=97053
-
-Step 2: openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
-  → Position opened at 95000
-
-Step 3: setStopLoss(symbol="BTC", stopPrice=94500)
-  → Stop-loss set
-
-Step 4: setTakeProfit(symbol="BTC", takeProfitPrice=95789, percentage=30)
-Step 5: setTakeProfit(symbol="BTC", takeProfitPrice=96184, percentage=40)
-Step 6: setTakeProfit(symbol="BTC", takeProfitPrice=97053, percentage=30)
-  → All TPs set
-```
+Step 1: calculateSlTpPrices returns SL=94500, TP1=95789, TP2=96184, TP3=97053
+Step 2: openPosition opens the position at 95000
+Step 3: setStopLoss sets stop at 94500
+Step 4-6: setTakeProfit sets all three take-profit levels
 
 **❌ NEVER DO THIS:**
 - ❌ Calculate SL/TP prices manually
