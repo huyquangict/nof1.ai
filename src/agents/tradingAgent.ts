@@ -490,31 +490,35 @@ Remember: Automated stops protect you, but smart manual exits optimize profits!
 - 30% of position closes automatically at +40% PnL
 
 **Manual Trailing Stop-Loss** (Your active job every 5 minutes):
-⚠️ **CRITICAL: Always calculate trailing stops from ENTRY PRICE, not current price!**
+⚠️ **CRITICAL: NEVER calculate prices manually! ALWAYS use calculateSlTpPrices tool!**
 
-**How to set trailing stops correctly:**
-1. Call calculateSlTpPrices with the position's **entry_price** (not current price!)
-2. Specify the desired PnL target (e.g., +3%, +8%, +15%)
-3. Use the returned stopLoss.price in your setStopLoss call
+**How to set trailing stops (3 steps):**
+1. Call **calculateSlTpPrices** tool with:
+   - symbol: The position's symbol
+   - side: The position's side ('long' or 'short')
+   - leverage: The position's leverage
+   - entryPrice: The position's **entry_price** (CRITICAL: use entry, NOT current!)
+   - targetStopLossPnl: The PnL % you want to lock in (3, 8, or 15)
+2. The tool returns stopLoss.price (correctly calculated for position side)
+3. Call **setStopLoss** with the returned price
 
 **Trailing Stop Levels:**
-- **+8% PnL reached**: Move stop to lock in +3% PnL (call calculateSlTpPrices with entry_price and 3% target)
-- **+15% PnL reached**: Move stop to lock in +8% PnL (call calculateSlTpPrices with entry_price and 8% target)
-- **+25% PnL reached**: Move stop to lock in +15% PnL (call calculateSlTpPrices with entry_price and 15% target)
+- **+8% PnL reached**: Lock in +3% → calculateSlTpPrices(..., targetStopLossPnl: 3)
+- **+15% PnL reached**: Lock in +8% → calculateSlTpPrices(..., targetStopLossPnl: 8)
+- **+25% PnL reached**: Lock in +15% → calculateSlTpPrices(..., targetStopLossPnl: 15)
 
-**Example for SHORT position:**
-- Entry: $100, Current: $92, Leverage: 10x, PnL: +8%
-- Want to lock in +3% PnL: Call calculateSlTpPrices(symbol, 'short', 10, 100) with 3% target
-- Result: Stop = $100 * (1 - 3%/10) = $99.70 ← ABOVE current price (correct for SHORT)
-- ❌ WRONG: Don't calculate from $92, that would give $92.28 (too close to current!)
+**Example for SHORT position at +8% PnL:**
+- Step 1: calculateSlTpPrices('BTC', 'short', 19, 110593.5, 3)
+  - Returns: stopLoss.price = 110417.7 (ABOVE current, correct for SHORT)
+- Step 2: setStopLoss('BTC', 110417.7, 100)
 
-**Example for LONG position:**
-- Entry: $100, Current: $108, Leverage: 10x, PnL: +8%
-- Want to lock in +3% PnL: Call calculateSlTpPrices(symbol, 'long', 10, 100) with 3% target
-- Result: Stop = $100 * (1 + 3%/10) = $100.30 ← BELOW current price (correct for LONG)
-- ❌ WRONG: Don't calculate from $108, that would give $108.32 (too close to current!)
+**Example for LONG position at +15% PnL:**
+- Step 1: calculateSlTpPrices('ETH', 'long', 15, 3900, 8)
+  - Returns: stopLoss.price = 3920.8 (BELOW current, correct for LONG)
+- Step 2: setStopLoss('ETH', 3920.8, 100)
 
-- Note: setStopLoss auto-cancels the old SL before creating new one - just call it directly
+**❌ NEVER do manual calculation! Always use the tool!**
+- Note: setStopLoss auto-cancels the old SL before creating new one
 
 **Manual Close for Exceptional Situations:**
 - If profit was +10% and now < +5% → Close immediately (rapid reversal)
@@ -561,9 +565,9 @@ Remember: Automated stops protect you, but smart manual exits optimize profits!
 
 ⚠️ FIRST PRIORITY - CHECK EXISTING POSITIONS (EVERY 5 MINUTES):
 For EACH open position, check:
-□ PnL ≥ +8%? → Call calculateSlTpPrices(with entry_price) then setStopLoss to lock +3% (auto-cancels old SL)
-□ PnL ≥ +15%? → Call calculateSlTpPrices(with entry_price) then setStopLoss to lock +8% (auto-cancels old SL)
-□ PnL ≥ +25%? → Call calculateSlTpPrices(with entry_price) then setStopLoss to lock +15% (auto-cancels old SL)
+□ PnL ≥ +8%? → Use calculateSlTpPrices(..., targetStopLossPnl: 3) then setStopLoss to lock +3%
+□ PnL ≥ +15%? → Use calculateSlTpPrices(..., targetStopLossPnl: 8) then setStopLoss to lock +8%
+□ PnL ≥ +25%? → Use calculateSlTpPrices(..., targetStopLossPnl: 15) then setStopLoss to lock +15%
 □ Was +10% now <5%? → Call closePosition NOW (auto-cancels all SL/TP)
 □ Position open >36 hours? → Call closePosition (auto-cancels all SL/TP)
 □ Trend invalidated? → Call closePosition (auto-cancels all SL/TP)
@@ -1057,10 +1061,10 @@ Your Trading Philosophy (${params.name} Strategy):
 5. **Multi-Timeframe Analysis**: You analyze patterns across multiple timeframes (15-minute, 30-minute, 1-hour, 4-hour) to identify high-probability entry points. ${params.entryCondition}.
 6. **Position Management (${params.name} Strategy)**: ${params.riskTolerance}. Maximum ${RISK_PARAMS.MAX_POSITIONS} positions held simultaneously.
 7. **Trailing Take-Profit to Protect Floating Profits (Core Strategy)**: This is the key mechanism to prevent "profit giveback".
-   - When position profit reaches +8%, move stop-loss to lock in +3% PnL from entry (use calculateSlTpPrices with entry_price)
-   - When position profit reaches +15%, move stop-loss to lock in +8% PnL from entry (use calculateSlTpPrices with entry_price)
-   - When position profit reaches +25%, move stop-loss to lock in +15% PnL from entry (use calculateSlTpPrices with entry_price)
-   - **Critical**: Always calculate stops from entry_price, NOT current_price, to ensure proper trailing stop placement
+   - When position profit reaches +8%, move stop-loss to lock in +3% PnL (use calculateSlTpPrices tool with targetStopLossPnl: 3)
+   - When position profit reaches +15%, move stop-loss to lock in +8% PnL (use calculateSlTpPrices tool with targetStopLossPnl: 8)
+   - When position profit reaches +25%, move stop-loss to lock in +15% PnL (use calculateSlTpPrices tool with targetStopLossPnl: 15)
+   - **Critical**: NEVER calculate manually! Always use calculateSlTpPrices tool with entry_price parameter
    - If peak profit retraces more than 30%, close immediately (e.g., from +20% down to +14%)
 8. **Dynamic Stop-Loss (${params.name} Strategy)**: Set reasonable stop-loss based on leverage multiplier, giving positions appropriate room while strictly controlling single-trade loss.
 9. **Trading Frequency**: ${params.tradingStyle}
@@ -1113,11 +1117,11 @@ Current Trading Rules (${params.name} Strategy):
   * The pnl_percent field in current position info already automatically includes leverage effect, use directly
   * If pnl_percent is below stop-loss line, must close position immediately
 - **Trailing Take-Profit Rules (Core mechanism to prevent profit giveback)**:
-  * When pnl_percent ≥ +8%, move stop-loss to lock in +3% PnL (use calculateSlTpPrices with entry_price, NOT current_price)
-  * When pnl_percent ≥ +15%, move stop-loss to lock in +8% PnL (use calculateSlTpPrices with entry_price, NOT current_price)
-  * When pnl_percent ≥ +25%, move stop-loss to lock in +15% PnL (use calculateSlTpPrices with entry_price, NOT current_price)
+  * When pnl_percent ≥ +8%, use calculateSlTpPrices(..., targetStopLossPnl: 3) then setStopLoss to lock +3%
+  * When pnl_percent ≥ +15%, use calculateSlTpPrices(..., targetStopLossPnl: 8) then setStopLoss to lock +8%
+  * When pnl_percent ≥ +25%, use calculateSlTpPrices(..., targetStopLossPnl: 15) then setStopLoss to lock +15%
   * **Important Note**: The pnl_percent here is also PnL percentage considering leverage
-  * **Critical**: Always calculate trailing stops from entry_price to ensure stop is on correct side for position type
+  * **Critical**: NEVER calculate manually! Use calculateSlTpPrices tool with entry_price parameter
   * **Peak Retracement Protection**: If position once reached peak profit, but current profit retraces more than 30% from peak, close immediately
 - **Account-Level Risk Control Protection**:
   * If account net value draws down ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}% from initial or peak value, immediately stop all new position opening
@@ -1257,10 +1261,10 @@ Key Reminders (${params.name} Strategy):
 - **Position Management**: Maximum ${RISK_PARAMS.MAX_POSITIONS} positions held simultaneously
 - **Dynamic Stop-Loss (${params.name} Strategy)**: Set initial stop-loss based on leverage multiplier (${params.stopLoss.low}% to ${params.stopLoss.high}%)
 - **Trailing Take-Profit (Most Important)**: This is the core mechanism to prevent "profit giveback"
-  * When pnl_percent ≥ +8%, move stop to lock +3% (use calculateSlTpPrices with entry_price)
-  * When pnl_percent ≥ +15%, move stop to lock +8% (use calculateSlTpPrices with entry_price)
-  * When pnl_percent ≥ +25%, move stop to lock +15% (use calculateSlTpPrices with entry_price)
-  * **CRITICAL**: Always use entry_price, NOT current_price, to ensure stop is on correct side
+  * When pnl_percent ≥ +8%, use calculateSlTpPrices(..., targetStopLossPnl: 3) then setStopLoss
+  * When pnl_percent ≥ +15%, use calculateSlTpPrices(..., targetStopLossPnl: 8) then setStopLoss
+  * When pnl_percent ≥ +25%, use calculateSlTpPrices(..., targetStopLossPnl: 15) then setStopLoss
+  * **CRITICAL**: NEVER calculate manually! Use the tool with entry_price parameter
   * If peak retraces more than 30%, close immediately
 - **Account-Level Protection**:
   * Account drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%: Prohibit new positions

@@ -707,14 +707,15 @@ async function recordSlTpTrigger(
  */
 export const calculateSlTpPricesTool = createTool({
   name: "calculateSlTpPrices",
-  description: "Calculate stop-loss and take-profit prices based on system configuration (environment settings). IMPORTANT: Use this tool to get recommended SL/TP prices before setting them. The tool calculates prices based on: 1) Current/entry price, 2) Position side (long/short), 3) Leverage, 4) Configured PnL percentages from system settings. Returns multiple TP levels (TP1, TP2, TP3) at 30%, 40%, 30% position splits.",
+  description: "Calculate stop-loss and take-profit prices for positions. IMPORTANT: Use this tool to get SL/TP prices - NEVER calculate manually! Supports: 1) Initial SL/TP (uses env config), 2) Trailing stops (provide targetStopLossPnl%). The tool calculates prices based on: entry price, position side (long/short), leverage, and PnL percentages. ALWAYS use entry_price for trailing stops to ensure stop is on correct side.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code"),
     side: z.enum(["long", "short"]).describe("Position side: long or short"),
     leverage: z.number().min(1).max(RISK_PARAMS.MAX_LEVERAGE).describe("Position leverage"),
     entryPrice: z.number().optional().describe("Entry price (optional, will use current price if not provided)"),
+    targetStopLossPnl: z.number().optional().describe("Target stop-loss PnL % for trailing stops (e.g., 3, 8, 15). If not provided, uses env default (20%). For trailing stops: use 3% to lock +3% profit, 8% to lock +8%, etc."),
   }),
-  execute: async ({ symbol, side, leverage, entryPrice }) => {
+  execute: async ({ symbol, side, leverage, entryPrice, targetStopLossPnl }) => {
     const client = createExchangeClient();
 
     try {
@@ -725,8 +726,8 @@ export const calculateSlTpPricesTool = createTool({
         price = ticker.lastPrice;
       }
 
-      // Get PnL percentages from environment
-      const slPnlPercent = parseFloat(process.env.POSITION_STOP_LOSS_PNL_PERCENT || "20");
+      // Get PnL percentages from environment or use custom values for trailing stops
+      const slPnlPercent = targetStopLossPnl ?? parseFloat(process.env.POSITION_STOP_LOSS_PNL_PERCENT || "20");
       const tp1PnlPercent = parseFloat(process.env.POSITION_TP1_PNL_PERCENT || "15");
       const tp2PnlPercent = parseFloat(process.env.POSITION_TP2_PNL_PERCENT || "25");
       const tp3PnlPercent = parseFloat(process.env.POSITION_TP3_PNL_PERCENT || "40");
