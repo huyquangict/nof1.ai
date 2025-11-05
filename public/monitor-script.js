@@ -395,10 +395,26 @@ class TradingMonitor {
                         ? `<span class="order-id" onclick="navigator.clipboard.writeText('${pos.entryOrderId}')" title="Click to copy">${pos.entryOrderId.substring(0, 10)}...</span>`
                         : '<span class="na">-</span>';
 
-                    // 🔥 SL Order ID display
-                    const slOrderHtml = pos.slOrderId
-                        ? `<span class="order-id" onclick="navigator.clipboard.writeText('${pos.slOrderId}')" title="Click to copy">${pos.slOrderId.substring(0, 10)}...</span>`
-                        : '<span class="na">-</span>';
+                    // 🔥 SL Order ID display (support multi-SL)
+                    let slOrderHtml = '<span class="na">-</span>';
+                    if (pos.slOrders && pos.slOrders.length > 0) {
+                        const activeSLs = pos.slOrders.filter(sl => !sl.triggered);
+                        if (activeSLs.length > 0) {
+                            if (activeSLs.length === 1) {
+                                const orderId = activeSLs[0].orderId;
+                                slOrderHtml = `<span class="order-id" onclick="navigator.clipboard.writeText('${orderId}')" title="Click to copy">${orderId.substring(0, 10)}...</span>`;
+                            } else {
+                                // Multiple SLs: show compact list
+                                const orderIds = activeSLs.map(sl => sl.orderId.substring(0, 8)).join(', ');
+                                const fullIds = activeSLs.map(sl => sl.orderId).join(', ');
+                                slOrderHtml = `<span class="order-id" onclick="navigator.clipboard.writeText('${fullIds}')" title="Click to copy (${activeSLs.length} IDs)">${activeSLs.length} SLs: ${orderIds}...</span>`;
+                            }
+                        }
+                    }
+                    // Fallback to old single SL format
+                    else if (pos.slOrderId) {
+                        slOrderHtml = `<span class="order-id" onclick="navigator.clipboard.writeText('${pos.slOrderId}')" title="Click to copy">${pos.slOrderId.substring(0, 10)}...</span>`;
+                    }
 
                     return `
                         <tr>
@@ -465,9 +481,26 @@ class TradingMonitor {
 
                     // 🔥 Order IDs for position cards
                     let orderIdsText = '';
-                    if (pos.entryOrderId || pos.slOrderId) {
+                    if (pos.entryOrderId || pos.slOrderId || (pos.slOrders && pos.slOrders.length > 0)) {
                         const entryId = pos.entryOrderId ? `Entry: ${pos.entryOrderId.substring(0, 8)}...` : '';
-                        const slId = pos.slOrderId ? `SL: ${pos.slOrderId.substring(0, 8)}...` : '';
+
+                        // Show SL order IDs (support multi-SL)
+                        let slId = '';
+                        if (pos.slOrders && pos.slOrders.length > 0) {
+                            const activeSLs = pos.slOrders.filter(sl => !sl.triggered);
+                            if (activeSLs.length > 0) {
+                                if (activeSLs.length === 1) {
+                                    slId = `SL: ${activeSLs[0].orderId.substring(0, 8)}...`;
+                                } else {
+                                    slId = `SLs: ${activeSLs.length} orders`;
+                                }
+                            }
+                        }
+                        // Fallback to old single SL format
+                        else if (pos.slOrderId) {
+                            slId = `SL: ${pos.slOrderId.substring(0, 8)}...`;
+                        }
+
                         const idsArray = [entryId, slId].filter(id => id);
                         orderIdsText = `<div class="position-card-ids" title="Click to see full IDs in table">${idsArray.join(' | ')}</div>`;
                     }
