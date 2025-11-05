@@ -322,7 +322,7 @@ export const syncPositionsTool = createTool({
 
       // 2️⃣ Get ALL existing positions from database with their IDs
       const existingDataResult = await dbClient.execute(
-        "SELECT symbol, quantity, entry_price, current_price, side, leverage, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent, liquidation_price, unrealized_pnl FROM positions"
+        "SELECT symbol, quantity, entry_price, current_price, side, leverage, tp_orders, sl_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at, confidence, risk_usd, peak_pnl_percent, liquidation_price, unrealized_pnl FROM positions"
       );
 
       logger.info(`💾 Database has ${existingDataResult.rows.length} position records`);
@@ -352,11 +352,62 @@ export const syncPositionsTool = createTool({
           }
         }
 
-        // 🛑 Check SL order status
-        if (dbPos.sl_order_id && dbPos.sl_order_id !== "") {
+        // 🛑 Check SL orders status (array of {orderId, price, percentage, triggered} objects)
+        if (dbPos.sl_orders && dbPos.sl_orders !== "") {
+          try {
+            const slOrdersArray = JSON.parse(dbPos.sl_orders);
+            const stillActiveSL: any[] = [];
+
+            for (const sl of slOrdersArray) {
+              const slOrderId = sl.orderId || sl; // Handle both object format and string format
+              try {
+                const slOrder = await client.getOrder(slOrderId);
+                logger.info(`  🛑 SL order ${slOrderId}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
+
+                if (slOrder.status === 'filled' || slOrder.status === 'finished') {
+                  logger.warn(`  🔥 STOP-LOSS TRIGGERED for ${symbol}! Order ${slOrderId} was filled`);
+                  triggeredOrders.push({ symbol, orderId: slOrderId, type: 'SL', status: slOrder.status });
+
+                  // Record SL trigger close trade
+                  await recordSlTpTrigger(client, dbPos, slOrder, 'SL');
+
+                  // Mark as triggered but keep in array
+                  if (typeof sl === 'object') {
+                    sl.triggered = true;
+                  }
+                  // Position should be closed or partially closed - check if all SLs triggered
+                } else if (slOrder.status === 'open' || slOrder.status === 'pending') {
+                  stillActiveSL.push(sl); // Keep original object format
+                } else if (slOrder.status === 'cancelled') {
+                  logger.warn(`  ⚠️  SL order ${slOrderId} was cancelled - removing from tracking`);
+                  // Don't add to stillActiveSL
+                }
+              } catch (error: any) {
+                logger.warn(`  ⚠️  Could not verify SL order ${slOrderId}: ${error.message}`);
+                stillActiveSL.push(sl); // Keep it - might just be API error
+              }
+            }
+
+            // Update SL orders list to only active ones
+            dbPos.sl_orders = stillActiveSL.length > 0 ? JSON.stringify(stillActiveSL) : null;
+
+            if (stillActiveSL.length === 0 && slOrdersArray.length > 0) {
+              logger.info(`  ✅ All SL orders filled/cancelled - clearing SL tracking`);
+              dbPos.stop_loss = null;
+              // If all SLs triggered, position should be closed - don't continue
+              if (slOrdersArray.some((sl: any) => sl.triggered)) {
+                continue;
+              }
+            }
+          } catch (error: any) {
+            logger.warn(`  ⚠️  Could not parse sl_orders JSON: ${error.message}`);
+          }
+        }
+        // Fallback: Check old single SL format (backward compatibility)
+        else if (dbPos.sl_order_id && dbPos.sl_order_id !== "") {
           try {
             const slOrder = await client.getOrder(dbPos.sl_order_id);
-            logger.info(`  🛑 SL order ${dbPos.sl_order_id}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
+            logger.info(`  🛑 Old SL order ${dbPos.sl_order_id}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
 
             if (slOrder.status === 'filled' || slOrder.status === 'finished') {
               logger.warn(`  🔥 STOP-LOSS TRIGGERED for ${symbol}! Order ${dbPos.sl_order_id} was filled`);
@@ -368,12 +419,12 @@ export const syncPositionsTool = createTool({
               // Position should be closed - don't keep in validPositions
               continue;
             } else if (slOrder.status === 'cancelled') {
-              logger.warn(`  ⚠️  SL order was cancelled - removing SL tracking`);
+              logger.warn(`  ⚠️  Old SL order was cancelled - removing SL tracking`);
               dbPos.sl_order_id = null;
               dbPos.stop_loss = null;
             }
           } catch (error: any) {
-            logger.warn(`  ⚠️  Could not verify SL order ${dbPos.sl_order_id}: ${error.message}`);
+            logger.warn(`  ⚠️  Could not verify old SL order ${dbPos.sl_order_id}: ${error.message}`);
             // Keep the SL order ID - might just be API error
           }
         }
@@ -450,9 +501,9 @@ export const syncPositionsTool = createTool({
           await dbClient.execute({
             sql: `INSERT INTO positions
                   (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-                   leverage, side, entry_order_id, opened_at, tp_orders, sl_order_id, tp_order_id,
+                   leverage, side, entry_order_id, opened_at, tp_orders, sl_orders, sl_order_id, tp_order_id,
                    sl_percentage, tp_percentage, stop_loss, profit_target, confidence, risk_usd, peak_pnl_percent)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             args: [
               symbol,
               exchangePos.quantity,  // 🔥 Use exchange quantity (source of truth)
@@ -465,7 +516,8 @@ export const syncPositionsTool = createTool({
               dbPos.entry_order_id,  // 🔥 Keep our entry order ID
               dbPos.opened_at,
               dbPos.tp_orders,  // 🔥 Keep verified TP orders
-              dbPos.sl_order_id,  // 🔥 Keep verified SL order ID
+              dbPos.sl_orders,  // 🔥 Keep verified SL orders array
+              dbPos.sl_order_id,  // 🔥 Keep verified SL order ID (old format)
               dbPos.tp_order_id,
               dbPos.sl_percentage,
               dbPos.tp_percentage,

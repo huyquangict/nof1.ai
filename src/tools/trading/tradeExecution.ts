@@ -27,7 +27,7 @@ import { createPinoLogger } from "@voltagent/logger";
 import { getChinaTimeISO } from "../../utils/timeUtils";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
-import type { TakeProfitOrder } from "../../database/schema";
+import type { TakeProfitOrder, StopLossOrder } from "../../database/schema";
 
 const logger = createPinoLogger({
   name: "trade-execution",
