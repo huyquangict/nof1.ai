@@ -290,7 +290,7 @@ function calculateIntradaySeries(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // Gate.io format (FuturesCandlestick)
+    // 旧格式 (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -369,7 +369,7 @@ function calculateLongerTermContext(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // Gate.io format (FuturesCandlestick)
+    // 旧格式 (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -563,7 +563,7 @@ function calculateIndicators(candles: any[]) {
       if (c && typeof c === 'object' && 'close' in c) {
         return Number.parseFloat(c.close);
       }
-      // Gate.io format (FuturesCandlestick)
+      // 旧格式 (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
@@ -582,7 +582,7 @@ function calculateIndicators(candles: any[]) {
         const vol = Number.parseFloat(c.volume);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // Gate.io format (FuturesCandlestick)
+      // 旧格式 (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
@@ -679,7 +679,7 @@ async function calculateSharpeRatio(): Promise<number> {
 /**
  * Get account information
  *
- * Gate.io's account.total does not include unrealized P&L
+ * Exchange account.total does not include unrealized P&L
  * Total assets (excluding unrealized P&L) = account.total = available + positionMargin
  *
  * Therefore:
@@ -743,13 +743,13 @@ async function getAccountInfo() {
  * 2. Providing historical queries and monitoring page display
  * Real-time position data should be fetched directly from the exchange
  */
-async function syncPositionsFromGate(cachedPositions?: any[]) {
+async function syncPositionsFromExchange(cachedPositions?: any[]) {
   const exchangeClient = createExchangeClient();
 
   try {
     // If cached data is provided, use it; otherwise fetch new data
     const positions = cachedPositions || await exchangeClient.getPositions();
-    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
@@ -1210,7 +1210,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
     }
 
     // Re-query positions to get updated tp_orders with triggered status
-    const updatedDbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const updatedDbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const updatedDbPositionsMap = new Map(
       updatedDbResult.rows.map((row: any) => [row.symbol, row])
     );
@@ -1257,8 +1257,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       await dbClient.execute({
         sql: `INSERT INTO positions
               (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, entry_order_id, opened_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, entry_order_id, opened_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           symbol,
           quantity,
@@ -1275,6 +1275,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           dbPos?.sl_percentage || null,
           dbPos?.tp_percentage || null,
           dbPos?.tp_orders || null, // Preserve tp_orders JSON array
+          dbPos?.sl_orders || null, // 🔧 FIX: Preserve sl_orders JSON array
           entryOrderId, // Preserve original order ID
           dbPos?.opened_at || new Date().toISOString(), // Preserve original opening time
         ],
@@ -1692,7 +1693,7 @@ async function executeTradingDecision() {
 
       // Use the same data for processing and syncing to avoid repeated API calls
       positions = await getPositions(rawPositions);
-      await syncPositionsFromGate(rawPositions);
+      await syncPositionsFromExchange(rawPositions);
 
       const dbPositions = await dbClient.execute("SELECT COUNT(*) as count FROM positions");
       const dbCount = (dbPositions.rows[0] as any).count;
@@ -1700,7 +1701,7 @@ async function executeTradingDecision() {
       if (positions.length !== dbCount) {
         logger.warn(`Position sync inconsistency: Exchange=${positions.length}, DB=${dbCount}`);
         // Sync again using the same data
-        await syncPositionsFromGate(rawPositions);
+        await syncPositionsFromExchange(rawPositions);
       }
     } catch (error) {
       logger.error("Failed to sync positions:", error as any);
@@ -2133,7 +2134,7 @@ async function executeTradingDecision() {
 
       // Re-sync position data after Agent execution (Optimization: call API only once)
       const updatedRawPositions = await exchangeClient.getPositions();
-      await syncPositionsFromGate(updatedRawPositions);
+      await syncPositionsFromExchange(updatedRawPositions);
       const updatedPositions = await getPositions(updatedRawPositions);
 
       // Re-fetch updated account info with latest unrealized P&L
@@ -2165,7 +2166,7 @@ async function executeTradingDecision() {
     } catch (agentError) {
       logger.error("Agent execution failed:", agentError as any);
       try {
-        await syncPositionsFromGate();
+        await syncPositionsFromExchange();
       } catch (syncError) {
         logger.error("Sync failed:", syncError as any);
       }
@@ -2183,7 +2184,7 @@ async function executeTradingDecision() {
   } catch (error) {
     logger.error("Trading loop execution failed:", error as any);
     try {
-      await syncPositionsFromGate();
+      await syncPositionsFromExchange();
     } catch (recoveryError) {
       logger.error("Recovery failed:", recoveryError as any);
     }

@@ -195,9 +195,9 @@ export const openPositionTool = createTool({
       const ticker = await client.getFuturesTicker(symbol);
       const currentPrice = ticker.lastPrice;
       const contractInfo = await client.getContractInfo(symbol);
-      
-      // Gate.io 永续合约的保证金计算
-      // 注意：Gate.io 使用"张数"作为单位，每张合约代表一定数量的币
+
+      // 永续合约的保证金计算
+      // 注意：使用"张数"作为单位，每张合约代表一定数量的币
       // 对于 BTC_USDT: 1张 = 0.0001 BTC
       // 保证金计算：保证金 = (张数 * quantoMultiplier * 价格) / 杠杆
       
@@ -337,9 +337,9 @@ export const openPositionTool = createTool({
         leverage,
         // price: undefined means market order
       });
-      
+
       //  等待并验证订单状态（带重试）
-      // 增加等待时间，确保 Gate.io API 更新持仓信息
+      // 增加等待时间，确保交易所 API 更新持仓信息
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       //  检查订单状态并获取实际成交价格（最多重试3次）
@@ -418,8 +418,8 @@ export const openPositionTool = createTool({
       
       //  使用实际成交数量和价格记录到数据库
       const finalQuantity = actualFillSize > 0 ? actualFillSize : Math.abs(size);
-      
-      // 计算手续费（Gate.io taker费率 0.05%）
+
+      // 计算手续费（taker费率 0.05%）
       // 手续费 = 合约名义价值 * 0.05%
       // 合约名义价值 = 张数 * quantoMultiplier * 价格
       const positionValue = finalQuantity * quantoMultiplier * actualFillPrice;
@@ -428,7 +428,7 @@ export const openPositionTool = createTool({
       // 记录开仓交易
       // side: 持仓方向（long=做多, short=做空）
       // 实际执行: long开仓=买入(+size), short开仓=卖出(-size)
-      // 映射状态：Gate.io finished -> filled, open -> pending
+      // 映射状态：finished -> filled, open -> pending
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
       
       await dbClient.execute({
@@ -553,8 +553,8 @@ export const openPositionTool = createTool({
         await dbClient.execute({
           sql: `INSERT INTO positions
                 (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-                 leverage, side, profit_target, stop_loss, tp_order_id, sl_order_id, entry_order_id, opened_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 leverage, side, profit_target, stop_loss, tp_order_id, sl_order_id, tp_orders, sl_orders, entry_order_id, opened_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             symbol,
             actualPositionQuantity, // 🔥 Use verified exchange quantity
@@ -568,6 +568,8 @@ export const openPositionTool = createTool({
             stopLoss || null,
             tpOrderId || null,
             slOrderId || null,
+            null, // tp_orders: initialized as empty, will be populated by setTakeProfit tool
+            null, // sl_orders: initialized as empty, will be populated by setStopLoss tool
             order.id?.toString() || "",
             new Date().toISOString(),
           ],
@@ -626,9 +628,9 @@ export const closePositionTool = createTool({
       
       //  直接从交易所获取最新的持仓信息（不依赖数据库）
       const allPositions = await client.getPositions();
-      const gatePosition = allPositions.find((p) => p.symbol === symbol);
+      const exchangePosition = allPositions.find((p) => p.symbol === symbol);
 
-      if (!gatePosition || gatePosition.quantity === 0) {
+      if (!exchangePosition || exchangePosition.quantity === 0) {
         return {
           success: false,
           message: `没有找到 ${symbol} 的持仓`,
@@ -636,12 +638,12 @@ export const closePositionTool = createTool({
       }
 
       // 从交易所获取实时数据
-      const side = gatePosition.side;
-      const quantity = gatePosition.quantity;
-      let entryPrice = gatePosition.entryPrice;
-      let currentPrice = gatePosition.currentPrice;
-      const leverage = gatePosition.leverage;
-      const totalUnrealizedPnl = gatePosition.unrealizedPnl;
+      const side = exchangePosition.side;
+      const quantity = exchangePosition.quantity;
+      let entryPrice = exchangePosition.entryPrice;
+      let currentPrice = exchangePosition.currentPrice;
+      const leverage = exchangePosition.leverage;
+      const totalUnrealizedPnl = exchangePosition.unrealizedPnl;
 
       //  如果价格为0，获取实时行情作为后备
       if (currentPrice === 0 || entryPrice === 0) {
@@ -663,7 +665,7 @@ export const closePositionTool = createTool({
       //  获取合约乘数用于计算盈亏和手续费
       const quantoMultiplier = await getQuantoMultiplier(contract);
       
-      // 🔥 不再依赖Gate.io返回的unrealisedPnl，始终手动计算毛盈亏
+      // 🔥 不再依赖交易所返回的unrealisedPnl，始终手动计算毛盈亏
       // 手动计算盈亏公式：
       // 对于做多：(currentPrice - entryPrice) * quantity * quantoMultiplier
       // 对于做空：(entryPrice - currentPrice) * quantity * quantoMultiplier
@@ -686,6 +688,7 @@ export const closePositionTool = createTool({
       logger.info(`平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${closeSize}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)})`);
 
       // 🔥 Cancel all SL/TP orders BEFORE closing position (defensive programming)
+      // Step 1: Cancel orders tracked in database
       const posResult = await dbClient.execute({
         sql: "SELECT sl_orders, sl_order_id, tp_orders FROM positions WHERE symbol = ?",
         args: [symbol],
@@ -744,6 +747,67 @@ export const closePositionTool = createTool({
             logger.warn(`⚠️ Error parsing tp_orders JSON: ${e.message}`);
           }
         }
+      }
+
+      // Step 2: Extra defensive cleanup - cancel ALL orders for this symbol on exchange
+      // This catches orphan orders that weren't tracked in database (e.g., due to sync bugs)
+      try {
+        // For Binance, we need to check both regular orders AND conditional orders (STOP_MARKET)
+        const exchangeName = client.getExchangeName();
+
+        if (exchangeName === 'Binance') {
+          const binanceAdapter = client as any;
+          const ccxt = binanceAdapter.getUnderlyingExchange();
+          const ccxtSymbol = client.normalizeSymbol(symbol);
+
+          // Fetch regular open orders
+          const regularOrders = await client.getOpenOrders(symbol);
+          if (regularOrders.length > 0) {
+            logger.info(`🔍 Found ${regularOrders.length} regular open orders for ${symbol}, canceling...`);
+            for (const order of regularOrders) {
+              try {
+                await client.cancelOrder(order.id, symbol);
+                logger.info(`🔄 Cancelled regular order ${order.id}`);
+              } catch (e: any) {
+                logger.warn(`⚠️ Could not cancel regular order ${order.id}: ${e.message}`);
+              }
+            }
+          }
+
+          // Fetch conditional orders (STOP_MARKET, TAKE_PROFIT_MARKET)
+          try {
+            const conditionalOrders = await ccxt.fetchOpenOrders(ccxtSymbol, undefined, undefined, { stop: true });
+            if (conditionalOrders && conditionalOrders.length > 0) {
+              logger.info(`🔍 Found ${conditionalOrders.length} conditional (STOP/TP) orders for ${symbol}, canceling...`);
+              for (const order of conditionalOrders) {
+                try {
+                  await ccxt.cancelOrder(order.id, ccxtSymbol);
+                  logger.info(`🔄 Cancelled conditional order ${order.id} (${order.type})`);
+                } catch (e: any) {
+                  logger.warn(`⚠️ Could not cancel conditional order ${order.id}: ${e.message}`);
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Could not fetch conditional orders: ${e.message}`);
+          }
+        } else {
+          // For other exchanges (Gate.io), regular getOpenOrders should work
+          const allOpenOrders = await client.getOpenOrders(symbol);
+          if (allOpenOrders.length > 0) {
+            logger.info(`🔍 Found ${allOpenOrders.length} open orders for ${symbol}, canceling all...`);
+            for (const order of allOpenOrders) {
+              try {
+                await client.cancelOrder(order.id, symbol);
+                logger.info(`🔄 Cancelled orphan order ${order.id}`);
+              } catch (e: any) {
+                logger.warn(`⚠️ Could not cancel order ${order.id}: ${e.message}`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
       }
 
       //  市价单平仓
@@ -906,7 +970,7 @@ export const closePositionTool = createTool({
       // 实际执行方向: long平仓=卖出, short平仓=买入
       // pnl: 净盈亏（已扣除手续费）
       // fee: 总手续费（开仓+平仓）
-      // 映射状态：Gate.io finished -> filled, open -> pending
+      // 映射状态：finished -> filled, open -> pending
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
 
       await dbClient.execute({
@@ -1395,7 +1459,39 @@ export const setTakeProfitTool = createTool({
       }
 
       // 8. Calculate take-profit quantity
-      const tpQuantity = (position.quantity * tpPercentage) / 100;
+      let tpQuantity = (position.quantity * tpPercentage) / 100;
+
+      // 8b. Check minimum order size (exchange-specific)
+      // For Binance, most contracts require minimum 0.001 for BTC, similar for others
+      // If calculated quantity is below minimum, we need to adjust or fail gracefully
+      const MIN_ORDER_QUANTITY = {
+        'BTC': 0.001,
+        'ETH': 0.001,
+        'SOL': 0.1,
+        'BNB': 0.01,
+        'LTC': 0.01,
+        'XRP': 1,
+      };
+
+      const minQty = MIN_ORDER_QUANTITY[symbol as keyof typeof MIN_ORDER_QUANTITY] || 0.001;
+
+      if (tpQuantity < minQty) {
+        // Position is too small to split - check if we can use remaining percentage
+        const remainingQty = position.quantity - (position.quantity * totalExistingPercent / 100);
+
+        if (remainingQty >= minQty && (100 - totalExistingPercent) >= tpPercentage) {
+          // Use full remaining position instead
+          tpQuantity = remainingQty;
+          logger.warn(`⚠️ Calculated TP quantity ${tpQuantity.toFixed(4)} below minimum ${minQty}. Using full remaining position: ${remainingQty.toFixed(4)}`);
+          // Update percentage to reflect actual coverage
+          tpPercentage = 100 - totalExistingPercent;
+        } else {
+          return {
+            success: false,
+            message: `Position size ${position.quantity.toFixed(4)} is too small to create TP order with ${tpPercentage}%. Calculated quantity ${tpQuantity.toFixed(4)} is below exchange minimum ${minQty}. Consider using 100% TP or larger position sizes.`,
+          };
+        }
+      }
 
       // 9. Use different API based on exchange
       const exchangeName = client.getExchangeName();
@@ -1598,7 +1694,37 @@ export const setStopLossTool = createTool({
       }
 
       // 6. Calculate stop quantity
-      const stopQuantity = (position.quantity * percentage) / 100;
+      let stopQuantity = (position.quantity * percentage) / 100;
+
+      // 6b. Check minimum order size (exchange-specific)
+      const MIN_ORDER_QUANTITY = {
+        'BTC': 0.001,
+        'ETH': 0.001,
+        'SOL': 0.1,
+        'BNB': 0.01,
+        'LTC': 0.01,
+        'XRP': 1,
+      };
+
+      const minQty = MIN_ORDER_QUANTITY[symbol as keyof typeof MIN_ORDER_QUANTITY] || 0.001;
+
+      if (stopQuantity < minQty) {
+        // Position is too small to split - check if we can use remaining percentage
+        const remainingQty = position.quantity - (position.quantity * totalExistingPercent / 100);
+
+        if (remainingQty >= minQty && (100 - totalExistingPercent) >= percentage) {
+          // Use full remaining position instead
+          stopQuantity = remainingQty;
+          logger.warn(`⚠️ Calculated SL quantity ${stopQuantity.toFixed(4)} below minimum ${minQty}. Using full remaining position: ${remainingQty.toFixed(4)}`);
+          // Update percentage to reflect actual coverage
+          percentage = 100 - totalExistingPercent;
+        } else {
+          return {
+            success: false,
+            message: `Position size ${position.quantity.toFixed(4)} is too small to create SL order with ${percentage}%. Calculated quantity ${stopQuantity.toFixed(4)} is below exchange minimum ${minQty}. Consider using 100% SL or larger position sizes.`,
+          };
+        }
+      }
 
       // 7. Use different API based on exchange
       const exchangeName = client.getExchangeName();

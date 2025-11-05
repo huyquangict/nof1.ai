@@ -76,11 +76,18 @@ async function syncPositionsOnly() {
 
     logger.info(`\n📊 交易所当前持仓数: ${positions.length}`);
 
-    // 4. 清空本地持仓表
+    // 4. 保存现有持仓的元数据 (sl_orders, tp_orders等)
+    const dbResult = await client.execute("SELECT symbol, sl_orders, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const dbPositionsMap = new Map(
+      dbResult.rows.map((row: any) => [row.symbol, row])
+    );
+    logger.info(`💾 已保存 ${dbResult.rows.length} 个持仓的元数据`);
+
+    // 5. 清空本地持仓表
     await client.execute("DELETE FROM positions");
     logger.info("✅ 已清空本地持仓表");
 
-    // 5. 同步持仓到数据库
+    // 6. 同步持仓到数据库
     if (positions.length > 0) {
       logger.info(`\n🔄 同步 ${positions.length} 个持仓到数据库...`);
 
@@ -93,12 +100,18 @@ async function syncPositionsOnly() {
         const quantity = pos.quantity;
         const pnl = pos.unrealizedPnl;
         const liqPrice = pos.liquidationPrice;
-        
+
+        // 从保存的元数据中恢复
+        const dbPos = dbPositionsMap.get(symbol);
+        const entryOrderId = dbPos?.entry_order_id || "synced";
+        const openedAt = dbPos?.opened_at || new Date().toISOString();
+
         await client.execute({
-          sql: `INSERT INTO positions 
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
-                 leverage, side, entry_order_id, opened_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO positions
+                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
+                 leverage, side, entry_order_id, opened_at, sl_orders, tp_orders, sl_order_id, tp_order_id,
+                 sl_percentage, tp_percentage, stop_loss, profit_target)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             symbol,
             quantity,
@@ -108,8 +121,16 @@ async function syncPositionsOnly() {
             pnl,
             leverage,
             side,
-            "synced",
-            new Date().toISOString(),
+            entryOrderId,
+            openedAt,
+            dbPos?.sl_orders || null,  // 🔧 保留 SL 订单数组
+            dbPos?.tp_orders || null,  // 🔧 保留 TP 订单数组
+            dbPos?.sl_order_id || null,
+            dbPos?.tp_order_id || null,
+            dbPos?.sl_percentage || null,
+            dbPos?.tp_percentage || null,
+            dbPos?.stop_loss || null,
+            dbPos?.profit_target || null,
           ],
         });
         
