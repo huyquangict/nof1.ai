@@ -160,7 +160,7 @@ export function createApiRoutes() {
       const exchangePositions = await exchangeClient.getPositions();
 
       // 从数据库获取止损止盈信息和订单ID
-      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, entry_order_id, sl_order_id FROM positions");
+      const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, sl_orders, entry_order_id, sl_order_id FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
@@ -179,6 +179,16 @@ export function createApiRoutes() {
             }
           }
 
+          // Parse sl_orders JSON if available
+          let slOrders = null;
+          if (dbPos?.sl_orders) {
+            try {
+              slOrders = JSON.parse(dbPos.sl_orders as string);
+            } catch (e) {
+              // Failed to parse, ignore
+            }
+          }
+
           return {
             symbol: p.symbol,
             quantity: p.quantity,
@@ -192,10 +202,11 @@ export function createApiRoutes() {
             profitTarget: dbPos?.profit_target ? Number(dbPos.profit_target) : null,
             stopLoss: dbPos?.stop_loss ? Number(dbPos.stop_loss) : null,
             tpOrders: tpOrders,
+            slOrders: slOrders, // 🔥 Multiple SL orders array
             openedAt: new Date(p.timestamp).toISOString(),
             // 🔥 ID-based tracking fields
             entryOrderId: dbPos?.entry_order_id || null,
-            slOrderId: dbPos?.sl_order_id || null,
+            slOrderId: dbPos?.sl_order_id || null, // Deprecated: use slOrders instead
           };
         });
       

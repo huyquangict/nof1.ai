@@ -342,9 +342,28 @@ class TradingMonitor {
                     const sideClass = pos.side === 'long' ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
 
-                    // Format stop-loss display for table
+                    // Format stop-loss display for table (supports multiple SLs)
                     let stopLossDisplay = '-';
-                    if (pos.stopLoss) {
+                    if (pos.slOrders && pos.slOrders.length > 0) {
+                        const activeSLs = pos.slOrders.filter(sl => !sl.triggered);
+                        if (activeSLs.length > 0) {
+                            if (activeSLs.length === 1) {
+                                const sl = activeSLs[0];
+                                const slDiff = ((sl.price - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                                const slPrice = sl.price < 1 ? sl.price.toFixed(5) : sl.price.toFixed(2);
+                                stopLossDisplay = `$${slPrice} (${slDiff}%, ${sl.percentage}%)`;
+                            } else {
+                                // Multiple SLs: show compact format
+                                const slSummary = activeSLs.map(sl => {
+                                    const slPrice = sl.price < 1 ? sl.price.toFixed(5) : sl.price.toFixed(2);
+                                    return `${sl.percentage}%@$${slPrice}`;
+                                }).join(', ');
+                                stopLossDisplay = `${activeSLs.length} SLs: ${slSummary}`;
+                            }
+                        }
+                    }
+                    // Fallback: display old single SL format (backward compatibility)
+                    else if (pos.stopLoss) {
                         const stopLossDiff = ((pos.stopLoss - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
                         const stopLossPrice = pos.stopLoss < 1 ? pos.stopLoss.toFixed(5) : pos.stopLoss.toFixed(2);
                         stopLossDisplay = `$${stopLossPrice} (${stopLossDiff}%)`;
@@ -413,9 +432,20 @@ class TradingMonitor {
                     const pnlClass = pos.unrealizedPnl >= 0 ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
 
-                    // Format stop-loss display
+                    // Format stop-loss display (supports multiple SLs)
                     let stopLossText = '';
-                    if (pos.stopLoss) {
+                    if (pos.slOrders && pos.slOrders.length > 0) {
+                        const activeSLs = pos.slOrders.filter(sl => !sl.triggered);
+                        if (activeSLs.length > 0) {
+                            stopLossText = activeSLs.map((sl, idx) => {
+                                const slDiff = ((sl.price - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
+                                const slPrice = sl.price < 1 ? sl.price.toFixed(5) : sl.price.toFixed(2);
+                                return `<div class="position-card-stoploss">SL${idx + 1}: ${sl.percentage}% @ $${slPrice} (${slDiff}%)</div>`;
+                            }).join('');
+                        }
+                    }
+                    // Fallback: display old single SL format (backward compatibility)
+                    else if (pos.stopLoss) {
                         const stopLossDiff = ((pos.stopLoss - pos.currentPrice) / pos.currentPrice * 100).toFixed(1);
                         stopLossText = `<div class="position-card-stoploss">SL: $${pos.stopLoss.toFixed(pos.stopLoss < 1 ? 5 : 2)} (${stopLossDiff}%)</div>`;
                     }

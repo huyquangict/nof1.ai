@@ -27,6 +27,13 @@ export interface TakeProfitOrder {
   triggered?: boolean; // Whether this TP has been triggered
 }
 
+export interface StopLossOrder {
+  price: number;
+  percentage: number; // Percentage of position (1-100)
+  orderId: string;
+  triggered?: boolean; // Whether this SL has been triggered
+}
+
 export interface Trade {
   id: number;
   order_id: string;
@@ -55,12 +62,13 @@ export interface Position {
   leverage: number;
   side: 'long' | 'short';
   profit_target?: number; // Deprecated: use tp_orders instead
-  stop_loss?: number;
+  stop_loss?: number; // Deprecated: use sl_orders instead
   tp_order_id?: string; // Deprecated: use tp_orders instead
-  sl_order_id?: string;
+  sl_order_id?: string; // Deprecated: use sl_orders instead
   tp_percentage?: number; // Deprecated: use tp_orders instead
-  sl_percentage?: number; // Percentage of position covered by stop-loss (1-100)
+  sl_percentage?: number; // Deprecated: use sl_orders instead (total percentage covered by all SLs)
   tp_orders?: TakeProfitOrder[]; // Multiple take-profit orders (stored as JSON in DB)
+  sl_orders?: StopLossOrder[]; // Multiple stop-loss orders (stored as JSON in DB)
   entry_order_id: string;
   opened_at: string;
   confidence?: number;
@@ -156,6 +164,7 @@ CREATE TABLE IF NOT EXISTS positions (
   tp_percentage REAL,
   sl_percentage REAL,
   tp_orders TEXT, -- JSON array of TakeProfitOrder objects
+  sl_orders TEXT, -- JSON array of StopLossOrder objects
   entry_order_id TEXT NOT NULL,
   opened_at TEXT NOT NULL,
   confidence REAL,

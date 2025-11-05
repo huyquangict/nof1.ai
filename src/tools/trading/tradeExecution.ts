@@ -262,7 +262,7 @@ export const openPositionTool = createTool({
 
       // 🔥 Cancel any orphaned SL/TP orders from previous positions BEFORE opening new position (defensive programming)
       const prevPosResult = await dbClient.execute({
-        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        sql: "SELECT sl_orders, sl_order_id, tp_orders FROM positions WHERE symbol = ?",
         args: [symbol],
       });
 
@@ -270,14 +270,35 @@ export const openPositionTool = createTool({
         const prevPosition = prevPosResult.rows[0] as any;
         let canceledCount = 0;
 
-        // Cancel old stop-loss order
-        if (prevPosition.sl_order_id) {
+        // Cancel all old stop-loss orders (new array format)
+        if (prevPosition.sl_orders) {
+          try {
+            const slOrders = JSON.parse(prevPosition.sl_orders);
+            if (Array.isArray(slOrders)) {
+              for (const sl of slOrders) {
+                if (sl.orderId && !sl.triggered) {
+                  try {
+                    await client.cancelOrder(sl.orderId, symbol);
+                    logger.info(`🔄 Cancelled orphaned SL order ${sl.orderId} before opening new ${symbol} position`);
+                    canceledCount++;
+                  } catch (e: any) {
+                    logger.warn(`⚠️ Could not cancel orphaned SL order ${sl.orderId}: ${e.message}`);
+                  }
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Error parsing sl_orders JSON: ${e.message}`);
+          }
+        }
+        // Fallback: cancel old single SL format (backward compatibility)
+        else if (prevPosition.sl_order_id) {
           try {
             await client.cancelOrder(prevPosition.sl_order_id, symbol);
-            logger.info(`🔄 Cancelled orphaned SL order ${prevPosition.sl_order_id} before opening new ${symbol} position`);
+            logger.info(`🔄 Cancelled old single SL order ${prevPosition.sl_order_id} before opening new ${symbol} position`);
             canceledCount++;
           } catch (e: any) {
-            logger.warn(`⚠️ Could not cancel orphaned SL order ${prevPosition.sl_order_id}: ${e.message}`);
+            logger.warn(`⚠️ Could not cancel old SL order ${prevPosition.sl_order_id}: ${e.message}`);
           }
         }
 
@@ -666,20 +687,40 @@ export const closePositionTool = createTool({
 
       // 🔥 Cancel all SL/TP orders BEFORE closing position (defensive programming)
       const posResult = await dbClient.execute({
-        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        sql: "SELECT sl_orders, sl_order_id, tp_orders FROM positions WHERE symbol = ?",
         args: [symbol],
       });
 
       if (posResult.rows.length > 0) {
         const dbPosition = posResult.rows[0] as any;
 
-        // Cancel stop-loss order
-        if (dbPosition.sl_order_id) {
+        // Cancel all stop-loss orders (new array format)
+        if (dbPosition.sl_orders) {
+          try {
+            const slOrders = JSON.parse(dbPosition.sl_orders);
+            if (Array.isArray(slOrders)) {
+              for (const sl of slOrders) {
+                if (sl.orderId && !sl.triggered) {
+                  try {
+                    await client.cancelOrder(sl.orderId, symbol);
+                    logger.info(`🔄 Cancelled SL order ${sl.orderId} before closing ${symbol}`);
+                  } catch (e: any) {
+                    logger.warn(`⚠️ Could not cancel SL order ${sl.orderId}: ${e.message}`);
+                  }
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Error parsing sl_orders JSON: ${e.message}`);
+          }
+        }
+        // Fallback: cancel old single SL format (backward compatibility)
+        else if (dbPosition.sl_order_id) {
           try {
             await client.cancelOrder(dbPosition.sl_order_id, symbol);
-            logger.info(`🔄 Cancelled SL order ${dbPosition.sl_order_id} before closing ${symbol}`);
+            logger.info(`🔄 Cancelled old single SL order ${dbPosition.sl_order_id} before closing ${symbol}`);
           } catch (e: any) {
-            logger.warn(`⚠️ Could not cancel SL order ${dbPosition.sl_order_id}: ${e.message}`);
+            logger.warn(`⚠️ Could not cancel old SL order ${dbPosition.sl_order_id}: ${e.message}`);
           }
         }
 
@@ -1144,7 +1185,7 @@ export const cancelAllTakeProfitOrdersTool = createTool({
  */
 export const cancelStopLossOrderTool = createTool({
   name: "cancelStopLossOrder",
-  description: "Cancel the stop-loss order for a specific symbol while keeping all take-profit orders intact. IMPORTANT: Use this when you want to replace or modify SL without affecting the existing TPs. After canceling, you can set a new SL with setStopLoss.",
+  description: "Cancel ALL stop-loss orders for a specific symbol while keeping all take-profit orders intact. IMPORTANT: Use this when you want to remove or replace all SLs without affecting the existing TPs. After canceling, you can set new SLs with setStopLoss.",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("Symbol/coin code to cancel SL for"),
   }),
@@ -1152,9 +1193,9 @@ export const cancelStopLossOrderTool = createTool({
     const client = createExchangeClient();
 
     try {
-      // 1. Get position from database to find SL order ID
+      // 1. Get position from database to find SL orders
       const dbResult = await dbClient.execute({
-        sql: "SELECT sl_order_id, tp_orders FROM positions WHERE symbol = ?",
+        sql: "SELECT sl_orders, sl_order_id, tp_orders FROM positions WHERE symbol = ?",
         args: [symbol]
       });
 
@@ -1166,59 +1207,79 @@ export const cancelStopLossOrderTool = createTool({
       }
 
       const row = dbResult.rows[0] as any;
-      const slOrderId = row.sl_order_id;
-      const tpOrdersStr = row.tp_orders;
+      let slOrders: StopLossOrder[] = [];
+      let canceledCount = 0;
 
-      if (!slOrderId) {
+      // Try to parse sl_orders array (new format)
+      if (row.sl_orders) {
+        try {
+          slOrders = JSON.parse(row.sl_orders);
+          slOrders = slOrders.filter((sl: StopLossOrder) => !sl.triggered);
+        } catch (e) {
+          logger.warn(`Failed to parse sl_orders for ${symbol}`);
+        }
+      }
+      // Fallback: handle old single SL format (backward compatibility)
+      else if (row.sl_order_id) {
+        slOrders = [{
+          orderId: row.sl_order_id,
+          price: 0, // Unknown
+          percentage: 100,
+          triggered: false
+        }];
+      }
+
+      if (slOrders.length === 0) {
         return {
           success: true,
           symbol,
-          message: `No stop-loss order found for ${symbol}`,
+          message: `No stop-loss orders found for ${symbol}`,
         };
       }
 
       // Count active TPs for logging
       let activeTpCount = 0;
-      if (tpOrdersStr) {
+      if (row.tp_orders) {
         try {
-          const tpOrders = JSON.parse(tpOrdersStr);
+          const tpOrders = JSON.parse(row.tp_orders);
           activeTpCount = tpOrders.filter((tp: TakeProfitOrder) => !tp.triggered).length;
         } catch (e) {}
       }
 
-      logger.info(`🧹 Canceling stop-loss order ${slOrderId} for ${symbol} (keeping ${activeTpCount} TP order(s))...`);
+      logger.info(`🧹 Canceling ${slOrders.length} stop-loss order(s) for ${symbol} (keeping ${activeTpCount} TP order(s))...`);
 
-      try {
-        await client.cancelOrder(slOrderId);
-
-        // Clear sl_order_id in database
-        await dbClient.execute({
-          sql: "UPDATE positions SET sl_order_id = NULL, sl_percentage = NULL WHERE symbol = ?",
-          args: [symbol]
-        });
-
-        logger.info(`  ✅ Canceled SL order ${slOrderId} for ${symbol}`);
-
-        return {
-          success: true,
-          symbol,
-          orderId: slOrderId,
-          message: `✅ Canceled stop-loss order for ${symbol} (${activeTpCount} TP order(s) preserved)`,
-        };
-      } catch (error: any) {
-        logger.error(`  ❌ Failed to cancel SL order ${slOrderId}: ${error.message}`);
-        return {
-          success: false,
-          error: error.message,
-          message: `Failed to cancel stop-loss order: ${error.message}`,
-        };
+      // Cancel all SL orders
+      for (const sl of slOrders) {
+        try {
+          await client.cancelOrder(sl.orderId);
+          logger.info(`  ✅ Canceled SL order ${sl.orderId}`);
+          canceledCount++;
+        } catch (error: any) {
+          logger.error(`  ❌ Failed to cancel SL order ${sl.orderId}: ${error.message}`);
+        }
       }
+
+      // Clear sl_orders in database
+      await dbClient.execute({
+        sql: "UPDATE positions SET sl_orders = NULL, sl_order_id = NULL, sl_percentage = NULL WHERE symbol = ?",
+        args: [symbol]
+      });
+
+      logger.info(`✅ Canceled ${canceledCount}/${slOrders.length} SL order(s) for ${symbol}`);
+
+      return {
+        success: true,
+        symbol,
+        canceledCount,
+        totalCount: slOrders.length,
+        message: `✅ Canceled ${canceledCount}/${slOrders.length} stop-loss order(s) for ${symbol} (${activeTpCount} TP order(s) preserved)`,
+      };
     } catch (error: any) {
-      logger.error(`❌ Failed to cancel SL order for ${symbol}: ${error.message}`);
+      logger.error(`❌ Failed to cancel SL orders for ${symbol}: ${error.message}`);
       return {
         success: false,
         error: error.message,
-        message: `Failed to cancel SL order for ${symbol}: ${error.message}`,
+        message: `Failed to cancel SL orders for ${symbol}: ${error.message}`,
       };
     }
   },
@@ -1466,31 +1527,62 @@ export const setStopLossTool = createTool({
         };
       }
 
-      // 2. Auto-cancel existing SL order if exists (defensive programming)
+      // 2. Get existing SL orders from database
       const dbResult = await dbClient.execute({
-        sql: "SELECT sl_order_id FROM positions WHERE symbol = ?",
+        sql: "SELECT sl_orders, sl_order_id FROM positions WHERE symbol = ?",
         args: [symbol]
       });
 
-      if (dbResult.rows.length > 0) {
-        const existingSlOrderId = (dbResult.rows[0] as any).sl_order_id;
+      let existingSLs: StopLossOrder[] = [];
+      let totalExistingPercent = 0;
 
-        if (existingSlOrderId) {
+      if (dbResult.rows.length > 0) {
+        const row = dbResult.rows[0] as any;
+
+        // Try to parse sl_orders array (new format)
+        if (row.sl_orders) {
           try {
-            await client.cancelOrder(existingSlOrderId);
-            logger.info(`🔄 Auto-cancelled old SL order ${existingSlOrderId} before creating new one for ${symbol}`);
-          } catch (error: any) {
-            // If cancel fails (order might already be triggered/cancelled), log but continue
-            logger.warn(`⚠️ Failed to cancel old SL order ${existingSlOrderId} (might be already cancelled/triggered): ${error.message}`);
+            existingSLs = JSON.parse(row.sl_orders);
+            existingSLs = existingSLs.filter((sl: StopLossOrder) => !sl.triggered);
+            totalExistingPercent = existingSLs.reduce((sum: number, sl: StopLossOrder) => sum + sl.percentage, 0);
+          } catch (error) {
+            logger.warn(`Failed to parse sl_orders for ${symbol}, treating as empty array`);
+            existingSLs = [];
           }
+        }
+        // Fallback: migrate old single SL (backward compatibility)
+        else if (row.sl_order_id) {
+          logger.info(`Migrating old single SL for ${symbol} to array format`);
+          // We'll handle this by auto-canceling below
         }
       }
 
-      // 3. Get current price
+      // 3. Check if adding this SL would exceed 100% coverage
+      const totalPercent = totalExistingPercent + percentage;
+
+      if (totalPercent > 100) {
+        // Auto-cancel all existing SLs (defensive programming)
+        logger.info(`🔄 Total SL would exceed 100% (${totalPercent.toFixed(0)}%). Auto-cancelling all existing SLs for ${symbol}...`);
+
+        for (const sl of existingSLs) {
+          try {
+            await client.cancelOrder(sl.orderId);
+            logger.info(`🔄 Auto-cancelled SL order ${sl.orderId} (${sl.percentage}% @ ${sl.price})`);
+          } catch (error: any) {
+            logger.warn(`⚠️ Failed to cancel SL order ${sl.orderId}: ${error.message}`);
+          }
+        }
+
+        // Reset to empty array
+        existingSLs = [];
+        totalExistingPercent = 0;
+      }
+
+      // 4. Get current price
       const ticker = await client.getFuturesTicker(symbol);
       const currentPrice = ticker.lastPrice;
 
-      // 4. Validate stop price
+      // 5. Validate stop price
       if (position.side === 'long' && stopPrice >= currentPrice) {
         return {
           success: false,
@@ -1505,10 +1597,10 @@ export const setStopLossTool = createTool({
         };
       }
 
-      // 5. Calculate stop quantity
+      // 6. Calculate stop quantity
       const stopQuantity = (position.quantity * percentage) / 100;
 
-      // 6. Use different API based on exchange
+      // 7. Use different API based on exchange
       const exchangeName = client.getExchangeName();
 
       if (exchangeName === 'Binance') {
@@ -1534,11 +1626,24 @@ export const setStopLossTool = createTool({
 
         logger.info(`[Binance] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (order ID: ${order.id})`);
 
-        // Save stop-loss order to database
+        // 8. Add new SL to the array and save to database
+        const newSL: StopLossOrder = {
+          price: stopPrice,
+          percentage: percentage,
+          orderId: order.id,
+          triggered: false,
+        };
+
+        const allSLs = [...existingSLs, newSL];
+
         await dbClient.execute({
-          sql: "UPDATE positions SET stop_loss = ?, sl_order_id = ?, sl_percentage = ? WHERE symbol = ?",
-          args: [stopPrice, order.id, percentage, symbol]
+          sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
+          args: [JSON.stringify(allSLs), symbol]
         });
+
+        // 9. Build summary message
+        const slCount = allSLs.filter(sl => !sl.triggered).length;
+        const coveredPercent = allSLs.filter(sl => !sl.triggered).reduce((sum, sl) => sum + sl.percentage, 0);
 
         return {
           success: true,
@@ -1548,7 +1653,9 @@ export const setStopLossTool = createTool({
           stopPrice,
           quantity: stopQuantity,
           percentage,
-          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} will close ${percentage}% (${stopQuantity.toFixed(4)} contracts) when price ${position.side === 'long' ? 'drops to' : 'rises to'} ${formatPrice(stopPrice)}`,
+          totalSLs: slCount,
+          totalCoverage: coveredPercent,
+          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} SL${slCount} @ ${formatPrice(stopPrice)} (${percentage}% = ${stopQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${slCount} SLs.`,
         };
 
       } else if (exchangeName === 'Gate.io') {
@@ -1574,12 +1681,25 @@ export const setStopLossTool = createTool({
 
         logger.info(`[Gate.io] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (trigger ID: ${trigger.id})`);
 
-        // Save stop-loss order to database
+        // 8. Add new SL to the array and save to database
         const orderId = trigger.id?.toString() || 'unknown';
+        const newSL: StopLossOrder = {
+          price: stopPrice,
+          percentage: percentage,
+          orderId: orderId,
+          triggered: false,
+        };
+
+        const allSLs = [...existingSLs, newSL];
+
         await dbClient.execute({
-          sql: "UPDATE positions SET stop_loss = ?, sl_order_id = ?, sl_percentage = ? WHERE symbol = ?",
-          args: [stopPrice, orderId, percentage, symbol]
+          sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
+          args: [JSON.stringify(allSLs), symbol]
         });
+
+        // 9. Build summary message
+        const slCount = allSLs.filter(sl => !sl.triggered).length;
+        const coveredPercent = allSLs.filter(sl => !sl.triggered).reduce((sum, sl) => sum + sl.percentage, 0);
 
         return {
           success: true,
@@ -1589,7 +1709,9 @@ export const setStopLossTool = createTool({
           stopPrice,
           quantity: stopQuantity,
           percentage,
-          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} will close ${percentage}% (${stopQuantity.toFixed(4)} contracts) when price ${position.side === 'long' ? 'drops to' : 'rises to'} ${formatPrice(stopPrice)}`,
+          totalSLs: slCount,
+          totalCoverage: coveredPercent,
+          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} SL${slCount} @ ${formatPrice(stopPrice)} (${percentage}% = ${stopQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${slCount} SLs.`,
         };
 
       } else {

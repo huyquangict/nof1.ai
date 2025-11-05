@@ -332,8 +332,8 @@ async function loadTradesData() {
             // 🔥 Order ID display with copy button
             const orderIdHtml = trade.orderId
                 ? `<div class="trade-field">
-                    <span class="label">订单ID</span>
-                    <span class="value order-id" onclick="copyToClipboard('${trade.orderId}')" title="点击复制">
+                    <span class="label">Order ID</span>
+                    <span class="value order-id" onclick="copyToClipboard('${trade.orderId}')" title="Click to copy">
                         ${trade.orderId.substring(0, 12)}...
                     </span>
                    </div>`
@@ -342,8 +342,8 @@ async function loadTradesData() {
             // 🔥 Entry link for close trades
             const entryLinkHtml = trade.type === 'close' && trade.entryOrderId
                 ? `<div class="trade-field entry-link">
-                    <span class="label">关联开仓</span>
-                    <span class="value" onclick="scrollToTrade('${trade.entryOrderId}')" title="跳转到开仓交易">
+                    <span class="label">Entry Trade</span>
+                    <span class="value" onclick="scrollToTrade('${trade.entryOrderId}')" title="Jump to entry trade">
                         🔗 ${trade.entryOrderId.substring(0, 12)}...
                     </span>
                    </div>`
@@ -474,10 +474,10 @@ function copyLog(index) {
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
         // Show toast notification
-        showToast('订单ID已复制: ' + text.substring(0, 16) + '...');
+        showToast('Order ID copied: ' + text.substring(0, 16) + '...');
     }).catch(err => {
-        console.error('复制失败:', err);
-        showToast('复制失败', 'error');
+        console.error('Copy failed:', err);
+        showToast('Copy failed', 'error');
     });
 }
 
@@ -487,25 +487,25 @@ function scrollToTrade(entryOrderId) {
         // Highlight the entry trade
         tradeEl.classList.add('highlighted');
         tradeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+
         // Remove highlight after 3 seconds
         setTimeout(() => {
             tradeEl.classList.remove('highlighted');
         }, 3000);
     } else {
-        showToast('未找到关联的开仓交易', 'warn');
+        showToast('Entry trade not found', 'warn');
     }
 }
 
 function getCloseReasonText(closeReason) {
     const reasons = {
-        'manual': '手动',
-        'stop_loss': '止损',
-        'take_profit': '止盈',
-        'take_profit_partial': '部分止盈',
-        'time_limit': '超时',
-        'drawdown': '回撤',
-        'unknown': '未知'
+        'manual': 'Manual',
+        'stop_loss': 'Stop Loss',
+        'take_profit': 'Take Profit',
+        'take_profit_partial': 'Partial TP',
+        'time_limit': 'Timeout',
+        'drawdown': 'Drawdown',
+        'unknown': 'Unknown'
     };
     return reasons[closeReason] || closeReason;
 }
