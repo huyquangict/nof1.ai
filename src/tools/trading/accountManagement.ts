@@ -381,6 +381,10 @@ export const syncPositionsTool = createTool({
                 } else if (slOrder.status === 'cancelled') {
                   logger.warn(`  ⚠️  SL order ${slOrderId} was cancelled - removing from tracking`);
                   // Don't add to stillActiveSL
+                } else {
+                  // Unknown status (e.g., NEW, PARTIALLY_FILLED, etc.) - keep order to be safe
+                  logger.warn(`  ⚠️  SL order ${slOrderId} has unexpected status: ${slOrder.status} - keeping in tracking`);
+                  stillActiveSL.push(sl);
                 }
               } catch (error: any) {
                 logger.warn(`  ⚠️  Could not verify SL order ${slOrderId}: ${error.message}`);
@@ -458,6 +462,10 @@ export const syncPositionsTool = createTool({
                 } else if (tpOrder.status === 'cancelled') {
                   logger.warn(`  ⚠️  TP order ${tpOrderId} was cancelled - removing from tracking`);
                   // Don't add to stillActiveTP
+                } else {
+                  // Unknown status (e.g., NEW, PARTIALLY_FILLED, etc.) - keep order to be safe
+                  logger.warn(`  ⚠️  TP order ${tpOrderId} has unexpected status: ${tpOrder.status} - keeping in tracking`);
+                  stillActiveTP.push(tp);
                 }
               } catch (error: any) {
                 logger.warn(`  ⚠️  Could not verify TP order ${tpOrderId}: ${error.message}`);
