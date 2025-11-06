@@ -276,11 +276,6 @@ AI_MODEL_NAME=deepseek/deepseek-v3.2-exp
 # Trading Strategy (conservative/balanced/aggressive)
 TRADING_STRATEGY=balanced
 
-# Position Reversal (Contrarian Mode)
-REVERSE_POSITIONS=false              # When true, reverses all position directions
-                                     # AI opens LONG → System executes SHORT (and vice versa)
-                                     # Useful for contrarian trading or inverse strategies
-
 # Enabled Timeframes (comma-separated)
 ENABLED_TIMEFRAMES=1m,3m,5m,15m,30m,1h,4h,8h  # Default: all timeframes
 # Available: 1m, 3m, 5m, 15m, 30m, 1h, 4h, 8h
@@ -330,13 +325,19 @@ The system uses **leveraged PnL percentage** throughout:
 
 The system supports **automatic position reversal** for contrarian trading strategies:
 
-**Configuration**: Set `REVERSE_POSITIONS=true` in `.env`
+**Configuration**: Use the **REVERSE button** in the web UI (database-driven, no environment variable needed)
+
+**How to Enable**:
+1. Open the web dashboard (default: `http://localhost:3001`)
+2. Click the **REVERSE** button in the header
+3. Button turns **purple** when reversed mode is ON
+4. State persists across restarts and page reloads
 
 **Behavior**:
-- When AI decides to open LONG → System executes SHORT
-- When AI decides to open SHORT → System executes LONG
-- The AI is **unaware** of the reversal (gets normal success messages)
-- Clear logging indicates when reversal occurs: `🔄 REVERSE MODE ENABLED`
+- **NORMAL mode** (gray button): AI LONG → System executes LONG, AI SHORT → System executes SHORT
+- **REVERSED mode** (purple button): AI LONG → System executes SHORT, AI SHORT → System executes LONG
+- The AI receives contrarian trading instructions when reverse mode is enabled
+- Clear logging indicates when reversal occurs: `🔄 Reverse trading state fetched from database: ENABLED`
 
 **Use Cases**:
 - **Contrarian Trading**: Fade AI signals when you believe opposite direction is correct
@@ -347,7 +348,8 @@ The system supports **automatic position reversal** for contrarian trading strat
 - Only affects new position openings, not closings
 - All risk management rules still apply normally
 - Logs clearly show both AI's intent and actual execution
-- Disable by setting `REVERSE_POSITIONS=false` (default)
+- Toggle anytime via UI button - changes take effect on next trading cycle
+- State stored in database (`system_config.reverse_positions`)
 
 ### Forced Risk Checks (Pre-AI Execution)
 

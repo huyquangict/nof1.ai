@@ -1318,9 +1318,11 @@ export async function createTradingAgent(intervalMinutes: number = 5, dbClient?:
   const strategy = getTradingStrategy();
   logger.info(`Using trading strategy: ${strategy}`);
 
-  // Fetch reverse trading state from database (if dbClient is provided)
+  // Fetch reverse trading state from database
   let enableReverseTrading = false;
-  if (dbClient) {
+  if (!dbClient) {
+    logger.error("Database client is required for createTradingAgent - reverse trading will be disabled");
+  } else {
     try {
       const reverseResult = await dbClient.execute({
         sql: "SELECT value FROM system_config WHERE key = 'reverse_positions'",
@@ -1332,10 +1334,6 @@ export async function createTradingAgent(intervalMinutes: number = 5, dbClient?:
       logger.warn("Failed to fetch reverse trading state from database, using default (disabled):", error as any);
       enableReverseTrading = false;
     }
-  } else {
-    // Fallback to environment variable if no dbClient provided (backward compatibility)
-    enableReverseTrading = process.env.REVERSE_POSITIONS === 'true';
-    logger.warn("No database client provided, using environment variable for reverse trading state");
   }
 
   const agent = new Agent({
