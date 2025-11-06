@@ -1243,13 +1243,14 @@ Available Tools (YOU MUST USE THESE):
 - Account information: getAccountBalance, getPositions, getOpenOrders
 - Market data: getMarketPrice, getTechnicalIndicators, getFundingRate, getOrderBook
 - Risk analysis: calculateRisk, checkOrderStatus
-- **Note**: closePosition tool has been REMOVED - system handles all exits automatically
-- **Note**: setStopLoss and setTakeProfit are still available for manual adjustments if needed (advanced use only)
+- **Note**: closePosition, setStopLoss, and setTakeProfit tools have been REMOVED
+- System handles ALL exits and risk management automatically
 
 **Fully Automated Risk Management**:
 - openPosition: Automatically sets SL order + auto-cancels orphaned orders
 - Profit Manager: Automatically sets and adjusts trailing TP as profit increases
-- All risk controls enforced automatically - no manual SL/TP setting required
+- All risk controls enforced automatically - NO manual SL/TP tools available
+- You CANNOT manually set SL/TP - system is fully automated for consistency
 
 Key Reminders (${params.name} Strategy):
 - **CRITICAL: You MUST use tools to execute trades**. Text-only analysis is NOT ACCEPTABLE.
@@ -1325,8 +1326,8 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       tradingTools.openPositionTool,
       // tradingTools.closePositionTool, // REMOVED: System handles all exits via automated SL/TP orders
       tradingTools.cancelOrderTool,
-      tradingTools.setStopLossTool,
-      tradingTools.setTakeProfitTool,
+      // tradingTools.setStopLossTool, // REMOVED: System automatically sets SL on position open
+      // tradingTools.setTakeProfitTool, // REMOVED: Profit manager dynamically manages TP
       tradingTools.getAccountBalanceTool,
       tradingTools.getPositionsTool,
       tradingTools.getOpenOrdersTool,
