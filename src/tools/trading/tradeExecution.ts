@@ -331,10 +331,7 @@ export const openPositionTool = createTool({
 
       // 🔥 Step 2: Extra defensive cleanup - cancel ALL orders on exchange (catches orphans not tracked in DB)
       try {
-        const exchangeName = client.getExchangeName();
-
-        if (exchangeName === 'Binance') {
-          const binanceAdapter = client as any;
+        const binanceAdapter = client as any;
           const ccxt = binanceAdapter.getUnderlyingExchange();
           const ccxtSymbol = client.normalizeSymbol(symbol);
 
@@ -369,21 +366,6 @@ export const openPositionTool = createTool({
           } catch (e: any) {
             logger.warn(`⚠️ Could not fetch conditional orders: ${e.message}`);
           }
-        } else {
-          // For other exchanges (Gate.io), regular getOpenOrders should work
-          const allOpenOrders = await client.getOpenOrders(symbol);
-          if (allOpenOrders.length > 0) {
-            logger.info(`🔍 Found ${allOpenOrders.length} open orders for ${symbol} on exchange, canceling all...`);
-            for (const order of allOpenOrders) {
-              try {
-                await client.cancelOrder(order.id, symbol);
-                logger.info(`🔄 Cancelled orphan order ${order.id}`);
-              } catch (e: any) {
-                logger.warn(`⚠️ Could not cancel order ${order.id}: ${e.message}`);
-              }
-            }
-          }
-        }
       } catch (e: any) {
         logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
       }
@@ -659,61 +641,28 @@ export const openPositionTool = createTool({
 
         logger.info(`  Entry price: ${actualFillPrice.toFixed(4)}, SL price: ${stopLossPrice.toFixed(4)} (${slPnlPercent}%)`);
 
-        // Place stop-loss order based on exchange
-        const exchangeName = client.getExchangeName();
-        let slOrderId: string;
+        // Place stop-loss order on Binance
+        const binanceAdapter = client as any;
+        const ccxt = binanceAdapter.getUnderlyingExchange();
+        const ccxtSymbol = client.normalizeSymbol(symbol);
 
-        if (exchangeName === 'Binance') {
-          // Binance: Use CCXT STOP_MARKET order
-          const binanceAdapter = client as any;
-          const ccxt = binanceAdapter.getUnderlyingExchange();
-          const ccxtSymbol = client.normalizeSymbol(symbol);
+        // Stop order side is opposite to position (closing)
+        const orderSide = side === 'long' ? 'sell' : 'buy';
 
-          // Stop order side is opposite to position (closing)
-          const orderSide = side === 'long' ? 'sell' : 'buy';
+        const slOrder = await ccxt.createOrder(
+          ccxtSymbol,
+          'STOP_MARKET',
+          orderSide,
+          actualPositionQuantity,
+          undefined, // no limit price for STOP_MARKET
+          {
+            stopPrice: stopLossPrice,
+            reduceOnly: true,
+          }
+        );
 
-          const slOrder = await ccxt.createOrder(
-            ccxtSymbol,
-            'STOP_MARKET',
-            orderSide,
-            actualPositionQuantity,
-            undefined, // no limit price for STOP_MARKET
-            {
-              stopPrice: stopLossPrice,
-              reduceOnly: true,
-            }
-          );
-
-          slOrderId = slOrder.id;
-          logger.info(`  ✅ [Binance] Stop-loss order created: ${symbol} ${side} ${actualPositionQuantity}@${stopLossPrice.toFixed(4)} (order ID: ${slOrderId})`);
-
-        } else if (exchangeName === 'Gate.io') {
-          // Gate.io: Use Price Trigger Order
-          const gateAdapter = client as any;
-          const gateClient = gateAdapter.getUnderlyingClient();
-          const gateContract = client.normalizeSymbol(symbol);
-
-          // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
-          const slSize = side === 'long' ? -actualPositionQuantity : actualPositionQuantity;
-
-          // Create price trigger order
-          // rule: 1 = price >= trigger, 2 = price <= trigger
-          const rule = side === 'long' ? 2 : 1; // long: <= stop price, short: >= stop price
-
-          const trigger = await gateClient.createPriceTriggerOrder({
-            contract: gateContract,
-            size: slSize,
-            triggerPrice: stopLossPrice,
-            orderPrice: undefined, // market order
-            rule: rule,
-          });
-
-          slOrderId = trigger.id?.toString() || 'unknown';
-          logger.info(`  ✅ [Gate.io] Stop-loss order created: ${symbol} ${side} ${actualPositionQuantity}@${stopLossPrice.toFixed(4)} (trigger ID: ${slOrderId})`);
-
-        } else {
-          throw new Error(`Unsupported exchange: ${exchangeName}`);
-        }
+        const slOrderId = slOrder.id;
+        logger.info(`  ✅ Stop-loss order created: ${symbol} ${side} ${actualPositionQuantity}@${stopLossPrice.toFixed(4)} (order ID: ${slOrderId})`);
 
         // Save SL order to database
         const newSL: StopLossOrder = {
@@ -913,10 +862,7 @@ export const closePositionTool = createTool({
       // This catches orphan orders that weren't tracked in database (e.g., due to sync bugs)
       try {
         // For Binance, we need to check both regular orders AND conditional orders (STOP_MARKET)
-        const exchangeName = client.getExchangeName();
-
-        if (exchangeName === 'Binance') {
-          const binanceAdapter = client as any;
+        const binanceAdapter = client as any;
           const ccxt = binanceAdapter.getUnderlyingExchange();
           const ccxtSymbol = client.normalizeSymbol(symbol);
 
@@ -951,21 +897,6 @@ export const closePositionTool = createTool({
           } catch (e: any) {
             logger.warn(`⚠️ Could not fetch conditional orders: ${e.message}`);
           }
-        } else {
-          // For other exchanges (Gate.io), regular getOpenOrders should work
-          const allOpenOrders = await client.getOpenOrders(symbol);
-          if (allOpenOrders.length > 0) {
-            logger.info(`🔍 Found ${allOpenOrders.length} open orders for ${symbol}, canceling all...`);
-            for (const order of allOpenOrders) {
-              try {
-                await client.cancelOrder(order.id, symbol);
-                logger.info(`🔄 Cancelled orphan order ${order.id}`);
-              } catch (e: any) {
-                logger.warn(`⚠️ Could not cancel order ${order.id}: ${e.message}`);
-              }
-            }
-          }
-        }
       } catch (e: any) {
         logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
       }
@@ -1653,66 +1584,29 @@ export const setTakeProfitTool = createTool({
         }
       }
 
-      // 9. Use different API based on exchange
-      const exchangeName = client.getExchangeName();
+      // 9. Binance: Use CCXT TAKE_PROFIT_MARKET order
+      const binanceAdapter = client as any; // Type assertion
+      const ccxt = binanceAdapter.getUnderlyingExchange();
+      const ccxtSymbol = client.normalizeSymbol(symbol);
 
-      let orderId: string;
+      // Take-profit order side is opposite to position (closing)
+      const orderSide = position.side === 'long' ? 'sell' : 'buy';
 
-      if (exchangeName === 'Binance') {
-        // Binance: Use CCXT TAKE_PROFIT_MARKET order
-        const binanceAdapter = client as any; // Type assertion
-        const ccxt = binanceAdapter.getUnderlyingExchange();
-        const ccxtSymbol = client.normalizeSymbol(symbol);
+      const order = await ccxt.createOrder(
+        ccxtSymbol,
+        'TAKE_PROFIT_MARKET',
+        orderSide,
+        tpQuantity,
+        undefined, // no limit price for TAKE_PROFIT_MARKET
+        {
+          stopPrice: takeProfitPrice,
+          reduceOnly: true,
+        }
+      );
 
-        // Take-profit order side is opposite to position (closing)
-        const orderSide = position.side === 'long' ? 'sell' : 'buy';
+      const orderId = order.id;
+      logger.info(`Take-profit order created: ${symbol} ${position.side} ${tpQuantity}@${takeProfitPrice} (order ID: ${orderId})`);
 
-        const order = await ccxt.createOrder(
-          ccxtSymbol,
-          'TAKE_PROFIT_MARKET',
-          orderSide,
-          tpQuantity,
-          undefined, // no limit price for TAKE_PROFIT_MARKET
-          {
-            stopPrice: takeProfitPrice,
-            reduceOnly: true,
-          }
-        );
-
-        orderId = order.id;
-        logger.info(`[Binance] Take-profit order created: ${symbol} ${position.side} ${tpQuantity}@${takeProfitPrice} (order ID: ${orderId})`);
-
-
-      } else if (exchangeName === 'Gate.io') {
-        // Gate.io: Use Price Trigger Order
-        const gateAdapter = client as any;
-        const gateClient = gateAdapter.getUnderlyingClient();
-        const contract = client.normalizeSymbol(symbol);
-
-        // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
-        const size = position.side === 'long' ? -tpQuantity : tpQuantity;
-
-        // Create price trigger order
-        // rule: 1 = price >= trigger, 2 = price <= trigger
-        const rule = position.side === 'long' ? 1 : 2; // long: >= TP price, short: <= TP price
-
-        const trigger = await gateClient.createPriceTriggerOrder({
-          contract: contract,
-          size: size,
-          triggerPrice: takeProfitPrice,
-          orderPrice: undefined, // market order
-          rule: rule,
-        });
-
-        orderId = trigger.id?.toString() || 'unknown';
-        logger.info(`[Gate.io] Take-profit order created: ${symbol} ${position.side} ${tpQuantity}@${takeProfitPrice} (trigger ID: ${orderId})`);
-
-      } else {
-        return {
-          success: false,
-          message: `Unsupported exchange: ${exchangeName}`,
-        };
-      }
 
       // 10. Add new TP to the array and save to database
       const newTP: TakeProfitOrder = {
@@ -1886,126 +1780,59 @@ export const setStopLossTool = createTool({
         }
       }
 
-      // 7. Use different API based on exchange
-      const exchangeName = client.getExchangeName();
+      // 7. Binance: Use CCXT STOP_MARKET order
+      const binanceAdapter = client as any; // Type assertion
+      const ccxt = binanceAdapter.getUnderlyingExchange();
+      const ccxtSymbol = client.normalizeSymbol(symbol);
 
-      if (exchangeName === 'Binance') {
-        // Binance: Use CCXT STOP_MARKET order
-        const binanceAdapter = client as any; // Type assertion
-        const ccxt = binanceAdapter.getUnderlyingExchange();
-        const ccxtSymbol = client.normalizeSymbol(symbol);
+      // Stop order side is opposite to position (closing)
+      const orderSide = position.side === 'long' ? 'sell' : 'buy';
 
-        // Stop order side is opposite to position (closing)
-        const orderSide = position.side === 'long' ? 'sell' : 'buy';
+      const order = await ccxt.createOrder(
+        ccxtSymbol,
+        'STOP_MARKET',
+        orderSide,
+        stopQuantity,
+        undefined, // no limit price for STOP_MARKET
+        {
+          stopPrice: stopPrice,
+          reduceOnly: true,
+        }
+      );
 
-        const order = await ccxt.createOrder(
-          ccxtSymbol,
-          'STOP_MARKET',
-          orderSide,
-          stopQuantity,
-          undefined, // no limit price for STOP_MARKET
-          {
-            stopPrice: stopPrice,
-            reduceOnly: true,
-          }
-        );
+      logger.info(`Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (order ID: ${order.id})`);
 
-        logger.info(`[Binance] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (order ID: ${order.id})`);
+      // 8. Add new SL to the array and save to database
+      const newSL: StopLossOrder = {
+        price: stopPrice,
+        percentage: percentage,
+        orderId: order.id,
+        triggered: false,
+      };
 
-        // 8. Add new SL to the array and save to database
-        const newSL: StopLossOrder = {
-          price: stopPrice,
-          percentage: percentage,
-          orderId: order.id,
-          triggered: false,
-        };
+      const allSLs = [...existingSLs, newSL];
 
-        const allSLs = [...existingSLs, newSL];
+      await dbClient.execute({
+        sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
+        args: [JSON.stringify(allSLs), symbol]
+      });
 
-        await dbClient.execute({
-          sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
-          args: [JSON.stringify(allSLs), symbol]
-        });
+      // 9. Build summary message
+      const slCount = allSLs.filter(sl => !sl.triggered).length;
+      const coveredPercent = allSLs.filter(sl => !sl.triggered).reduce((sum, sl) => sum + sl.percentage, 0);
 
-        // 9. Build summary message
-        const slCount = allSLs.filter(sl => !sl.triggered).length;
-        const coveredPercent = allSLs.filter(sl => !sl.triggered).reduce((sum, sl) => sum + sl.percentage, 0);
-
-        return {
-          success: true,
-          orderId: order.id,
-          symbol,
-          side: position.side,
-          stopPrice,
-          quantity: stopQuantity,
-          percentage,
-          totalSLs: slCount,
-          totalCoverage: coveredPercent,
-          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} SL${slCount} @ ${formatPrice(stopPrice)} (${percentage}% = ${stopQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${slCount} SLs.`,
-        };
-
-      } else if (exchangeName === 'Gate.io') {
-        // Gate.io: Use Price Trigger Order
-        const gateAdapter = client as any;
-        const gateClient = gateAdapter.getUnderlyingClient();
-        const contract = client.normalizeSymbol(symbol);
-
-        // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
-        const size = position.side === 'long' ? -stopQuantity : stopQuantity;
-
-        // Create price trigger order
-        // rule: 1 = price >= trigger, 2 = price <= trigger
-        const rule = position.side === 'long' ? 2 : 1; // long: <= stop price, short: >= stop price
-
-        const trigger = await gateClient.createPriceTriggerOrder({
-          contract: contract,
-          size: size,
-          triggerPrice: stopPrice,
-          orderPrice: undefined, // market order
-          rule: rule,
-        });
-
-        logger.info(`[Gate.io] Stop-loss order created: ${symbol} ${position.side} ${stopQuantity}@${stopPrice} (trigger ID: ${trigger.id})`);
-
-        // 8. Add new SL to the array and save to database
-        const orderId = trigger.id?.toString() || 'unknown';
-        const newSL: StopLossOrder = {
-          price: stopPrice,
-          percentage: percentage,
-          orderId: orderId,
-          triggered: false,
-        };
-
-        const allSLs = [...existingSLs, newSL];
-
-        await dbClient.execute({
-          sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
-          args: [JSON.stringify(allSLs), symbol]
-        });
-
-        // 9. Build summary message
-        const slCount = allSLs.filter(sl => !sl.triggered).length;
-        const coveredPercent = allSLs.filter(sl => !sl.triggered).reduce((sum, sl) => sum + sl.percentage, 0);
-
-        return {
-          success: true,
-          orderId: orderId,
-          symbol,
-          side: position.side,
-          stopPrice,
-          quantity: stopQuantity,
-          percentage,
-          totalSLs: slCount,
-          totalCoverage: coveredPercent,
-          message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} SL${slCount} @ ${formatPrice(stopPrice)} (${percentage}% = ${stopQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${slCount} SLs.`,
-        };
-
-      } else {
-        return {
-          success: false,
-          message: `Unsupported exchange: ${exchangeName}`,
-        };
-      }
+      return {
+        success: true,
+        orderId: order.id,
+        symbol,
+        side: position.side,
+        stopPrice,
+        quantity: stopQuantity,
+        percentage,
+        totalSLs: slCount,
+        totalCoverage: coveredPercent,
+        message: `✅ Stop-loss set: ${symbol} ${position.side.toUpperCase()} SL${slCount} @ ${formatPrice(stopPrice)} (${percentage}% = ${stopQuantity.toFixed(4)} contracts). Total coverage: ${coveredPercent.toFixed(0)}% across ${slCount} SLs.`,
+      };
 
     } catch (error: any) {
       logger.error(`Failed to set stop-loss for ${symbol}:`, error);

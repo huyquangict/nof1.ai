@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  *
  * This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
  */
 
 /**
- * Exchange Abstraction Layer
+ * Exchange Layer - Binance Integration
  *
- * Exports for multi-exchange support
+ * Exports for Binance futures trading
  */
 
 // Interface and types
@@ -36,8 +36,7 @@ export type {
   ContractInfo,
 } from './IExchangeClient';
 
-// Exchange adapters
-export { GateAdapter } from './GateAdapter';
+// Binance adapter
 export { BinanceAdapter } from './BinanceAdapter';
 export type { BinanceConfig } from './BinanceAdapter';
 

@@ -108,29 +108,27 @@ async function closeAllPositions(): Promise<void> {
     logger.info(`📊 获取 ${exchangeName} 当前持仓...`);
 
     const positions = await exchangeClient.getPositions();
-    const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
-    
-    if (activePositions.length === 0) {
+
+    if (positions.length === 0) {
       logger.info("✅ 当前无持仓，跳过平仓");
       return;
     }
-    
-    logger.warn(`⚠️  发现 ${activePositions.length} 个持仓，开始平仓...`);
-    
-    for (const pos of activePositions) {
-      const size = Number.parseInt(pos.size || "0");
-      const contract = pos.contract;
-      const symbol = contract.replace("_USDT", "");
-      const side = size > 0 ? "多头" : "空头";
-      const quantity = Math.abs(size);
-      
+
+    logger.warn(`⚠️  发现 ${positions.length} 个持仓，开始平仓...`);
+
+    for (const pos of positions) {
+      const symbol = pos.symbol;
+      const side = pos.side === 'long' ? "多头" : "空头";
+      const quantity = pos.quantity;
+
       try {
         logger.info(`🔄 平仓中: ${symbol} ${side} ${quantity}张`);
 
         await exchangeClient.placeOrder({
-          contract,
-          size: -size, // 反向平仓
-          price: 0, // 市价单
+          symbol,
+          side: pos.side === 'long' ? 'short' : 'long', // Opposite side to close
+          quantity,
+          reduceOnly: true, // 只减仓
         });
 
         logger.info(`✅ 已平仓: ${symbol} ${side} ${quantity}张`);
@@ -237,30 +235,28 @@ async function syncPositions(): Promise<void> {
 
     // 从交易所获取持仓
     const positions = await exchangeClient.getPositions();
-    const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
 
-    logger.info(`📊 ${exchangeName} 当前持仓数: ${activePositions.length}`);
-    
+    logger.info(`📊 ${exchangeName} 当前持仓数: ${positions.length}`);
+
     // 清空本地持仓表
     await client.execute("DELETE FROM positions");
     logger.info("✅ 已清空本地持仓表");
-    
+
     // 同步持仓到数据库
-    if (activePositions.length > 0) {
-      logger.info(`🔄 同步 ${activePositions.length} 个持仓到数据库...`);
-      
-      for (const pos of activePositions) {
-        const size = Number.parseInt(pos.size || "0");
-        if (size === 0) continue;
-        
-        const symbol = pos.contract.replace("_USDT", "");
-        const entryPrice = Number.parseFloat(pos.entryPrice || "0");
-        const currentPrice = Number.parseFloat(pos.markPrice || "0");
-        const leverage = Number.parseInt(pos.leverage || "1");
-        const side = size > 0 ? "long" : "short";
-        const quantity = Math.abs(size);
-        const pnl = Number.parseFloat(pos.unrealisedPnl || "0");
-        const liqPrice = Number.parseFloat(pos.liqPrice || "0");
+    if (positions.length > 0) {
+      logger.info(`🔄 同步 ${positions.length} 个持仓到数据库...`);
+
+      for (const pos of positions) {
+        if (pos.quantity === 0) continue;
+
+        const symbol = pos.symbol;
+        const entryPrice = pos.entryPrice;
+        const currentPrice = pos.currentPrice;
+        const leverage = pos.leverage;
+        const side = pos.side;
+        const quantity = pos.quantity;
+        const pnl = pos.unrealizedPnl;
+        const liqPrice = pos.liquidationPrice;
         
         await client.execute({
           sql: `INSERT INTO positions 

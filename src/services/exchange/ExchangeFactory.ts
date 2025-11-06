@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,13 +19,11 @@
 /**
  * Exchange Factory
  *
- * Provides a singleton instance of the configured exchange client.
- * Supports multiple exchanges through the IExchangeClient interface.
+ * Provides a singleton instance of Binance exchange client.
  */
 
 import { createPinoLogger } from "@voltagent/logger";
 import { IExchangeClient } from './IExchangeClient';
-import { GateAdapter } from './GateAdapter';
 import { BinanceAdapter } from './BinanceAdapter';
 
 const logger = createPinoLogger({
@@ -39,16 +37,11 @@ const logger = createPinoLogger({
 let exchangeClientInstance: IExchangeClient | null = null;
 
 /**
- * Create or get the singleton exchange client instance
+ * Create or get the singleton Binance exchange client instance
  *
- * The exchange is determined by the EXCHANGE environment variable:
- * - "gateio" or "gate" -> Gate.io (default)
- * - "binance" -> Binance (future support)
+ * Testnet is determined by USE_TESTNET environment variable
  *
- * Testnet is determined by USE_TESTNET environment variable (for new exchanges)
- * or GATE_USE_TESTNET for Gate.io (backward compatibility)
- *
- * @returns IExchangeClient instance
+ * @returns IExchangeClient instance (Binance)
  */
 export function createExchangeClient(): IExchangeClient {
   // Return existing instance if available
@@ -56,51 +49,15 @@ export function createExchangeClient(): IExchangeClient {
     return exchangeClientInstance;
   }
 
-  // Determine which exchange to use
-  const exchange = (process.env.EXCHANGE || 'gateio').toLowerCase();
+  // Log exchange initialization
+  logger.info('Initializing Binance exchange client...');
 
-  // Log exchange selection
-  logger.info(`Initializing exchange client: ${exchange}`);
+  // Create Binance client
+  exchangeClientInstance = createBinanceClient();
 
-  switch (exchange) {
-    case 'gateio':
-    case 'gate':
-      exchangeClientInstance = createGateClient();
-      break;
-
-    case 'binance':
-      exchangeClientInstance = createBinanceClient();
-      break;
-
-    default:
-      logger.warn(`Unknown exchange: ${exchange}, falling back to Gate.io`);
-      exchangeClientInstance = createGateClient();
-      break;
-  }
-
-  logger.info(`Exchange client initialized: ${exchangeClientInstance.getExchangeName()} (testnet: ${exchangeClientInstance.isTestnet()})`);
+  logger.info(`Binance client initialized (testnet: ${exchangeClientInstance.isTestnet()})`);
 
   return exchangeClientInstance;
-}
-
-/**
- * Create Gate.io exchange client
- * Maintains backward compatibility with existing GATE_* environment variables
- */
-function createGateClient(): IExchangeClient {
-  const apiKey = process.env.GATE_API_KEY;
-  const apiSecret = process.env.GATE_API_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    throw new Error(
-      'Gate.io credentials not configured. Please set GATE_API_KEY and GATE_API_SECRET environment variables.'
-    );
-  }
-
-  // Support both USE_TESTNET (new) and GATE_USE_TESTNET (backward compatibility)
-  const testnet = process.env.USE_TESTNET === 'true' || process.env.GATE_USE_TESTNET === 'true';
-
-  return new GateAdapter(apiKey, apiSecret, testnet);
 }
 
 /**
@@ -137,11 +94,11 @@ export function resetExchangeClient(): void {
 }
 
 /**
- * Get the current exchange name without creating an instance
- * @returns Exchange name from environment or 'gateio' as default
+ * Get the current exchange name
+ * @returns Always returns 'binance'
  */
 export function getConfiguredExchange(): string {
-  return (process.env.EXCHANGE || 'gateio').toLowerCase();
+  return 'binance';
 }
 
 /**
@@ -149,17 +106,5 @@ export function getConfiguredExchange(): string {
  * @returns true if testnet is enabled
  */
 export function isTestnetConfigured(): boolean {
-  const exchange = getConfiguredExchange();
-
-  switch (exchange) {
-    case 'gateio':
-    case 'gate':
-      return process.env.USE_TESTNET === 'true' || process.env.GATE_USE_TESTNET === 'true';
-
-    case 'binance':
-      return process.env.USE_TESTNET === 'true';
-
-    default:
-      return false;
-  }
+  return process.env.USE_TESTNET === 'true';
 }

@@ -17,10 +17,10 @@
  */
 
 /**
- * Exchange Client Interface - Abstraction layer for multiple exchanges
+ * Exchange Client Interface - Binance Futures Trading
  *
- * This interface standardizes interactions with different cryptocurrency exchanges.
- * Each exchange adapter (Gate.io, Binance, etc.) implements this interface.
+ * This interface standardizes interactions with Binance futures exchange.
+ * Provides a clean abstraction for trading operations and market data.
  */
 
 // ============================================================================

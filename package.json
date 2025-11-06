@@ -1,7 +1,7 @@
 {
   "name": "open-nof1.ai",
-  "version": "0.1.0",
-  "description": "nof1.ai Agent 自动交易系统",
+  "version": "0.2.0",
+  "description": "AI-powered cryptocurrency automated trading system for Binance",
   "type": "module",
   "author": "195440",
   "license": "AGPL-3.0",
@@ -12,7 +12,8 @@
     "ai",
     "voltagent",
     "automated-trading",
-    "gate-io"
+    "binance",
+    "futures"
   ],
   "repository": {
     "type": "git",
@@ -38,7 +39,6 @@
     "db:reset": "tsx --env-file=.env ./src/database/reset.ts",
     "db:close-and-reset": "bash scripts/close-reset-and-start.sh",
     "db:status": "bash scripts/db-status.sh",
-    "db:sync": "bash scripts/sync-from-gate.sh",
     "db:sync-positions": "bash scripts/sync-positions.sh",
     "db:check-consistency": "tsx --env-file=.env ./scripts/check-consistency.ts",
     "db:migrate:peak-pnl": "tsx --env-file=.env ./src/database/add-peak-pnl-column.ts",
@@ -79,7 +79,6 @@
     "ccxt": "^4.5.14",
     "chart.js": "^4.4.1",
     "dotenv": "^16.4.7",
-    "gate-api": "^6.61.0",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
     "pino": "^10.1.0",
