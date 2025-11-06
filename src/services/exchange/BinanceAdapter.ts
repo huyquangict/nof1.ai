@@ -43,7 +43,7 @@ export interface BinanceConfig {
 }
 
 export class BinanceAdapter implements IExchangeClient {
-  private exchange: ccxt.binance;
+  private exchange: any; // ccxt.binance
   private testnet: boolean;
   private marginMode: 'isolated' | 'crossed';
 
@@ -127,7 +127,7 @@ export class BinanceAdapter implements IExchangeClient {
     const timeframe = timeframeMap[interval] ?? '5m';
     const ohlcv = await this.exchange.fetchOHLCV(ccxtSymbol, timeframe, undefined, limit);
 
-    return ohlcv.map((candle) => ({
+    return ohlcv.map((candle: any) => ({
       timestamp: candle[0],
       open: candle[1],
       high: candle[2],
@@ -155,8 +155,8 @@ export class BinanceAdapter implements IExchangeClient {
 
     return {
       symbol: this.denormalizeSymbol(ccxtSymbol),
-      bids: orderBook.bids.map((bid) => [bid[0], bid[1]] as [number, number]),
-      asks: orderBook.asks.map((ask) => [ask[0], ask[1]] as [number, number]),
+      bids: orderBook.bids.map((bid: any) => [bid[0], bid[1]] as [number, number]),
+      asks: orderBook.asks.map((ask: any) => [ask[0], ask[1]] as [number, number]),
       timestamp: orderBook.timestamp ?? Date.now(),
     };
   }
@@ -267,7 +267,7 @@ export class BinanceAdapter implements IExchangeClient {
       const side = params.side === 'long' ? 'buy' : 'sell';
 
       const orderParams: any = {
-        reduceOnly: params.reduceOnly ?? params.isReduceOnly ?? false,
+        reduceOnly: params.reduceOnly ?? false,
       };
 
       if (params.price) {
@@ -361,7 +361,7 @@ export class BinanceAdapter implements IExchangeClient {
     const ccxtSymbol = symbol ? this.normalizeSymbol(symbol) : undefined;
     const orders = await this.exchange.fetchOpenOrders(ccxtSymbol);
 
-    return orders.map((order) => this.mapOrder(order));
+    return orders.map((order: any) => this.mapOrder(order));
   }
 
   async setLeverage(symbol: string, leverage: number): Promise<void> {
@@ -421,7 +421,7 @@ export class BinanceAdapter implements IExchangeClient {
   /**
    * Get underlying CCXT exchange instance for advanced usage
    */
-  getUnderlyingExchange(): ccxt.binance {
+  getUnderlyingExchange(): any {
     return this.exchange;
   }
 }

@@ -817,7 +817,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
               logger.info(`🛑 Stop-loss TRIGGERED for ${dbSymbol} (order ${slOrderId}) - Position closed automatically by exchange`);
 
               // Get quanto multiplier for correct PnL calculation
-              const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+              const quantoMultiplier = await getQuantoMultiplier(dbSymbol);
 
               // Calculate fee (0.05% of notional value)
               const exitNotional = order.price * quantity * quantoMultiplier;
@@ -903,7 +903,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
                     logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (${tp.percentage}% @ ${tp.price}, order ${tp.orderId})`);
 
                     // Get quanto multiplier for correct PnL calculation
-                    const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+                    const quantoMultiplier = await getQuantoMultiplier(dbSymbol);
 
                     // Calculate partial quantity
                     const actualQuantity = quantity * (tp.percentage / 100);
@@ -978,7 +978,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
                   logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 
                   // Get quanto multiplier for correct PnL calculation
-                  const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+                  const quantoMultiplier = await getQuantoMultiplier(dbSymbol);
 
                   // Calculate fee (0.05% of notional value)
                   const exitNotional = order.price * quantity * quantoMultiplier;
@@ -1038,7 +1038,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
               logger.info(`🎯 Take-profit TRIGGERED for ${dbSymbol} (order ${tpOrderId})`);
 
               // Get quanto multiplier for correct PnL calculation
-              const quantoMultiplier = getQuantoMultiplier(dbSymbol);
+              const quantoMultiplier = await getQuantoMultiplier(dbSymbol);
 
               // Calculate fee (0.05% of notional value)
               const exitNotional = order.price * quantity * quantoMultiplier;
@@ -1584,7 +1584,7 @@ async function closeAllPositions(reason: string): Promise<void> {
           symbol,
           side: side === 'long' ? 'short' : 'long',
           quantity,
-          isReduceOnly: true,
+          reduceOnly: true,
         });
 
         logger.info(`Position closed: ${symbol} ${quantity} units`);
@@ -1640,6 +1640,7 @@ async function executeTradingDecision() {
   let marketData: any = {};
   let accountInfo: any = null;
   let positions: any[] = [];
+  let exchangeClient = createExchangeClient();
 
   try {
     // 1. Collect market data
@@ -1688,7 +1689,6 @@ async function executeTradingDecision() {
 
     // 3. Sync position information (Optimization: call API only once to avoid duplication)
     try {
-      const exchangeClient = createExchangeClient();
       const rawPositions = await exchangeClient.getPositions();
 
       // Use the same data for processing and syncing to avoid repeated API calls

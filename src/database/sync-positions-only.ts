@@ -142,8 +142,8 @@ async function syncPositionsOnly() {
     
     client.close();
     logger.info("\n✅ 持仓同步完成");
-    
-  } catch (error) {
+
+  } catch (error: any) {
     logger.error("❌ 同步失败:", error);
     process.exit(1);
   }

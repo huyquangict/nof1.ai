@@ -84,7 +84,7 @@ export function createApiRoutes() {
    * Verify token endpoint
    */
   app.get("/api/auth/verify", jwtAuth, async (c) => {
-    const userId = c.get("userId") as string;
+    const userId = (c as any).get("userId") as string;
     return c.json({
       valid: true,
       userId,
@@ -231,18 +231,18 @@ export function createApiRoutes() {
       const { closePositionTool } = await import("../tools/trading/tradeExecution");
 
       // Execute close
-      const result = await closePositionTool.execute({ symbol, percentage });
+      const result = await closePositionTool.execute?.({ symbol, percentage });
 
-      if (result.success) {
+      if (result && (result as any).success) {
         return c.json({
           success: true,
-          message: result.message,
+          message: (result as any).message,
           data: result
         });
       } else {
         return c.json({
           success: false,
-          error: result.message
+          error: (result as any).message || "Failed to close position"
         }, 400);
       }
     } catch (error: any) {

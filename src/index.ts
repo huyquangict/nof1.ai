@@ -80,12 +80,12 @@ async function main() {
   logger.info("💰 Starting profit manager...");
   const profitManagerInterval = 30 * 1000; // 30 seconds
   setInterval(() => {
-    runProfitManager(logger).catch((error) => {
+    runProfitManager(logger as any).catch((error) => {
       logger.error("Profit manager error:", error);
     });
   }, profitManagerInterval);
   // Run immediately once
-  runProfitManager(logger).catch((error) => {
+  runProfitManager(logger as any).catch((error) => {
     logger.error("Profit manager initial run error:", error);
   });
 
