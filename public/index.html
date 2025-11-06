@@ -107,6 +107,16 @@
       <div class="logo">vibe-trader</div>
       <nav class="nav-menu">
         <a href="#" class="nav-link active">LIVE</a>
+        <button class="pause-button" id="pause-button" title="Pause/Resume LLM trading">
+          <svg class="pause-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+          <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span class="pause-text">Loading...</span>
+        </button>
         <div class="connection-status" id="connection-status">
           <span class="status-dot"></span>
           <span class="status-text">Connecting...</span>

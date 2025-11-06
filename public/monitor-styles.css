@@ -1117,6 +1117,87 @@ body {
     50% { opacity: 0.5; }
 }
 
+/* === PAUSE BUTTON === */
+.pause-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-gray-800);
+  border: 2px solid var(--color-black);
+  color: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.pause-button:hover {
+  background: var(--color-black);
+  transform: translateY(-2px);
+}
+
+.pause-button:active {
+  transform: translateY(0);
+}
+
+.pause-button.paused {
+  background: var(--color-orange);
+  border-color: var(--color-orange);
+}
+
+.pause-button.paused:hover {
+  background: #d97706;
+}
+
+.pause-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
+}
+
+.pause-button .pause-icon {
+  display: none;
+}
+
+.pause-button .play-icon {
+  display: none;
+}
+
+.pause-button:not(.paused) .pause-icon {
+  display: block;
+}
+
+.pause-button.paused .play-icon {
+  display: block;
+}
+
+.pause-text {
+  min-width: 60px;
+  text-align: left;
+}
+
+/* Mobile adjustments for pause button */
+@media (max-width: 768px) {
+  .pause-button {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .pause-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .pause-text {
+    min-width: 50px;
+  }
+}
+
 /* Improved Login Modal */
 .login-subtitle {
     margin: -10px 0 20px 0;

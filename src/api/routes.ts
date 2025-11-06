@@ -436,6 +436,64 @@ export function createApiRoutes() {
   });
 
   /**
+   * Get trading pause state
+   */
+  app.get("/api/trading/pause", async (c) => {
+    try {
+      const result = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'trading_paused'",
+        args: [],
+      });
+
+      const isPaused = result.rows.length > 0 && result.rows[0].value === '1';
+
+      return c.json({
+        paused: isPaused,
+        message: isPaused ? "Trading is paused - LLM will not open new positions" : "Trading is active"
+      });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Toggle trading pause state
+   */
+  app.post("/api/trading/pause", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { paused } = body;
+
+      if (typeof paused !== 'boolean') {
+        return c.json({ error: "Invalid paused value, must be boolean" }, 400);
+      }
+
+      // Update or insert pause state in database
+      await dbClient.execute({
+        sql: `INSERT INTO system_config (key, value, updated_at)
+              VALUES ('trading_paused', ?, datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')`,
+        args: [paused ? '1' : '0'],
+      });
+
+      logger.info(`🔄 Trading ${paused ? 'PAUSED' : 'RESUMED'} by user`);
+
+      return c.json({
+        success: true,
+        paused,
+        message: paused
+          ? "Trading paused - LLM will not open new positions. Existing positions and risk management remain active."
+          : "Trading resumed - LLM can now open new positions"
+      });
+    } catch (error: any) {
+      logger.error("Failed to update pause state:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
    * get multiple symbols real-time prices
    */
   app.get("/api/prices", async (c) => {

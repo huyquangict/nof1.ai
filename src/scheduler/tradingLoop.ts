@@ -453,7 +453,28 @@ async function executeTradingDecision() {
       // Does not affect main flow, continue execution
     }
 
-    // 9. Generate prompt and call Agent
+    // 9. Check if trading is paused
+    try {
+      const pauseResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'trading_paused'",
+        args: [],
+      });
+
+      const isPaused = pauseResult.rows.length > 0 && pauseResult.rows[0].value === '1';
+
+      if (isPaused) {
+        logger.warn("⏸️  Trading is PAUSED - LLM will not be called to open new positions");
+        logger.info("Risk management and position monitoring remain active");
+        logger.info("Existing positions will continue to be tracked");
+        logger.info("To resume trading, use the UI pause button or set trading_paused=0 in database");
+        return;
+      }
+    } catch (error) {
+      logger.warn("Failed to check pause state, continuing normally:", error as any);
+      // If pause check fails, continue to allow trading (fail-safe approach)
+    }
+
+    // 10. Generate prompt and call Agent
     const prompt = generateTradingPrompt({
       minutesElapsed,
       iteration: iterationCount,

@@ -97,6 +97,7 @@ class TradingMonitor {
             this.initChat();
             this.duplicateTicker();
             this.loadGitHubStars(); // Load GitHub star count
+            this.initPauseButton(); // Initialize pause button
         } catch (error) {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);
@@ -104,6 +105,130 @@ class TradingMonitor {
             this.updateConnectionStatus('auth-required');
             this.showLoginForm();
         }
+    }
+
+    // Initialize pause button
+    initPauseButton() {
+        const pauseButton = document.getElementById('pause-button');
+        if (!pauseButton) {
+            console.error('Pause button not found');
+            return;
+        }
+
+        // Load initial pause state
+        this.loadPauseState();
+
+        // Add click handler
+        pauseButton.addEventListener('click', async () => {
+            await this.togglePause();
+        });
+
+        // Refresh pause state every 30 seconds
+        setInterval(() => {
+            this.loadPauseState();
+        }, 30000);
+    }
+
+    // Load pause state from API
+    async loadPauseState() {
+        try {
+            const response = await fetch('/api/trading/pause');
+            const data = await response.json();
+
+            this.updatePauseButton(data.paused);
+        } catch (error) {
+            console.error('Failed to load pause state:', error);
+        }
+    }
+
+    // Toggle pause state
+    async togglePause() {
+        const pauseButton = document.getElementById('pause-button');
+        if (!pauseButton) return;
+
+        const isPaused = pauseButton.classList.contains('paused');
+        const newState = !isPaused;
+
+        try {
+            const response = await fetch('/api/trading/pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ paused: newState }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updatePauseButton(data.paused);
+                console.log(data.message);
+
+                // Show user notification
+                const message = data.paused
+                    ? '⏸️  Trading PAUSED - LLM will not open new positions'
+                    : '▶️  Trading RESUMED - LLM can now open new positions';
+
+                this.showNotification(message, data.paused ? 'warning' : 'success');
+            } else {
+                console.error('Failed to toggle pause:', data.error);
+                alert(`Failed to toggle pause: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Failed to toggle pause:', error);
+            alert(`Failed to toggle pause: ${error.message}`);
+        }
+    }
+
+    // Update pause button UI
+    updatePauseButton(isPaused) {
+        const pauseButton = document.getElementById('pause-button');
+        const pauseText = pauseButton?.querySelector('.pause-text');
+
+        if (!pauseButton || !pauseText) return;
+
+        if (isPaused) {
+            pauseButton.classList.add('paused');
+            pauseText.textContent = 'PAUSED';
+        } else {
+            pauseButton.classList.remove('paused');
+            pauseText.textContent = 'ACTIVE';
+        }
+    }
+
+    // Show notification toast
+    showNotification(message, type = 'info') {
+        // Remove existing notification if any
+        const existing = document.getElementById('pause-notification');
+        if (existing) existing.remove();
+
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.id = 'pause-notification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 16px 24px;
+            background: ${type === 'warning' ? '#F97316' : '#10B981'};
+            color: white;
+            border: 3px solid #000;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.3s ease-out;
+        `;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
     }
 
     // Show login form
