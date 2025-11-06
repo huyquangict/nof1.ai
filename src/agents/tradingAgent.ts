@@ -274,8 +274,9 @@ export function generateTradingPrompt(data: {
   tradeHistory?: any[];
   recentDecisions?: any[];
   customInstructions?: string;
+  learningContext?: string;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, customInstructions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, customInstructions, learningContext } = data;
   const currentTime = formatChinaTime();
   const sltp = getPositionSLTPConfig();
 
@@ -286,6 +287,11 @@ export function generateTradingPrompt(data: {
     prompt += `\n\n🎯 CUSTOM TRADING INSTRUCTIONS FROM USER:\n`;
     prompt += `${customInstructions.trim()}\n`;
     prompt += `\nIMPORTANT: Follow these custom instructions in addition to your standard trading rules. If there's a conflict, prioritize the custom instructions above.\n`;
+  }
+
+  // Add learned lessons if provided (AI Learning System)
+  if (learningContext && learningContext.trim()) {
+    prompt += learningContext;
   }
 
   prompt += `

@@ -491,7 +491,82 @@ async function executeTradingDecision() {
       logger.warn("Failed to fetch custom instructions from database:", error as any);
     }
 
-    // 11. Generate prompt and call Agent
+    // 11. Fetch learned lessons (AI Learning System)
+    let learningContext = '';
+    try {
+      const learningEnabled = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'learning_enabled'",
+        args: [],
+      });
+
+      if (learningEnabled.rows.length > 0 && learningEnabled.rows[0].value === '1') {
+        // Get lesson settings
+        const lessonCountResult = await dbClient.execute({
+          sql: "SELECT value FROM system_config WHERE key = 'lesson_count'",
+          args: [],
+        });
+        const lessonCount = lessonCountResult.rows.length > 0
+          ? parseInt(lessonCountResult.rows[0].value as string)
+          : 10;
+
+        const minSuccessRateResult = await dbClient.execute({
+          sql: "SELECT value FROM system_config WHERE key = 'min_success_rate'",
+          args: [],
+        });
+        const minSuccessRate = minSuccessRateResult.rows.length > 0
+          ? parseFloat(minSuccessRateResult.rows[0].value as string)
+          : 70;
+
+        const lessonAgeDaysResult = await dbClient.execute({
+          sql: "SELECT value FROM system_config WHERE key = 'lesson_age_days'",
+          args: [],
+        });
+        const lessonAgeDays = lessonAgeDaysResult.rows.length > 0
+          ? parseInt(lessonAgeDaysResult.rows[0].value as string)
+          : 30;
+
+        // Get current symbols being traded
+        const currentSymbols = positions.length > 0 ? positions.map((p: any) => p.symbol).join(',') : 'BTC,ETH';
+
+        // Fetch relevant lessons
+        const lessonsResult = await dbClient.execute({
+          sql: `SELECT * FROM learned_lessons
+                WHERE is_active = 1
+                  AND success_rate >= ?
+                  AND datetime(created_at) >= datetime('now', '-${lessonAgeDays} days')
+                ORDER BY (success_rate * 0.5 + COALESCE(effectiveness_rate, 0) * 0.3 +
+                         CASE confidence_level WHEN 'high' THEN 1.0 WHEN 'medium' THEN 0.7 ELSE 0.4 END * 0.2) DESC
+                LIMIT ?`,
+          args: [minSuccessRate, lessonCount],
+        });
+
+        if (lessonsResult.rows.length > 0) {
+          learningContext = '\n\n📚 LEARNED LESSONS FROM PAST EXPERIENCE:\n';
+          learningContext += 'Apply these lessons learned from your past trading outcomes:\n\n';
+
+          for (const [idx, lesson] of lessonsResult.rows.entries()) {
+            const row = lesson as any;
+            learningContext += `${idx + 1}. [${row.lesson_category.toUpperCase()}] [Success: ${row.success_rate.toFixed(0)}%] [Confidence: ${row.confidence_level}]\n`;
+            learningContext += `   ${row.lesson_text}\n`;
+            learningContext += `   Applied: ${row.times_applied || 0} | Helpful: ${row.times_helpful || 0}`;
+            if (row.avg_pnl !== null) {
+              learningContext += ` | Avg PnL: $${row.avg_pnl.toFixed(2)}`;
+            }
+            learningContext += '\n\n';
+          }
+
+          learningContext += '⚠️ IMPORTANT: These lessons are based on real outcomes from your past predictions. Trust them when conditions match.\n';
+
+          logger.info(`📚 Loaded ${lessonsResult.rows.length} learned lesson(s) for this decision`);
+        } else {
+          logger.debug("No lessons available yet (need more trading history)");
+        }
+      }
+    } catch (error) {
+      logger.warn("Failed to fetch learned lessons:", error as any);
+    }
+
+    // 12. Generate prompt and call Agent
     const prompt = generateTradingPrompt({
       minutesElapsed,
       iteration: iterationCount,
@@ -502,6 +577,7 @@ async function executeTradingDecision() {
       tradeHistory,
       recentDecisions,
       customInstructions,
+      learningContext,
     });
 
     // Output complete prompt to log
