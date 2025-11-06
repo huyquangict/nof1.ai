@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-06
 **Approach**: Option 1 - Translate Only User-Facing Text
-**Status**: Primary log output translated ✅, Instruction generation pending ⚠️
+**Status**: ✅ COMPLETE - All user-facing text translated
 
 ## Completed ✅
 
@@ -67,28 +67,84 @@ Successfully translated all user-facing text that appears in trading cycle logs:
   - Historical decision records
   - Usage tips and reminders
 
-## Remaining Work ⚠️
+### generateInstructions Function (Lines 814-1194)
+Successfully translated all user-facing text that appears in AI trading prompts:
 
-### generateInstructions Function (Lines 817-1150+)
-**Status**: Not yet translated
-**Importance**: High - This text also appears in AI prompts
-**Estimated Time**: 30-45 minutes
+- **Trader identity and positioning** (lines 814-830)
+  - World-class trader description
+  - Professional quant capability
+  - Current strategy framework
+  - Trading objectives and philosophy
 
-This function contains:
-- Trading identity and positioning descriptions
-- Trading objectives and targets
-- Trading philosophy for each strategy
-- Detailed trading rules:
-  - Risk control priorities
-  - Entry conditions
-  - Position management rules
-  - Bilateral trading opportunities
+- **Core trading rules** (lines 832-895)
+  - Position management strategy
+  - Bilateral trading emphasis
   - Multi-timeframe analysis requirements
   - Volume signal guidelines
   - Leverage usage rules
-  - Stop-loss configurations (code-level vs manual)
-  - Take-profit strategies
-- Available tools descriptions
-- Professional trader guidelines
+  - Trading frequency guidance
+
+- **Risk control strategy** (lines 897-1012)
+  - System hard bottom line (force close rules)
+  - AI tactical decision principles
+  - Stop-loss strategy (auto-monitor vs AI-managed)
+  - Trailing take-profit strategy
+  - Flexible take-profit guidelines
+  - Peak drawdown protection
+  - Time-based profit-taking suggestions
+  - Account-level risk control
+
+- **Decision process workflow** (lines 1016-1095)
+  - Account health check priority
+  - Existing position management steps
+  - Stop-loss monitoring (auto vs manual)
+  - Take-profit monitoring (auto vs manual)
+  - Market analysis and reporting
+  - Understanding automated protection
+  - Trend reversal judgment
+  - Market data analysis requirements
+
+- **Trading opportunity evaluation** (lines 1097-1127)
+  - Add-on position evaluation criteria
+  - New opening evaluation criteria
+  - Long and short signal identification
+  - Position size and leverage calculation
+
+- **Available tools and guidelines** (lines 1129-1194)
+  - Tool descriptions
+  - World-class trader action guidelines
+  - Excellence goals and targets
+  - Risk control hierarchy
+  - Position management rules
+  - Execution parameters
+  - Decision priority
+  - Trader wisdom principles
+
+## Code Comments (Not Translated)
+
+The following sections contain Chinese code comments that were intentionally NOT translated (internal developer documentation, not user-facing):
+- File header comments (lines 1-19)
+- Type definitions and interfaces (lines 20-117)
+- Strategy parameter calculation logic (lines 119-450)
+
+These comments are for developers only and do not appear in terminal logs or user output.
+
+## Summary
+
+✅ **Translation Complete**: All user-facing text in `tradingAgent.ts` has been successfully translated to English.
+
+**What was translated:**
+- `generateTradingPrompt()` function (lines 473-811): Trading cycle logs and market data output
+- `generateInstructions()` function (lines 814-1194): AI trading instructions and guidelines
+
+**What was NOT translated:**
+- Internal code comments (developer documentation)
+- Variable names and function names (code identifiers)
+
+**Result:**
+- Terminal logs will now display in English without garbled characters
+- AI prompts will be in English
+- TypeScript compilation passes without new errors
+- Original code logic preserved completely
 
 ###Human: please continue
