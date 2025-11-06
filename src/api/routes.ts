@@ -614,6 +614,213 @@ export function createApiRoutes() {
   });
 
   /**
+   * Get AI learning system status and statistics
+   */
+  app.get("/api/learning/status", async (c) => {
+    try {
+      // Get learning enabled state
+      const learningEnabledResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'learning_enabled'",
+        args: [],
+      });
+      const learningEnabled = learningEnabledResult.rows.length > 0 && learningEnabledResult.rows[0].value === '1';
+
+      // Get total reflections
+      const reflectionsResult = await dbClient.execute("SELECT COUNT(*) as count FROM trading_reflections");
+      const totalReflections = (reflectionsResult.rows[0] as any).count;
+
+      // Get active lessons
+      const lessonsResult = await dbClient.execute("SELECT COUNT(*) as count FROM learned_lessons WHERE is_active = 1");
+      const activeLessons = (lessonsResult.rows[0] as any).count;
+
+      // Get pending reviews (reflections without feedback)
+      const pendingResult = await dbClient.execute("SELECT COUNT(*) as count FROM trading_reflections WHERE feedback_score IS NULL");
+      const pendingReviews = (pendingResult.rows[0] as any).count;
+
+      // Calculate average lesson effectiveness
+      const effectivenessResult = await dbClient.execute({
+        sql: "SELECT AVG(effectiveness_rate) as avg_effectiveness FROM learned_lessons WHERE is_active = 1 AND effectiveness_rate IS NOT NULL",
+        args: [],
+      });
+      const avgEffectiveness = effectivenessResult.rows[0] ? ((effectivenessResult.rows[0] as any).avg_effectiveness || 0) : 0;
+
+      return c.json({
+        learningEnabled,
+        totalReflections,
+        activeLessons,
+        pendingReviews,
+        avgEffectiveness: parseFloat((avgEffectiveness * 100).toFixed(1)),
+      });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Toggle AI learning system
+   */
+  app.post("/api/learning/toggle", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { enabled } = body;
+
+      if (typeof enabled !== 'boolean') {
+        return c.json({ error: "Invalid enabled value, must be boolean" }, 400);
+      }
+
+      await dbClient.execute({
+        sql: `INSERT INTO system_config (key, value, updated_at)
+              VALUES ('learning_enabled', ?, datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')`,
+        args: [enabled ? '1' : '0'],
+      });
+
+      logger.info(`🧠 AI Learning ${enabled ? 'ENABLED' : 'DISABLED'} by user`);
+
+      return c.json({
+        success: true,
+        enabled,
+        message: enabled
+          ? "AI Learning ENABLED - System will record predictions, calculate feedback, and generate lessons"
+          : "AI Learning DISABLED - No new reflections or lessons will be created"
+      });
+    } catch (error: any) {
+      logger.error("Failed to toggle learning:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Update learning configuration
+   */
+  app.post("/api/learning/config", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { lessonCount, minSuccessRate, lessonAgeDays } = body;
+
+      if (lessonCount !== undefined) {
+        await dbClient.execute({
+          sql: `INSERT INTO system_config (key, value, updated_at)
+                VALUES ('lesson_count', ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+          args: [lessonCount.toString()],
+        });
+      }
+
+      if (minSuccessRate !== undefined) {
+        await dbClient.execute({
+          sql: `INSERT INTO system_config (key, value, updated_at)
+                VALUES ('min_success_rate', ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+          args: [minSuccessRate.toString()],
+        });
+      }
+
+      if (lessonAgeDays !== undefined) {
+        await dbClient.execute({
+          sql: `INSERT INTO system_config (key, value, updated_at)
+                VALUES ('lesson_age_days', ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+          args: [lessonAgeDays.toString()],
+        });
+      }
+
+      logger.info(`📝 Learning config updated: count=${lessonCount}, minSuccess=${minSuccessRate}%, age=${lessonAgeDays}d`);
+
+      return c.json({
+        success: true,
+        message: "Learning configuration updated",
+        config: { lessonCount, minSuccessRate, lessonAgeDays }
+      });
+    } catch (error: any) {
+      logger.error("Failed to update learning config:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Get top lessons
+   */
+  app.get("/api/learning/lessons", async (c) => {
+    try {
+      const limit = parseInt(c.req.query("limit") || "10");
+
+      const result = await dbClient.execute({
+        sql: `SELECT * FROM learned_lessons
+              WHERE is_active = 1
+              ORDER BY (success_rate * 0.5 + COALESCE(effectiveness_rate, 0) * 0.3 +
+                       CASE confidence_level WHEN 'high' THEN 1.0 WHEN 'medium' THEN 0.7 ELSE 0.4 END * 0.2) DESC
+              LIMIT ?`,
+        args: [limit],
+      });
+
+      const lessons = result.rows.map((row: any) => ({
+        id: row.id,
+        category: row.lesson_category,
+        text: row.lesson_text,
+        successRate: row.success_rate,
+        avgPnl: row.avg_pnl,
+        confidenceLevel: row.confidence_level,
+        applicableSymbols: row.applicable_symbols,
+        timesApplied: row.times_applied || 0,
+        timesHelpful: row.times_helpful || 0,
+        effectivenessRate: row.effectiveness_rate || 0,
+        createdAt: row.created_at,
+      }));
+
+      return c.json({ lessons });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Get recent reflections
+   */
+  app.get("/api/learning/reflections", async (c) => {
+    try {
+      const limit = parseInt(c.req.query("limit") || "20");
+      const filter = c.req.query("filter") || "all"; // all, accurate, inaccurate, pending
+
+      let sql = "SELECT * FROM trading_reflections ORDER BY timestamp DESC LIMIT ?";
+      const args: any[] = [limit];
+
+      if (filter === "accurate") {
+        sql = "SELECT * FROM trading_reflections WHERE feedback_score >= 8 ORDER BY timestamp DESC LIMIT ?";
+      } else if (filter === "inaccurate") {
+        sql = "SELECT * FROM trading_reflections WHERE feedback_score <= 4 ORDER BY timestamp DESC LIMIT ?";
+      } else if (filter === "pending") {
+        sql = "SELECT * FROM trading_reflections WHERE feedback_score IS NULL ORDER BY timestamp DESC LIMIT ?";
+      }
+
+      const result = await dbClient.execute({ sql, args });
+
+      const reflections = result.rows.map((row: any) => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        symbol: row.symbol,
+        vision: row.vision,
+        confidenceScore: row.confidence_score,
+        reasoning: row.reasoning,
+        priceAtDecision: row.price_at_decision,
+        targetPrice: row.target_price,
+        actualPrice: row.actual_price,
+        priceChangePercent: row.price_change_percent,
+        predictionAccuracy: row.prediction_accuracy,
+        feedbackScore: row.feedback_score,
+        outcomeType: row.outcome_type,
+        pnlResult: row.pnl_result,
+      }));
+
+      return c.json({ reflections });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
    * get multiple symbols real-time prices
    */
   app.get("/api/prices", async (c) => {
