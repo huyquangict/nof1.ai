@@ -554,6 +554,66 @@ export function createApiRoutes() {
   });
 
   /**
+   * Get custom LLM instructions
+   */
+  app.get("/api/trading/custom-instructions", async (c) => {
+    try {
+      const result = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'custom_instructions'",
+        args: [],
+      });
+
+      const instructions = result.rows.length > 0 ? (result.rows[0].value as string) : '';
+
+      return c.json({
+        instructions,
+        message: instructions
+          ? "Custom instructions loaded"
+          : "No custom instructions set"
+      });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Save custom LLM instructions
+   */
+  app.post("/api/trading/custom-instructions", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { instructions } = body;
+
+      if (typeof instructions !== 'string') {
+        return c.json({ error: "Invalid instructions value, must be string" }, 400);
+      }
+
+      // Update or insert custom instructions in database
+      await dbClient.execute({
+        sql: `INSERT INTO system_config (key, value, updated_at)
+              VALUES ('custom_instructions', ?, datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')`,
+        args: [instructions],
+      });
+
+      logger.info(`💬 Custom LLM instructions updated (${instructions.length} characters)`);
+
+      return c.json({
+        success: true,
+        instructions,
+        message: instructions
+          ? "Custom instructions saved - will be included in next AI decision"
+          : "Custom instructions cleared"
+      });
+    } catch (error: any) {
+      logger.error("Failed to update custom instructions:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
    * get multiple symbols real-time prices
    */
   app.get("/api/prices", async (c) => {
@@ -576,7 +636,7 @@ export function createApiRoutes() {
           }
         })
       );
-      
+
       return c.json({ prices });
     } catch (error: any) {
       return c.json({ error: error.message }, 500);

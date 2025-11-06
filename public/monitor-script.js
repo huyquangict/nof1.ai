@@ -99,6 +99,7 @@ class TradingMonitor {
             this.loadGitHubStars(); // Load GitHub star count
             this.initPauseButton(); // Initialize pause button
             this.initReverseButton(); // Initialize reverse button
+            this.initCustomInstructions(); // Initialize custom instructions
         } catch (error) {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);
@@ -356,6 +357,93 @@ class TradingMonitor {
             notification.style.animation = 'slideOut 0.3s ease-out';
             setTimeout(() => notification.remove(), 300);
         }, 5000);
+    }
+
+    // Initialize custom instructions
+    initCustomInstructions() {
+        const textarea = document.getElementById('custom-instructions');
+        const saveButton = document.getElementById('save-instructions-button');
+
+        if (!textarea || !saveButton) {
+            console.error('Custom instructions elements not found');
+            return;
+        }
+
+        // Load initial instructions
+        this.loadCustomInstructions();
+
+        // Add save button handler
+        saveButton.addEventListener('click', async () => {
+            await this.saveCustomInstructions();
+        });
+
+        // Optional: Auto-save on blur or after typing pause
+        let saveTimeout;
+        textarea.addEventListener('input', () => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                console.log('Auto-saving custom instructions...');
+                await this.saveCustomInstructions(true); // true = silent save
+            }, 3000); // Auto-save after 3 seconds of no typing
+        });
+    }
+
+    // Load custom instructions from API
+    async loadCustomInstructions() {
+        try {
+            const response = await fetch('/api/trading/custom-instructions');
+            const data = await response.json();
+
+            const textarea = document.getElementById('custom-instructions');
+            if (textarea) {
+                textarea.value = data.instructions || '';
+            }
+        } catch (error) {
+            console.error('Failed to load custom instructions:', error);
+        }
+    }
+
+    // Save custom instructions to API
+    async saveCustomInstructions(silent = false) {
+        const textarea = document.getElementById('custom-instructions');
+        if (!textarea) return;
+
+        const instructions = textarea.value.trim();
+
+        try {
+            const response = await fetch('/api/trading/custom-instructions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ instructions }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log(data.message);
+
+                // Show user notification (unless silent save)
+                if (!silent) {
+                    const message = instructions
+                        ? '💬 Custom instructions saved - will be included in next AI decision'
+                        : '🗑️ Custom instructions cleared';
+
+                    this.showNotification(message, 'success');
+                }
+            } else {
+                console.error('Failed to save custom instructions:', data.error);
+                if (!silent) {
+                    alert(`Failed to save custom instructions: ${data.error}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to save custom instructions:', error);
+            if (!silent) {
+                alert(`Failed to save custom instructions: ${error.message}`);
+            }
+        }
     }
 
     // Show login form

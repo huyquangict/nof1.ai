@@ -192,6 +192,39 @@
       </div>
     </section>
 
+    <!-- Custom Instructions Section -->
+    <section class="chart-section custom-instructions-section">
+      <div class="chart-header">
+        <h3 class="chart-title">Custom LLM Instructions</h3>
+        <button class="save-instructions-button" id="save-instructions-button" title="Save custom instructions">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          <span>SAVE</span>
+        </button>
+      </div>
+      <div class="custom-instructions-container">
+        <textarea
+          id="custom-instructions"
+          class="custom-instructions-textarea"
+          placeholder="Add custom instructions or guidelines for the AI trading agent here...
+
+Examples:
+- Focus only on BTC and ETH trades
+- Avoid opening positions during US market close
+- Increase position size when RSI > 70
+- Be more conservative with leverage on weekends
+
+Your custom instructions will be added to every AI prompt."
+        ></textarea>
+        <div class="custom-instructions-info">
+          <span class="info-text">Custom instructions are appended to every AI trading prompt. Use this to add specific trading rules, preferences, or risk management guidelines.</span>
+        </div>
+      </div>
+    </section>
+
     <!-- Account Value Section -->
     <section class="account-section">
       <div class="account-header">

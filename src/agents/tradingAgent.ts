@@ -272,12 +272,22 @@ export function generateTradingPrompt(data: {
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
+  customInstructions?: string;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, customInstructions } = data;
   const currentTime = formatChinaTime();
   const sltp = getPositionSLTPConfig();
 
-  let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.
+  let prompt = `You have been trading for ${minutesElapsed} minutes. Current time is ${currentTime}, and you have been invoked ${iteration} times. Below we provide various status data, price data, and prediction signals to help you discover alpha returns. You also have your current account information, value, performance, positions, etc.`;
+
+  // Add custom instructions if provided
+  if (customInstructions && customInstructions.trim()) {
+    prompt += `\n\n🎯 CUSTOM TRADING INSTRUCTIONS FROM USER:\n`;
+    prompt += `${customInstructions.trim()}\n`;
+    prompt += `\nIMPORTANT: Follow these custom instructions in addition to your standard trading rules. If there's a conflict, prioritize the custom instructions above.\n`;
+  }
+
+  prompt += `
 
 Important Rules and Instructions for 80% Win Rate Trading:
 

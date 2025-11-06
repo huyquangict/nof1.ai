@@ -474,7 +474,24 @@ async function executeTradingDecision() {
       // If pause check fails, continue to allow trading (fail-safe approach)
     }
 
-    // 10. Generate prompt and call Agent
+    // 10. Fetch custom instructions from database
+    let customInstructions = '';
+    try {
+      const instructionsResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'custom_instructions'",
+        args: [],
+      });
+      if (instructionsResult.rows.length > 0) {
+        customInstructions = instructionsResult.rows[0].value as string;
+        if (customInstructions && customInstructions.trim()) {
+          logger.info(`💬 Custom instructions loaded: ${customInstructions.length} characters`);
+        }
+      }
+    } catch (error) {
+      logger.warn("Failed to fetch custom instructions from database:", error as any);
+    }
+
+    // 11. Generate prompt and call Agent
     const prompt = generateTradingPrompt({
       minutesElapsed,
       iteration: iterationCount,
@@ -484,6 +501,7 @@ async function executeTradingDecision() {
       positions,
       tradeHistory,
       recentDecisions,
+      customInstructions,
     });
 
     // Output complete prompt to log
