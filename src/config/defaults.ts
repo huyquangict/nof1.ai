@@ -121,6 +121,6 @@ export const CONFIG_CONSTRAINTS = {
     port: { min: 1, max: 65535 },
   },
   ai: {
-    maxSteps: { min: 1, max: 50 },
+    maxSteps: { min: 1, max: 200 },
   },
 } as const;
