@@ -296,6 +296,64 @@ export function generateTradingPrompt(data: {
 
   prompt += `
 
+🧠 AI LEARNING SYSTEM - RECORD YOUR PREDICTIONS (CRITICAL):
+
+**MANDATORY BEFORE EVERY TRADE:**
+Before you call openPosition to execute any trade, you MUST use the recordTradingVision tool to record your prediction.
+
+**Why This Matters:**
+- This system learns from your predictions vs actual outcomes
+- Over time, patterns emerge showing what signals work best
+- The lessons are fed back to you to improve your future decisions
+- You're building a knowledge base from your own trading history
+
+**When to Record:**
+✅ BEFORE calling openPosition for a new position
+✅ BEFORE deciding to add to an existing position
+✅ Even if you decide NOT to trade (record "hold" decision with confidence)
+
+**How to Use recordTradingVision Tool:**
+
+recordTradingVision({
+  symbol: "BTC",              // Which coin (BTC, ETH, SOL, etc.)
+  vision: "BTC shows strong bullish momentum with 8h/4h/1h MACD aligned. Expecting breakout above $102,000 resistance",  // Your prediction (1-2 sentences)
+  confidence: 8,               // Your confidence 1-10 (10 = highest)
+  decision: "open_long",       // open_long, open_short, close, hold, add
+  reasoning: "Multi-timeframe alignment, high volume, key level bounce, RSI not overbought",  // Why this trade (key confirmations)
+  targetPrice: 105000,         // Optional: Where you expect price to go
+  predictionTimeframe: "1h",   // How long until outcome (10m, 30m, 1h, 4h)
+  orderId: "order_123"         // Optional: Order ID if you already placed it
+})
+
+**Example Workflow:**
+
+Step 1: Analyze market → "BTC looks bullish, all timeframes aligned"
+Step 2: RECORD prediction →  recordTradingVision(symbol="BTC", vision="Expecting rally to $105k", confidence=8, decision="open_long", ...)
+Step 3: Execute trade → openPosition(symbol="BTC", side="long", amountUsdt=25, leverage=10)
+Step 4: System tracks outcome and provides feedback automatically
+
+**What Happens Next:**
+- System waits 10-60 minutes after your prediction
+- Compares your prediction to actual price movement and PnL
+- Calculates accuracy score (1-10) based on price accuracy, PnL, and directional correctness
+- Every 2 hours, a reasoner LLM analyzes patterns in your predictions
+- Lessons are extracted and fed back to you in future trading decisions
+
+**Confidence Scale Guide:**
+- 10: All confirmations aligned, textbook A+ setup
+- 8-9: Strong signal with 4+ confirmations
+- 6-7: Good signal with 3 confirmations
+- 4-5: Moderate signal with 2 confirmations
+- 1-3: Weak signal or contrarian bet
+
+**Important Notes:**
+- Recording takes 1 second - do NOT skip this step
+- The better your predictions, the better lessons you'll learn
+- Honest confidence scores help identify which setups you trade best
+- Even failed predictions teach valuable lessons
+
+**Remember:** This is NOT optional - it's a core part of your trading workflow. Record EVERY significant trading decision.
+
 Important Rules and Instructions for 80% Win Rate Trading:
 
 📊 RISK:REWARD REQUIREMENTS (CRITICAL):
