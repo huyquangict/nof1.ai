@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * 市场数据工具
+ * Market Data Tools
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
@@ -25,7 +25,7 @@ import { createExchangeClient } from "../../services/exchange";
 import { RISK_PARAMS } from "../../config/riskParams";
 
 /**
- * 确保数值是有效的有限数字，否则返回默认值
+ * Ensure value is a valid finite number, otherwise return default value
  */
 function ensureFinite(value: number, defaultValue: number = 0): number {
   if (!Number.isFinite(value)) {
@@ -35,7 +35,7 @@ function ensureFinite(value: number, defaultValue: number = 0): number {
 }
 
 /**
- * 确保数值在指定范围内
+ * Ensure value is within specified range
  */
 function ensureRange(value: number, min: number, max: number, defaultValue?: number): number {
   if (!Number.isFinite(value)) {
@@ -46,7 +46,7 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
   return value;
 }
 
-// 计算 EMA
+// Calculate EMA
 function calculateEMA(prices: number[], period: number) {
   if (!prices || prices.length === 0) return 0;
   const k = 2 / (period + 1);
@@ -59,13 +59,13 @@ function calculateEMA(prices: number[], period: number) {
 
 // 计算 RSI
 function calculateRSI(prices: number[], period: number) {
-  if (!prices || prices.length < period + 1) return 50; // 数据不足，返回中性值
+  if (!prices || prices.length < period + 1) return 50; // 数据不足,返回中性值
   
   let gains = 0;
   let losses = 0;
 
   for (let i = prices.length - period; i < prices.length; i++) {
-    if (i === 0) continue; // 跳过第一个元素，避免访问 prices[-1]
+    if (i === 0) continue; // 跳过第一个元素,避免访问 prices[-1]
     const change = prices[i] - prices[i - 1];
     if (change > 0) gains += change;
     else losses -= change;
@@ -79,7 +79,7 @@ function calculateRSI(prices: number[], period: number) {
   const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
   
-  // 确保RSI在0-100范围内
+  // Ensure RSI is within 0-100 range
   return ensureRange(rsi, 0, 100, 50);
 }
 
@@ -100,19 +100,19 @@ function calculateATR(candles: any[], period: number) {
   for (let i = 1; i < candles.length; i++) {
     let high: number, low: number, prevClose: number;
 
-    // 处理标准化格式（Candle interface）
+    // 处理标准化格式(Candle interface)
     if (candles[i] && typeof candles[i] === 'object' && 'high' in candles[i]) {
       high = candles[i].high;
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // 处理old的交易所格式（FuturesCandlestick）
+    // 处理old的交易所格式(FuturesCandlestick)
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
       prevClose = Number.parseFloat(candles[i - 1].c);
     }
-    // 处理数组格式（兼容old代码）
+    // 处理数组格式(兼容old代码)
     else if (Array.isArray(candles[i])) {
       high = Number.parseFloat(candles[i][3]);
       low = Number.parseFloat(candles[i][4]);
@@ -134,14 +134,14 @@ function calculateATR(candles: any[], period: number) {
 /**
  * 计算技术指标
  * 
- * K线数据格式：FuturesCandlestick 对象
+ * K线数据格式:FuturesCandlestick 对象
  * {
  *   t: number,    // time戳
- *   v: number,    // filled量
+ *   v: number,    // Volume
  *   c: string,    // 收盘价
  *   h: string,    // 最高价
  *   l: string,    // 最低价
- *   o: string,    // 开盘价
+ *   o: string,    // open盘价
  *   sum: string   // 总filled额
  * }
  */
@@ -161,18 +161,18 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理K线数据（支持标准化格式和old格式）
+  // 处理K线数据(支持标准化格式和old格式)
   const closes = candles
     .map((c) => {
-      // 标准化格式（Candle interface）
+      // 标准化格式(Candle interface)
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // old的交易所格式（FuturesCandlestick）
+      // old的交易所格式(FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // 数组格式（兼容old代码）
+      // 数组格式(兼容old代码)
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -182,24 +182,24 @@ function calculateIndicators(candles: any[]) {
 
   const volumes = candles
     .map((c) => {
-      // 标准化格式（Candle interface）
+      // 标准化格式(Candle interface)
       if (c && typeof c === 'object' && 'volume' in c) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // old的交易所格式（FuturesCandlestick）
+      // old的交易所格式(FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 数组格式（兼容old代码）
+      // 数组格式(兼容old代码)
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
       return 0;
     })
-    .filter(n => n >= 0); // 过滤掉负数filled量
+    .filter(n => n >= 0); // 过滤掉负数Volume
 
   if (closes.length === 0 || volumes.length === 0) {
     return {
@@ -264,7 +264,7 @@ export const getMarketPriceTool = createTool({
  */
 export const getTechnicalIndicatorsTool = createTool({
   name: "getTechnicalIndicators",
-  description: "获取指定symbol的技术指标（EMA、MACD、RSI等）",
+  description: "获取指定symbol的技术指标(EMA、MACD、RSI等)",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
     interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("K线周期"),
@@ -354,7 +354,7 @@ export const getOpenInterestTool = createTool({
   }),
   execute: async ({ symbol }) => {
     // 交易所 API 需要通过其他方式获取position量数据
-    // 暂时返回 0，后续可以通过其他端点获取
+    // 暂时返回 0,后续可以通过其他端点获取
     return {
       symbol,
       openInterest: 0,

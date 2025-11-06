@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
  */
 
 /**
- * 快速syncposition（不重置database）
- * 只从交易所syncposition到本地database
+ * Quick position sync (without resetting database)
+ * Only sync positions from exchange to local database
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
@@ -32,20 +32,20 @@ const logger = createPinoLogger({
 
 async function syncPositionsOnly() {
   try {
-    logger.info("🔄 从交易所syncposition...");
+    logger.info("🔄 Syncing positions from exchange...");
 
-    // 1. 连接database
+    // 1. Connect to database
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const client = createClient({
       url: dbUrl,
     });
 
-    // 2. check表是否存在，不存在则创建
+    // 2. check表是否存在,不存在则创建
     try {
       await client.execute("SELECT COUNT(*) FROM positions");
       logger.info("✅ database表已存在");
     } catch (error) {
-      logger.warn("⚠️  database表不存在，正在创建...");
+      logger.warn("⚠️  database表不存在,正在创建...");
       // 创建必要的表
       await client.execute(`
         CREATE TABLE IF NOT EXISTS positions (

@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * account管理工具
+ * Account management tools
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
@@ -46,11 +46,11 @@ function formatPrice(price: number): string {
 }
 
 /**
- * 获取accountbalance工具
+ * Get account balance tool
  */
 export const getAccountBalanceTool = createTool({
   name: "getAccountBalance",
-  description: "获取accountbalance和资金信息",
+  description: "Get account balance and funding information",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -70,7 +70,7 @@ export const getAccountBalanceTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取accountbalancefailed: ${error.message}`,
+        message: `Failed to get account balance: ${error.message}`,
       };
     }
   },
@@ -123,7 +123,7 @@ export const getOpenOrdersTool = createTool({
   name: "getOpenOrders",
   description: "获取所有not filled的pending order",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选：仅获取指定symbol的order"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选:仅获取指定symbol的order"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -162,7 +162,7 @@ export const getOpenOrdersTool = createTool({
  */
 export const checkOrderStatusTool = createTool({
   name: "checkOrderStatus",
-  description: "check指定order的详细状态，包括filled价格、filled数量等",
+  description: "check指定order的详细状态,包括filled价格、filled数量等",
   parameters: z.object({
     orderId: z.string().describe("orderID"),
   }),
@@ -223,7 +223,7 @@ export const calculateRiskTool = createTool({
       const totalBalance = account.totalBalance;
       const availableBalance = account.availableBalance;
       
-      // 计算每个position的风险（需要异步获取contract乘数）
+      // 计算每个position的风险(需要异步获取contract乘数)
       const positionRisks = await Promise.all(
         positions.map(async (p) => {
           const size = p.quantity;
@@ -233,14 +233,14 @@ export const calculateRiskTool = createTool({
           const currentPrice = p.currentPrice;
           const pnl = p.unrealizedPnl;
 
-          // 获取contract乘数（修复：正确计算notional value）
+          // 获取contract乘数(修复:正确计算notional value)
           const quantoMultiplier = await getQuantoMultiplier(p.exchangeSymbol);
 
-          // 正确计算notional value：contracts × entry price格 × contract乘数
+          // 正确计算notional value:contracts × entry price格 × contract乘数
           const notionalValue = size * entryPrice * quantoMultiplier;
           const margin = notionalValue / leverage;
 
-          // 计算风险百分比（到强平的距离）
+          // 计算风险百分比(到强close的距离)
           const riskPercent = currentPrice > 0
             ? Math.abs((currentPrice - liquidationPrice) / currentPrice) * 100
             : 0;
@@ -308,7 +308,7 @@ export const calculateRiskTool = createTool({
  */
 export const syncPositionsTool = createTool({
   name: "syncPositions",
-  description: "sync交易所position数据到本地database，使用orderIDverifyposition和stop-losstake-profit状态",
+  description: "sync交易所position数据到本地database,使用orderIDverifyposition和stop-losstake-profit状态",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();

@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * database模式定义
+ * Database schema definition
  */
 
 export interface TakeProfitOrder {
@@ -73,7 +73,7 @@ export interface Position {
   opened_at: string;
   confidence?: number;
   risk_usd?: number;
-  peak_pnl_percent?: number; // 历史最高PnL百分比（考虑leverage）
+  peak_pnl_percent?: number; // 历史最高PnL百分比(考虑leverage)
 }
 
 export interface AccountHistory {

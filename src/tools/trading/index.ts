@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,10 +17,10 @@
  */
 
 /**
- * 交易工具集导出
+ * Trading Tools Exports
  */
 
-// 市场数据工具
+// Market Data Tools
 export {
   getMarketPriceTool,
   getTechnicalIndicatorsTool,
@@ -41,7 +41,7 @@ export {
   setTakeProfitTool,
 } from "./tradeExecution";
 
-// account管理工具
+// Account management tools
 export {
   getAccountBalanceTool,
   getPositionsTool,

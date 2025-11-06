@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -26,19 +26,19 @@ import { runProfitManager } from "./scheduler/profitManager";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 
-// 设置时区为中国time（Asia/Shanghai，UTC+8）
+// 设置时区为中国time(Asia/Shanghai,UTC+8)
 process.env.TZ = 'Asia/Shanghai';
 
-// 创建日志实例（使用中国时区）
+// Create logger instance (using China timezone)
 const logger = createPinoLogger({
   name: "ai-btc",
   level: "info",
   formatters: {
     timestamp: () => {
-      // 使用系统时区设置，已经是 Asia/Shanghai
+      // Using system timezone setting, already set to Asia/Shanghai
       const now = new Date();
-      // 正确格式化：使用 toLocaleString 获取中国time，然后转换为 ISO 格式
-      const chinaOffset = 8 * 60; // 中国时区偏移（分钟）
+      // 正确格式化:Use toLocaleString to get China time, then convert to ISO format
+      const chinaOffset = 8 * 60; // 中国时区偏移(分钟)
       const utc = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
       const chinaTime = new Date(utc + (chinaOffset * 60 * 1000));
       return `, "time": "${chinaTime.toISOString().replace('Z', '+08:00')}"`;

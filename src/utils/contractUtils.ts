@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * contract工具函数
+ * Contract utility functions
  */
 import { createPinoLogger } from "@voltagent/logger";
 
@@ -26,12 +26,12 @@ const logger = createPinoLogger({
   level: "info",
 });
 
-// contract乘数缓存（避免重复API调用）
+// Contract multiplier cache (avoid duplicate API calls)
 const quantoMultiplierCache = new Map<string, number>();
 
 /**
- * 默认contract乘数映射
- * 从交易所 API 获取failed时使用
+ * Default contract multiplier mapping
+ * Used when fetching from exchange API fails
  */
 const DEFAULT_MULTIPLIERS: Record<string, number> = {
   // USDT-margined perpetual contracts: 1 contract = 1 coin (1:1 ratio)
@@ -49,16 +49,16 @@ const DEFAULT_MULTIPLIERS: Record<string, number> = {
 };
 
 /**
- * 获取contract乘数（quanto multiplier）
+ * 获取contract乘数(quanto multiplier)
  * 
- * contract乘数表示：1 contractscontract代表多少个币
- * 例如：BTC_USDTcontract，1 contracts = 0.0001 BTC
+ * contract乘数表示:1 contractscontract代表多少个币
+ * 例如:BTC_USDTcontract,1 contracts = 0.0001 BTC
  *
- * 优先从交易所 API 获取，failed时使用默认值
+ * 优先从交易所 API 获取,failed时使用默认值
  * 支持缓存以减少API调用次数
  * 
- * @param contract contract名称，如 "BTC_USDT"
- * @param useCache 是否使用缓存（默认true）
+ * @param contract contract名称,如 "BTC_USDT"
+ * @param useCache 是否使用缓存(默认true)
  * @returns contract乘数
  */
 export async function getQuantoMultiplier(
@@ -86,7 +86,7 @@ export async function getQuantoMultiplier(
 }
 
 /**
- * 清除缓存（用于测试或强制刷new）
+ * 清除缓存(用于测试或强制刷new)
  */
 export function clearQuantoMultiplierCache(contract?: string) {
   if (contract) {
@@ -99,7 +99,7 @@ export function clearQuantoMultiplierCache(contract?: string) {
 }
 
 /**
- * 预加载常用contract的乘数（可选，用于start时预热缓存）
+ * 预加载常用contract的乘数(可选,用于start时预热缓存)
  */
 export async function preloadQuantoMultipliers(contracts: string[]): Promise<void> {
   logger.info(`预加载 ${contracts.length} 个contract的乘数...`);

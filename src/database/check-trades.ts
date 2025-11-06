@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ async function checkTrades() {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const client = createClient({ url: dbUrl });
     
-    logger.info("📊 query最近5条交易记录...\n");
+    logger.info("📊 Query last 5 trade records...\n");
     
     const result = await client.execute({
       sql: `SELECT id, symbol, side, type, price, quantity, leverage, fee, timestamp 
@@ -41,15 +41,15 @@ async function checkTrades() {
     });
     
     if (result.rows.length === 0) {
-      logger.info("没有交易记录");
+      logger.info("No trade records");
       return;
     }
     
-    console.log("交易记录：");
+    console.log("Trade records:");
     console.log("=".repeat(100));
     
     for (const row of result.rows) {
-      const typeText = row.type === 'open' ? '开' : '平';
+      const typeText = row.type === 'open' ? 'open' : 'close';
       const sideText = row.side === 'long' ? '多' : '空';
       const feeText = row.fee ? `${Number(row.fee).toFixed(4)}` : '0';
       

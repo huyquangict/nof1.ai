@@ -1,23 +1,23 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * 多time框架分析模块（极简版 - 只提供原始数据）
+ * Multi-timeframe analysis module (minimal version - provides raw data only)
  */
 
 import { createPinoLogger } from "@voltagent/logger";
@@ -29,7 +29,7 @@ const logger = createPinoLogger({
 });
 
 /**
- * time框架定义
+ * Timeframe definition
  */
 export interface TimeframeConfig {
   interval: "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "4h" | "8h" | "1d";
@@ -37,42 +37,42 @@ export interface TimeframeConfig {
   description: string;
 }
 
-// 标准time框架配置 - 短线交易配置
+// Standard timeframe configuration - short-term trading configuration
 export const TIMEFRAMES: Record<string, TimeframeConfig> = {
   VERY_SHORT: {
     interval: "1m",
     candleCount: 60,
-    description: "1分钟",
+    description: "1 minute",
   },
   SHORT_1: {
     interval: "3m",
     candleCount: 100,
-    description: "3分钟",
+    description: "3 minutes",
   },
   SHORT: {
     interval: "5m",
     candleCount: 100,
-    description: "5分钟",
+    description: "5 minutes",
   },
   SHORT_CONFIRM: {
     interval: "15m",
     candleCount: 96,
-    description: "15分钟",
+    description: "15 minutes",
   },
   MEDIUM_SHORT: {
     interval: "30m",
     candleCount: 90,
-    description: "30分钟",
+    description: "30 minutes",
   },
   MEDIUM: {
     interval: "1h",
     candleCount: 120,
-    description: "1小时",
+    description: "1 hour",
   },
 };
 
 /**
- * 确保数值是有效的有限数字，否则返回默认值
+ * Ensure value is a valid finite number, otherwise return default value
  */
 function ensureFinite(value: number, defaultValue: number = 0): number {
   if (!Number.isFinite(value)) {
@@ -82,7 +82,7 @@ function ensureFinite(value: number, defaultValue: number = 0): number {
 }
 
 /**
- * 确保数值在指定范围内
+ * Ensure value is within specified range
  */
 function ensureRange(value: number, min: number, max: number, defaultValue?: number): number {
   if (!Number.isFinite(value)) {
@@ -94,7 +94,7 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
 }
 
 /**
- * 计算EMA
+ * Calculate EMA
  */
 function calculateEMA(prices: number[], period: number): number {
   if (prices.length < period) return 0;
@@ -110,19 +110,19 @@ function calculateEMA(prices: number[], period: number): number {
 }
 
 /**
- * 计算RSI
+ * Calculate RSI
  */
 function calculateRSI(prices: number[], period: number): number {
   if (prices.length < period + 1) return 50;
-  
+
   const changes = [];
   for (let i = 1; i < prices.length; i++) {
     changes.push(prices[i] - prices[i - 1]);
   }
-  
+
   let gains = 0;
   let losses = 0;
-  
+
   for (let i = 0; i < period; i++) {
     if (changes[i] >= 0) {
       gains += changes[i];
@@ -130,10 +130,10 @@ function calculateRSI(prices: number[], period: number): number {
       losses -= changes[i];
     }
   }
-  
+
   let avgGain = gains / period;
   let avgLoss = losses / period;
-  
+
   for (let i = period; i < changes.length; i++) {
     if (changes[i] >= 0) {
       avgGain = (avgGain * (period - 1) + changes[i]) / period;
@@ -143,16 +143,16 @@ function calculateRSI(prices: number[], period: number): number {
       avgLoss = (avgLoss * (period - 1) - changes[i]) / period;
     }
   }
-  
+
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
-  // 确保RSI在0-100范围内
+  // Ensure RSI is within 0-100 range
   return ensureRange(rsi, 0, 100, 50);
 }
 
 /**
- * 计算MACD
+ * Calculate MACD
  */
 function calculateMACD(prices: number[]): { macd: number; signal: number; histogram: number } {
   const ema12 = calculateEMA(prices, 12);
@@ -178,32 +178,32 @@ function calculateMACD(prices: number[]): { macd: number; signal: number; histog
 }
 
 /**
- * 单个time框架的原始数据
+ * Raw data for a single timeframe
  */
 export interface TimeframeIndicators {
   interval: string;
   currentPrice: number;
-  
-  // 均线
+
+  // Moving averages
   ema20: number;
   ema50: number;
-  
+
   // MACD
   macd: number;
-  
+
   // RSI
   rsi14: number;
-  
-  // filled量
+
+  // Volume
   volume: number;
   avgVolume: number;
-  
-  // 价格变化
-  priceChange20: number; // 最近20根K线变化%
+
+  // Price change
+  priceChange20: number; // Change % in last 20 candles
 }
 
 /**
- * 分析单个time框架（只计算原始指标）
+ * Analyze a single timeframe (calculate raw indicators only)
  */
 export async function analyzeTimeframe(
   symbol: string,
@@ -211,41 +211,41 @@ export async function analyzeTimeframe(
 ): Promise<TimeframeIndicators> {
   const exchangeClient = createExchangeClient();
   const contract = `${symbol}_USDT`;
-  
-  // 获取K线数据
+
+  // Get candlestick data
   const candles = await exchangeClient.getFuturesCandles(
     contract,
     config.interval,
     config.candleCount
   );
-  
+
   if (!candles || candles.length === 0) {
-    throw new Error(`无法获取 ${symbol} 的 ${config.interval} K线数据`);
+    throw new Error(`Unable to fetch ${config.interval} candle data for ${symbol}`);
   }
-  
-  // 提取价格和filled量数据
+
+  // Extract price and volume data
   const closes = candles.map((c: any) => Number.parseFloat(c.c)).filter((n: number) => Number.isFinite(n));
   const volumes = candles.map((c: any) => {
     const vol = Number.parseFloat(c.v);
     return Number.isFinite(vol) && vol >= 0 ? vol : 0;
   }).filter((n: number) => n >= 0);
-  
+
   const currentPrice = closes[closes.length - 1] || 0;
-  
-  // 计算技术指标（原始值）
+
+  // Calculate technical indicators (raw values)
   const ema20 = calculateEMA(closes, 20);
   const ema50 = calculateEMA(closes, 50);
-  
+
   const { macd } = calculateMACD(closes);
-  
+
   const rsi14 = calculateRSI(closes, 14);
-  
-  const avgVolume = volumes.length > 0 
-    ? volumes.reduce((a: number, b: number) => a + b, 0) / volumes.length 
+
+  const avgVolume = volumes.length > 0
+    ? volumes.reduce((a: number, b: number) => a + b, 0) / volumes.length
     : 0;
   const currentVolume = volumes[volumes.length - 1] || 0;
-  
-  // 价格变化
+
+  // Price change
   const priceChange20 = closes.length >= 21 && closes[closes.length - 21] !== 0
     ? ((closes[closes.length - 1] - closes[closes.length - 21]) / closes[closes.length - 21]) * 100
     : 0;
@@ -264,13 +264,13 @@ export async function analyzeTimeframe(
 }
 
 /**
- * 多time框架原始数据
+ * Multi-timeframe raw data
  */
 export interface MultiTimeframeAnalysis {
   symbol: string;
   timestamp: string;
-  
-  // 各time框架原始数据
+
+  // Raw data for each timeframe
   timeframes: {
     veryshort?: TimeframeIndicators;
     short1?: TimeframeIndicators;
@@ -279,8 +279,8 @@ export interface MultiTimeframeAnalysis {
     mediumshort?: TimeframeIndicators;
     medium?: TimeframeIndicators;
   };
-  
-  // 关键价位（支撑阻力）
+
+  // Key levels (support/resistance)
   keyLevels: {
     resistance: number[];
     support: number[];
@@ -288,23 +288,23 @@ export interface MultiTimeframeAnalysis {
 }
 
 /**
- * 执行多time框架分析（极简版 - 只提供原始数据）
+ * Perform multi-timeframe analysis (minimal version - provides raw data only)
  */
 export async function performMultiTimeframeAnalysis(
   symbol: string,
   timeframesToUse: string[] = ["VERY_SHORT", "SHORT_1", "SHORT", "SHORT_CONFIRM", "MEDIUM_SHORT", "MEDIUM"]
 ): Promise<MultiTimeframeAnalysis> {
-  logger.info(`获取 ${symbol} 多time框架数据...`);
-  
+  logger.info(`Fetching multi-timeframe data for ${symbol}...`);
+
   const timeframes: MultiTimeframeAnalysis["timeframes"] = {};
-  
-  // 并行获取所有time框架数据
+
+  // Fetch all timeframe data in parallel
   const promises: Promise<any>[] = [];
-  
+
   for (const tfName of timeframesToUse) {
     const config = TIMEFRAMES[tfName];
     if (!config) continue;
-    
+
     promises.push(
       analyzeTimeframe(symbol, config)
         .then(data => {
@@ -312,61 +312,61 @@ export async function performMultiTimeframeAnalysis(
           timeframes[key as keyof typeof timeframes] = data;
         })
         .catch(error => {
-          logger.error(`获取 ${symbol} ${config.interval} 数据failed:`, error);
+          logger.error(`Failed to fetch ${config.interval} data for ${symbol}:`, error);
         })
     );
   }
-  
+
   await Promise.all(promises);
-  
-  // 计算支撑阻力位（基于价格数据）
+
+  // Calculate support/resistance levels (based on price data)
   const keyLevels = calculateKeyLevels(timeframes);
-  
+
   const analysis: MultiTimeframeAnalysis = {
     symbol,
     timestamp: new Date().toISOString(),
     timeframes,
     keyLevels,
   };
-  
-  logger.info(`${symbol} 多time框架数据获取完成`);
-  
+
+  logger.info(`Multi-timeframe data fetch complete for ${symbol}`);
+
   return analysis;
 }
 
 /**
- * 计算关键价位（支撑阻力）
+ * Calculate key price levels (support/resistance)
  */
 function calculateKeyLevels(
   timeframes: MultiTimeframeAnalysis["timeframes"]
 ): MultiTimeframeAnalysis["keyLevels"] {
   const prices: number[] = [];
-  
-  // 收集所有time框架的关键价格
+
+  // Collect key prices from all timeframes
   for (const [_, data] of Object.entries(timeframes)) {
     if (!data) continue;
     prices.push(data.currentPrice);
     prices.push(data.ema20);
     prices.push(data.ema50);
   }
-  
+
   if (prices.length === 0) {
     return { resistance: [], support: [] };
   }
-  
-  // 简单的支撑阻力位计算（基于价格聚类）
+
+  // Simple support/resistance calculation (based on price clustering)
   const currentPrice = timeframes.short?.currentPrice || timeframes.short1?.currentPrice || timeframes.medium?.currentPrice || 0;
-  
+
   const resistance = prices
     .filter(p => p > currentPrice)
     .sort((a, b) => a - b)
     .slice(0, 3);
-  
+
   const support = prices
     .filter(p => p < currentPrice)
     .sort((a, b) => b - a)
     .slice(0, 3);
-  
+
   return {
     resistance,
     support,

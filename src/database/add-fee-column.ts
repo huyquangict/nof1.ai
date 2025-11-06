@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -26,20 +26,20 @@ const logger = createPinoLogger({
 });
 
 /**
- * 给trades表添加fee字段
+ * Add fee field to trades table
  */
 async function addFeeColumn() {
   try {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
-    logger.info(`📦 连接database: ${dbUrl}`);
+    logger.info(`📦 Connect to database: ${dbUrl}`);
     
     const client = createClient({
       url: dbUrl,
     });
     
-    logger.info("🔧 checktrades表结构...");
+    logger.info("🔧 Checking trades table structure...");
     
-    // checkfee列是否已存在
+    // Check if fee column already exists
     const tableInfo = await client.execute({
       sql: "PRAGMA table_info(trades)",
       args: [],
@@ -48,7 +48,7 @@ async function addFeeColumn() {
     const hasFeeColumn = tableInfo.rows.some((row: any) => row.name === 'fee');
     
     if (hasFeeColumn) {
-      logger.info("✅ fee字段已存在，无需添加");
+      logger.info("✅ fee字段已存在,无需添加");
       return;
     }
     

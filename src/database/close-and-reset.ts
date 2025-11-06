@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
  */
 
 /**
- * close position并重置database脚本
- * 用于在运行时快速重置系统状态
+ * Close positions and reset database script
+ * Used for quick system state reset at runtime
  */
 import { createClient } from "@libsql/client";
 import { createPinoLogger } from "@voltagent/logger";
@@ -110,11 +110,11 @@ async function closeAllPositions(): Promise<void> {
     const positions = await exchangeClient.getPositions();
 
     if (positions.length === 0) {
-      logger.info("✅ current无position，跳过close position");
+      logger.info("✅ current无position,跳过close position");
       return;
     }
 
-    logger.warn(`⚠️  发现 ${positions.length} 个position，开始close position...`);
+    logger.warn(`⚠️  发现 ${positions.length} 个position,open始close position...`);
 
     for (const pos of positions) {
       const symbol = pos.symbol;
@@ -152,8 +152,8 @@ async function resetDatabase(): Promise<void> {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const initialBalance = Number.parseFloat(process.env.INITIAL_BALANCE || "1000");
 
-    logger.info("🗄️  开始重置database...");
-    logger.info(`database路径: ${dbUrl}`);
+    logger.info("🗄️  open始重置database...");
+    logger.info(`Database path: ${dbUrl}`);
     logger.info(`初始资金: ${initialBalance} USDT`);
 
     const client = createClient({
@@ -297,12 +297,12 @@ async function syncPositions(): Promise<void> {
  */
 async function closeAndReset() {
   logger.info("=".repeat(80));
-  logger.info("🔄 开始执行close position并重置database");
+  logger.info("🔄 open始执行close position并重置database");
   logger.info("=".repeat(80));
   logger.info("");
   
   try {
-    // 步骤1：close position所有position
+    // 步骤1:close position所有position
     logger.info("【步骤 1/3】close position所有position");
     logger.info("-".repeat(80));
     await closeAllPositions();
@@ -313,13 +313,13 @@ async function closeAndReset() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     logger.info("");
     
-    // 步骤2：重置database
+    // 步骤2:重置database
     logger.info("【步骤 2/3】重置database");
     logger.info("-".repeat(80));
     await resetDatabase();
     logger.info("");
     
-    // 步骤3：syncposition数据
+    // 步骤3:syncposition数据
     logger.info("【步骤 3/3】从交易所syncposition数据");
     logger.info("-".repeat(80));
     await syncPositions();
@@ -329,7 +329,7 @@ async function closeAndReset() {
     logger.info("🎉 close position并重置完成！系统已恢复到初始状态");
     logger.info("=".repeat(80));
     logger.info("");
-    logger.info("💡 提示：可以重newstart交易系统开始new的交易");
+    logger.info("💡 提示:可以重newstart交易系统open始new的交易");
     
   } catch (error) {
     logger.error("=".repeat(80));

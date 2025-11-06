@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * database迁移脚本：添加 peak_pnl_percent 字段到 positions 表
+ * Database migration script: add peak_pnl_percent field to positions table
  */
 import { createClient } from "@libsql/client";
 
@@ -27,14 +27,14 @@ const dbClient = createClient({
 
 async function addPeakPnlColumn() {
   try {
-    console.log("开始database迁移：添加 peak_pnl_percent 字段...");
+    console.log("Starting database migration: adding peak_pnl_percent field...");
     
-    // check字段是否已存在
+    // Check if field already exists
     const tableInfo = await dbClient.execute("PRAGMA table_info(positions)");
     const columnExists = tableInfo.rows.some((row: any) => row.name === "peak_pnl_percent");
     
     if (columnExists) {
-      console.log("✅ peak_pnl_percent 字段已存在，无需迁移");
+      console.log("✅ peak_pnl_percent field already exists, no migration needed");
       return;
     }
     
@@ -61,7 +61,7 @@ async function addPeakPnlColumn() {
         : 0;
       const pnlPercent = priceChangePercent * leverage;
       
-      // initializepeak为currentPnL（如果是正数）或0
+      // initializepeak为currentPnL(如果是正数)或0
       const initialPeak = Math.max(pnlPercent, 0);
       
       await dbClient.execute({

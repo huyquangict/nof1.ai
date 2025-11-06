@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,17 +17,17 @@
  */
 
 /**
- * time工具模块 - 统一使用中国time（UTC+8）
+ * Time utility module - standardized to China time (UTC+8)
  */
 
 /**
- * 获取current中国time的 ISO 字符串
- * @returns 中国time的 ISO 格式字符串
+ * Get current China time as ISO string
+ * @returns ISO format string in China time
  */
 export function getChinaTimeISO(): string {
   const now = new Date();
   
-  // 使用 toLocaleString 获取中国time，然后转换为 ISO 格式
+  // Use toLocaleString to get China time, then convert to ISO format
   const chinaTimeString = now.toLocaleString('zh-CN', { 
     timeZone: 'Asia/Shanghai',
     year: 'numeric',
@@ -39,7 +39,7 @@ export function getChinaTimeISO(): string {
     hour12: false
   });
   
-  // 转换格式：从 "2025/10/23 08:30:45" 到 "2025-10-23T08:30:45+08:00"
+  // 转换格式:从 "2025/10/23 08:30:45" 到 "2025-10-23T08:30:45+08:00"
   const [datePart, timePart] = chinaTimeString.split(' ');
   const isoDate = datePart.replace(/\//g, '-');
   return `${isoDate}T${timePart}+08:00`;
@@ -48,7 +48,7 @@ export function getChinaTimeISO(): string {
 /**
  * 格式化中国time为易读格式
  * @param date date对象或 ISO 字符串
- * @returns 格式化的中国time字符串，如 "2025-10-22 14:30:45"
+ * @returns 格式化的中国time字符串,如 "2025-10-22 14:30:45"
  */
 export function formatChinaTime(date?: Date | string): string {
   let d: Date;
@@ -73,13 +73,13 @@ export function formatChinaTime(date?: Date | string): string {
     hour12: false
   });
   
-  // 转换格式：从 "2025/10/23 08:30:45" 到 "2025-10-23 08:30:45"
+  // 转换格式:从 "2025/10/23 08:30:45" 到 "2025-10-23 08:30:45"
   return chinaTimeString.replace(/\//g, '-');
 }
 
 /**
  * 获取中国time的date对象
- * @returns 中国time的 Date 对象（注意：Date对象本身不存储时区，只是调整了time值）
+ * @returns 中国time的 Date 对象(注意:Date对象本身不存储时区,只是调整了time值)
  */
 export function getChinaTime(): Date {
   const now = new Date();
@@ -102,7 +102,7 @@ export function getChinaTime(): Date {
   const [year, month, day] = datePart.split('/');
   const [hour, minute, second] = timePart.split(':');
   
-  // 创建UTCtime，但值对应中国time
+  // 创建UTCtime,但值对应中国time
   return new Date(Date.UTC(
     parseInt(year),
     parseInt(month) - 1,
@@ -124,7 +124,7 @@ export function utcToChinaTime(utcDate: Date | string): string {
 }
 
 /**
- * 获取中国time戳（毫秒）
+ * 获取中国time戳(毫秒)
  * @returns 中国time的time戳
  */
 export function getChinaTimestamp(): number {

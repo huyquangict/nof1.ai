@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -27,16 +27,16 @@ const logger = createPinoLogger({
 });
 
 /**
- * 强制重newinitializedatabase
- * 清空所有数据并重new创建表
+ * Force reinitialize database
+ * Clear all data and recreate tables
  */
 async function resetDatabase() {
   try {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const initialBalance = Number.parseFloat(process.env.INITIAL_BALANCE || "1000");
 
-    logger.info("⚠️  强制重newinitializedatabase");
-    logger.info(`database路径: ${dbUrl}`);
+    logger.info("⚠️  Force reinitialize database");
+    logger.info(`Database path: ${dbUrl}`);
     logger.info(`初始资金: ${initialBalance} USDT`);
 
     const client = createClient({
@@ -95,7 +95,7 @@ async function resetDatabase() {
     }
 
     client.close();
-    logger.info("\n🎉 database已重置为初始状态，可以开始交易了！");
+    logger.info("\n🎉 database已重置为初始状态,可以open始交易了！");
     
   } catch (error) {
     logger.error("❌ database重置failed:", error as any);

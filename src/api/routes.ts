@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * API 路由
+ * API Routes
  */
 import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -51,7 +51,7 @@ export function createApiRoutes() {
     c.header('Expires', '0');
   });
 
-  // 静态文件服务 - 需要使用绝对路径
+  // Static file service - requires absolute paths
   app.use("/*", serveStatic({ root: "./public" }));
 
   /**
@@ -103,19 +103,19 @@ export function createApiRoutes() {
   // });
 
   /**
-   * 获取account总览
+   * Get account overview
    *
-   * 交易所account结构：
+   * Exchange account structure:
    * - account.total = available + positionMargin
    * - account.total 不包含unrealized PnL
    * - 真实total balance = account.total + unrealisedPnl
    * 
-   * API返回说明：
-   * - totalBalance: 不包含unrealized PnL的total balance（用于计算已实现收益）
+   * API返回说明:
+   * - totalBalance: 不包含unrealized PnL的total balance(用于计算已实现收益)
    * - unrealisedPnl: currentposition的unrealized PnL
    * 
-   * 前端显示：
-   * - total balance显示 = totalBalance + unrealisedPnl（实时反映positionPnL）
+   * 前端显示:
+   * - total balance显示 = totalBalance + unrealisedPnl(实时反映positionPnL)
    */
   app.get("/api/account", async (c) => {
     try {
@@ -255,7 +255,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取account价值历史（用于绘图）
+   * 获取account价值历史(用于绘图)
    */
   app.get("/api/history", async (c) => {
     try {
@@ -264,7 +264,7 @@ export function createApiRoutes() {
 
       let result;
       if (limitParam) {
-        // 如果传递了 limit 参数，使用 LIMIT 子句
+        // 如果传递了 limit 参数,使用 LIMIT 子句
         const limit = Number.parseInt(limitParam);
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
@@ -274,10 +274,10 @@ export function createApiRoutes() {
           args: [limit],
         });
       } else {
-        // 默认返回最近N小时的数据（避免x轴溢出）
-        // 假设每10分钟记录一次，8小时 = 48条记录，取60条确保覆盖
+        // 默认返回最近N小时的数据(避免x轴溢出)
+        // 假设每10分钟记录一次,8小时 = 48条记录,取60条确保覆盖
         const hours = Number.parseInt(hoursParam);
-        const estimatedRecords = Math.ceil(hours * 6); // 每小时6条记录（10分钟间隔）
+        const estimatedRecords = Math.ceil(hours * 6); // 每小时6条记录(10分钟间隔)
 
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
@@ -293,7 +293,7 @@ export function createApiRoutes() {
         totalValue: Number.parseFloat(row.total_value as string) || 0,
         unrealizedPnl: Number.parseFloat(row.unrealized_pnl as string) || 0,
         returnPercent: Number.parseFloat(row.return_percent as string) || 0,
-      })).reverse(); // 反转，使time从old到new
+      })).reverse(); // 反转,使time从old到new
 
       return c.json({ history });
     } catch (error: any) {
@@ -302,12 +302,12 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取交易记录 - 从database获取历史position size（已close position的记录）
+   * 获取交易记录 - 从database获取历史position size(已close position的记录)
    */
   app.get("/api/trades", async (c) => {
     try {
       const limit = Number.parseInt(c.req.query("limit") || "10");
-      const symbol = c.req.query("symbol"); // 可选，筛选特定symbol
+      const symbol = c.req.query("symbol"); // 可选,筛选特定symbol
       
       // 从database获取历史交易记录
       let sql = `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`;
