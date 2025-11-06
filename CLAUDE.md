@@ -95,6 +95,71 @@ npm run docker:build
 
 ## Architecture Overview
 
+### ⚠️ IMPORTANT: New Modular Architecture (2025)
+
+**This codebase has been completely refactored to use a modular architecture.**
+
+**When making changes to code:**
+1. **NEVER directly edit large monolithic files** - use modular approach
+2. **ALWAYS use modules in `src/scheduler/tradingLoop/modules/`** instead of inline functions
+3. **DO NOT add commented-out old code** - remove it completely
+4. **Follow existing patterns**: Look at how modules like `marketDataCollector`, `accountManager`, `positionSync`, `configManager`, `riskChecker` are structured
+5. **Use dependency injection** - pass required clients and services as parameters
+
+**Key Architectural Principles:**
+- **Separation of Concerns**: Each module handles ONE responsibility
+- **Repository Pattern**: Database access through repositories (`src/application/repositories/`)
+- **Service Layer**: Business logic in services (`src/application/services/`)
+- **Dependency Injection**: Use container pattern (`src/di/container.ts`)
+- **Standardized Exchange Interface**: Use `IExchangeClient` for all exchange operations
+
+**Module Structure Example:**
+```typescript
+// ✅ CORRECT - Modular approach
+import { createMarketDataCollector } from './tradingLoop/modules/marketDataCollector';
+
+const collector = createMarketDataCollector(exchangeClient, dbClient, {
+  symbols: SYMBOLS,
+  enabledTimeframes: ENABLED_TIMEFRAMES,
+  timeframeConfigs: TIMEFRAME_CONFIGS,
+});
+const data = await collector.collectAll();
+
+// ❌ WRONG - Monolithic inline function
+async function collectMarketData() {
+  // 200 lines of code directly in tradingLoop.ts
+}
+```
+
+**If you need to modify major functionality:**
+1. Create a new module in `src/scheduler/tradingLoop/modules/` or `src/application/services/`
+2. Export factory function that accepts dependencies
+3. Import and use in `tradingLoop.ts`
+4. Remove old inline implementation completely (don't comment it out)
+
+**Existing Modular Components:**
+
+*Trading Loop Modules* (`src/scheduler/tradingLoop/modules/`):
+- `marketDataCollector.ts` - Multi-timeframe market data collection
+- `accountManager.ts` - Account info and Sharpe ratio calculation
+- `positionSync.ts` - Exchange position synchronization
+- `configManager.ts` - Dynamic configuration management
+- `riskChecker.ts` - Pre-AI risk checks (36h limit, peak drawdown, etc.)
+- `indicators.ts` - Technical indicator calculations (EMA, MACD, RSI, ATR)
+
+*Application Services* (`src/application/services/`):
+- `PositionService.ts` - Position business logic
+- `AccountService.ts` - Account management
+- `RiskService.ts` - Risk assessment and drawdown checks
+- `TradingSignalService.ts` - Technical signal management
+
+*Repositories* (`src/application/repositories/`):
+- `PositionRepository.ts` - Position data access
+- `AccountHistoryRepository.ts` - Account history queries
+- `TradeRepository.ts` - Trade record management
+- `TradingSignalRepository.ts` - Signal data access
+- `AgentDecisionRepository.ts` - AI decision logging
+
 ### Core System Flow
 
 1. **Trading Loop** (`src/scheduler/tradingLoop.ts`):
