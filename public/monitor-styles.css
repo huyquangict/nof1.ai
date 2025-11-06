@@ -1198,6 +1198,71 @@ body {
   }
 }
 
+/* === REVERSE BUTTON === */
+.reverse-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-gray-800);
+  border: 2px solid var(--color-black);
+  color: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.reverse-button:hover {
+  background: var(--color-black);
+  transform: translateY(-2px);
+}
+
+.reverse-button:active {
+  transform: translateY(0);
+}
+
+.reverse-button.reversed {
+  background: var(--color-purple);
+  border-color: var(--color-purple);
+}
+
+.reverse-button.reversed:hover {
+  background: #9333ea;
+}
+
+.reverse-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
+}
+
+.reverse-text {
+  min-width: 70px;
+  text-align: left;
+}
+
+/* Mobile adjustments for reverse button */
+@media (max-width: 768px) {
+  .reverse-button {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .reverse-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .reverse-text {
+    min-width: 60px;
+  }
+}
+
 /* Improved Login Modal */
 .login-subtitle {
     margin: -10px 0 20px 0;

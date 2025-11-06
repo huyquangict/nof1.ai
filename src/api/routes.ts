@@ -494,6 +494,66 @@ export function createApiRoutes() {
   });
 
   /**
+   * Get reverse trade state
+   */
+  app.get("/api/trading/reverse", async (c) => {
+    try {
+      const result = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'reverse_positions'",
+        args: [],
+      });
+
+      const isReversed = result.rows.length > 0 && result.rows[0].value === '1';
+
+      return c.json({
+        reversed: isReversed,
+        message: isReversed
+          ? "Reverse mode ON - LLM LONG → System SHORT, LLM SHORT → System LONG"
+          : "Normal mode - LLM decisions executed as-is"
+      });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Toggle reverse trade state
+   */
+  app.post("/api/trading/reverse", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { reversed } = body;
+
+      if (typeof reversed !== 'boolean') {
+        return c.json({ error: "Invalid reversed value, must be boolean" }, 400);
+      }
+
+      // Update or insert reverse state in database
+      await dbClient.execute({
+        sql: `INSERT INTO system_config (key, value, updated_at)
+              VALUES ('reverse_positions', ?, datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')`,
+        args: [reversed ? '1' : '0'],
+      });
+
+      logger.info(`🔄 Reverse mode ${reversed ? 'ENABLED' : 'DISABLED'} by user`);
+
+      return c.json({
+        success: true,
+        reversed,
+        message: reversed
+          ? "Reverse mode ENABLED - LLM LONG → System SHORT, LLM SHORT → System LONG (Contrarian trading)"
+          : "Reverse mode DISABLED - LLM decisions will be executed as-is (Normal trading)"
+      });
+    } catch (error: any) {
+      logger.error("Failed to update reverse state:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
    * get multiple symbols real-time prices
    */
   app.get("/api/prices", async (c) => {

@@ -968,13 +968,15 @@ Current Market Status for All Coins
 
 /**
  * Generate trading instructions based on strategy
+ * @param strategy - Trading strategy
+ * @param intervalMinutes - Interval in minutes
+ * @param enableReverseTrading - Whether reverse trading is enabled (read from database)
  */
-function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
+function generateInstructions(strategy: TradingStrategy, intervalMinutes: number, enableReverseTrading: boolean = false): string {
   const params = getStrategyParams(strategy);
-  const enableReverseTrading = process.env.ENABLE_REVERSE_TRADING === 'true';
 
   // Log reverse trading status for debugging
-  logger.info(`Reverse Trading Mode: ${enableReverseTrading ? 'ENABLED ✅' : 'DISABLED ❌'} (env: ${process.env.ENABLE_REVERSE_TRADING})`);
+  logger.info(`Reverse Trading Mode: ${enableReverseTrading ? 'ENABLED ✅' : 'DISABLED ❌'}`);
 
   let reverseModeSec = '';
 
@@ -1295,8 +1297,10 @@ Market data is sorted chronologically (oldest → newest), across multiple timef
 
 /**
  * Create Trading Agent
+ * @param intervalMinutes - Trading interval in minutes
+ * @param dbClient - Database client for fetching reverse trading state (optional)
  */
-export function createTradingAgent(intervalMinutes: number = 5) {
+export async function createTradingAgent(intervalMinutes: number = 5, dbClient?: any) {
   // Use OpenAI SDK, compatible with OpenRouter or other providers via baseURL configuration
   const openai = createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || "",
@@ -1314,9 +1318,29 @@ export function createTradingAgent(intervalMinutes: number = 5) {
   const strategy = getTradingStrategy();
   logger.info(`Using trading strategy: ${strategy}`);
 
+  // Fetch reverse trading state from database (if dbClient is provided)
+  let enableReverseTrading = false;
+  if (dbClient) {
+    try {
+      const reverseResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'reverse_positions'",
+        args: [],
+      });
+      enableReverseTrading = reverseResult.rows.length > 0 && reverseResult.rows[0].value === '1';
+      logger.info(`🔄 Reverse trading state fetched from database: ${enableReverseTrading ? 'ENABLED' : 'DISABLED'}`);
+    } catch (error) {
+      logger.warn("Failed to fetch reverse trading state from database, using default (disabled):", error as any);
+      enableReverseTrading = false;
+    }
+  } else {
+    // Fallback to environment variable if no dbClient provided (backward compatibility)
+    enableReverseTrading = process.env.REVERSE_POSITIONS === 'true';
+    logger.warn("No database client provided, using environment variable for reverse trading state");
+  }
+
   const agent = new Agent({
     name: "trading-agent",
-    instructions: generateInstructions(strategy, intervalMinutes),
+    instructions: generateInstructions(strategy, intervalMinutes, enableReverseTrading),
     model: openai.chat(process.env.AI_MODEL_NAME || "deepseek/deepseek-v3.2-exp"),
     tools: [
       tradingTools.getMarketPriceTool,

@@ -98,6 +98,7 @@ class TradingMonitor {
             this.duplicateTicker();
             this.loadGitHubStars(); // Load GitHub star count
             this.initPauseButton(); // Initialize pause button
+            this.initReverseButton(); // Initialize reverse button
         } catch (error) {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);
@@ -211,6 +212,132 @@ class TradingMonitor {
             right: 20px;
             padding: 16px 24px;
             background: ${type === 'warning' ? '#F97316' : '#10B981'};
+            color: white;
+            border: 3px solid #000;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.3s ease-out;
+        `;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    }
+
+    // Initialize reverse button
+    initReverseButton() {
+        const reverseButton = document.getElementById('reverse-button');
+        if (!reverseButton) {
+            console.error('Reverse button not found');
+            return;
+        }
+
+        // Load initial reverse state
+        this.loadReverseState();
+
+        // Add click handler
+        reverseButton.addEventListener('click', async () => {
+            await this.toggleReverse();
+        });
+
+        // Refresh reverse state every 30 seconds
+        setInterval(() => {
+            this.loadReverseState();
+        }, 30000);
+    }
+
+    // Load reverse state from API
+    async loadReverseState() {
+        try {
+            const response = await fetch('/api/trading/reverse');
+            const data = await response.json();
+
+            this.updateReverseButton(data.reversed);
+        } catch (error) {
+            console.error('Failed to load reverse state:', error);
+        }
+    }
+
+    // Toggle reverse state
+    async toggleReverse() {
+        const reverseButton = document.getElementById('reverse-button');
+        if (!reverseButton) return;
+
+        const isReversed = reverseButton.classList.contains('reversed');
+        const newState = !isReversed;
+
+        try {
+            const response = await fetch('/api/trading/reverse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reversed: newState }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updateReverseButton(data.reversed);
+                console.log(data.message);
+
+                // Show user notification
+                const message = data.reversed
+                    ? '🔄 Reverse mode ON - LLM LONG → System SHORT, LLM SHORT → System LONG'
+                    : '✅ Reverse mode OFF - LLM decisions execute as-is';
+
+                const notifType = data.reversed ? 'warning' : 'success';
+                // Use different background color for reverse (purple)
+                this.showReverseNotification(message, data.reversed);
+            } else {
+                console.error('Failed to toggle reverse:', data.error);
+                alert(`Failed to toggle reverse: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Failed to toggle reverse:', error);
+            alert(`Failed to toggle reverse: ${error.message}`);
+        }
+    }
+
+    // Update reverse button UI
+    updateReverseButton(isReversed) {
+        const reverseButton = document.getElementById('reverse-button');
+        const reverseText = reverseButton?.querySelector('.reverse-text');
+
+        if (!reverseButton || !reverseText) return;
+
+        if (isReversed) {
+            reverseButton.classList.add('reversed');
+            reverseText.textContent = 'REVERSED';
+        } else {
+            reverseButton.classList.remove('reversed');
+            reverseText.textContent = 'NORMAL';
+        }
+    }
+
+    // Show reverse notification toast (purple for reversed)
+    showReverseNotification(message, isReversed) {
+        // Remove existing notification if any
+        const existing = document.getElementById('pause-notification');
+        if (existing) existing.remove();
+
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.id = 'pause-notification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 16px 24px;
+            background: ${isReversed ? '#A855F7' : '#10B981'};
             color: white;
             border: 3px solid #000;
             font-family: 'Inter', sans-serif;

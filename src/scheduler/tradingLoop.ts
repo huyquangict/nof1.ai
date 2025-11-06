@@ -491,8 +491,8 @@ async function executeTradingDecision() {
     logger.info("=".repeat(80));
     logger.info(prompt);
     logger.info("=".repeat(80) + "\n");
-    
-    const agent = createTradingAgent(intervalMinutes);
+
+    const agent = await createTradingAgent(intervalMinutes, dbClient);
 
     // Generate unique conversation ID for this trading cycle
     const conversationId = `trading-cycle-${new Date().toISOString().split('T')[0]}-${iterationCount}`;
