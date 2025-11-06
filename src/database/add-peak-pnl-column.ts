@@ -61,7 +61,7 @@ async function addPeakPnlColumn() {
         : 0;
       const pnlPercent = priceChangePercent * leverage;
       
-      // initializepeak为currentPnL(如果是正数)或0
+      // initializepeak为currentPnL(If是正数) or 0
       const initialPeak = Math.max(pnlPercent, 0);
       
       await dbClient.execute({
@@ -70,7 +70,7 @@ async function addPeakPnlColumn() {
       });
     }
     
-    console.log(`✅ initialize了 ${positions.rows.length} 个position的peakPnL百分比`);
+    console.log(`✅ initialize ${positions.rows.length} position peakPnL百分比`);
     
   } catch (error: any) {
     console.error("❌ database迁移failed:", error.message);

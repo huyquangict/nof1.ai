@@ -47,8 +47,8 @@ export function getChinaTimeISO(): string {
 
 /**
  * 格式化中国time为易读格式
- * @param date date对象或 ISO 字符串
- * @returns 格式化的中国time字符串,如 "2025-10-22 14:30:45"
+ * @param date date对象 or  ISO 字符串
+ * @returns 格式化 中国time字符串,如 "2025-10-22 14:30:45"
  */
 export function formatChinaTime(date?: Date | string): string {
   let d: Date;
@@ -78,8 +78,8 @@ export function formatChinaTime(date?: Date | string): string {
 }
 
 /**
- * 获取中国time的date对象
- * @returns 中国time的 Date 对象(注意:Date对象本身不存储时区,只是调整了time值)
+ * 获取中国time date对象
+ * @returns 中国time  Date 对象(note:Date对象本身不存储时区,只是调整time值)
  */
 export function getChinaTime(): Date {
   const now = new Date();
@@ -96,13 +96,13 @@ export function getChinaTime(): Date {
     hour12: false
   });
   
-  // 解析并创建new的Date对象
+  // 解析并创建new Date对象
   // 格式: "2025/10/23 08:30:45"
   const [datePart, timePart] = chinaTimeString.split(' ');
   const [year, month, day] = datePart.split('/');
   const [hour, minute, second] = timePart.split(':');
   
-  // 创建UTCtime,但值对应中国time
+  // 创建UTCtime,但值对should中国time
   return new Date(Date.UTC(
     parseInt(year),
     parseInt(month) - 1,
@@ -125,7 +125,7 @@ export function utcToChinaTime(utcDate: Date | string): string {
 
 /**
  * 获取中国time戳(毫秒)
- * @returns 中国time的time戳
+ * @returns 中国time time戳
  */
 export function getChinaTimestamp(): number {
   return getChinaTime().getTime();

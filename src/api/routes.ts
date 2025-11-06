@@ -111,8 +111,8 @@ export function createApiRoutes() {
    * - 真实total balance = account.total + unrealisedPnl
    * 
    * API返回说明:
-   * - totalBalance: 不包含unrealized PnL的total balance(用于计算已实现收益)
-   * - unrealisedPnl: currentposition的unrealized PnL
+   * - totalBalance: 不包含unrealized PnL total balance(用于计算已实现收益)
+   * - unrealisedPnl: currently holding unrealized PnL
    * 
    * 前端显示:
    * - total balance显示 = totalBalance + unrealisedPnl(实时反映positionPnL)
@@ -152,14 +152,14 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取currentposition - 从交易所获取实时数据
+   * 获取currently holding - 从交易所获取实时数据
    */
   app.get("/api/positions", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const exchangePositions = await exchangeClient.getPositions();
 
-      // 从database获取stop-losstake-profit信息和orderID
+      // 从database获取stop-losstake-profit信息 and orderID
       const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, sl_orders, entry_order_id, sl_order_id FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
@@ -264,7 +264,7 @@ export function createApiRoutes() {
 
       let result;
       if (limitParam) {
-        // 如果传递了 limit 参数,使用 LIMIT 子句
+        // If传递 limit 参数,使用 LIMIT 子句
         const limit = Number.parseInt(limitParam);
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
@@ -274,7 +274,7 @@ export function createApiRoutes() {
           args: [limit],
         });
       } else {
-        // 默认返回最近N小时的数据(避免x轴溢出)
+        // 默认返回最近N小时 数据(避免x轴溢出)
         // 假设每10分钟记录一次,8小时 = 48条记录,取60条确保覆盖
         const hours = Number.parseInt(hoursParam);
         const estimatedRecords = Math.ceil(hours * 6); // 每小时6条记录(10分钟间隔)
@@ -302,7 +302,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取交易记录 - 从database获取历史position size(已close position的记录)
+   * 获取交易记录 - 从database获取历史position size(已close position 记录)
    */
   app.get("/api/trades", async (c) => {
     try {
@@ -327,7 +327,7 @@ export function createApiRoutes() {
         return c.json({ trades: [] });
       }
       
-      // 转换database格式到前端需要的格式
+      // 转换database格式到前端need 格式
       const trades = result.rows.map((row: any) => {
         return {
           id: row.id,
@@ -389,7 +389,7 @@ export function createApiRoutes() {
    */
   app.get("/api/stats", async (c) => {
     try {
-      // 统计总交易次数 - 使用 pnl IS NOT NULL 来确保这是已完成的close position交易
+      // 统计总交易次数 - 使用 pnl IS NOT NULL 来确保这是已完成 close position交易
       const totalTradesResult = await dbClient.execute(
         "SELECT COUNT(*) as count FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
@@ -410,7 +410,7 @@ export function createApiRoutes() {
       );
       const totalPnl = (pnlResult.rows[0] as any).total_pnl || 0;
       
-      // 获取最大单笔profit和loss
+      // 获取最大单笔profit and loss
       const maxWinResult = await dbClient.execute(
         "SELECT MAX(pnl) as max_win FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
@@ -436,7 +436,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取多个symbol的实时价格
+   * 获取多symbol 实时价格
    */
   app.get("/api/prices", async (c) => {
     try {

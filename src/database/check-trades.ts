@@ -57,7 +57,7 @@ async function checkTrades() {
       console.log(`  symbol: ${row.symbol}`);
       console.log(`  操作: ${typeText}${sideText} (side=${row.side}, type=${row.type})`);
       console.log(`  价格: ${Number(row.price).toFixed(4)}`);
-      console.log(`  数量: ${row.quantity}`);
+      console.log(`  count: ${row.quantity}`);
       console.log(`  leverage: ${row.leverage}x`);
       console.log(`  fee: ${feeText} USDT`);
       console.log(`  time: ${row.timestamp}`);

@@ -105,7 +105,7 @@ async function closeAllPositions(): Promise<void> {
   const exchangeName = exchangeClient.getExchangeName();
 
   try {
-    logger.info(`📊 获取 ${exchangeName} currentposition...`);
+    logger.info(`📊 获取 ${exchangeName} currently holding...`);
 
     const positions = await exchangeClient.getPositions();
 
@@ -114,7 +114,7 @@ async function closeAllPositions(): Promise<void> {
       return;
     }
 
-    logger.warn(`⚠️  发现 ${positions.length} 个position,open始close position...`);
+    logger.warn(`⚠️  发现 ${positions.length} position,open始close position...`);
 
     for (const pos of positions) {
       const symbol = pos.symbol;
@@ -236,7 +236,7 @@ async function syncPositions(): Promise<void> {
     // 从交易所获取position
     const positions = await exchangeClient.getPositions();
 
-    logger.info(`📊 ${exchangeName} currentposition数: ${positions.length}`);
+    logger.info(`📊 ${exchangeName} currently holding数: ${positions.length}`);
 
     // 清空本地position表
     await client.execute("DELETE FROM positions");
@@ -244,7 +244,7 @@ async function syncPositions(): Promise<void> {
 
     // syncposition到database
     if (positions.length > 0) {
-      logger.info(`🔄 sync ${positions.length} 个position到database...`);
+      logger.info(`🔄 sync ${positions.length} position到database...`);
 
       for (const pos of positions) {
         if (pos.quantity === 0) continue;
@@ -329,7 +329,7 @@ async function closeAndReset() {
     logger.info("🎉 close position并重置完成！系统已恢复到初始状态");
     logger.info("=".repeat(80));
     logger.info("");
-    logger.info("💡 提示:可以重newstart交易系统open始new的交易");
+    logger.info("💡 提示:can重newstart交易系统open始new 交易");
     
   } catch (error) {
     logger.error("=".repeat(80));

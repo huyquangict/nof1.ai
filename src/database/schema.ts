@@ -73,7 +73,7 @@ export interface Position {
   opened_at: string;
   confidence?: number;
   risk_usd?: number;
-  peak_pnl_percent?: number; // 历史最高PnL百分比(考虑leverage)
+  peak_pnl_percent?: number; // Historical peak PnL percentage (considering leverage)
 }
 
 export interface AccountHistory {
@@ -126,7 +126,7 @@ export interface SystemConfig {
  * SQL 建表语句
  */
 export const CREATE_TABLES_SQL = `
--- 交易记录表
+-- Trade records table
 CREATE TABLE IF NOT EXISTS trades (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id TEXT NOT NULL,
@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS agent_decisions (
   positions_count INTEGER NOT NULL
 );
 
--- 系统配置表
+-- 系统configured表
 CREATE TABLE IF NOT EXISTS system_config (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   key TEXT NOT NULL UNIQUE,

@@ -46,7 +46,7 @@ async function syncPositionsOnly() {
       logger.info("✅ database表已存在");
     } catch (error) {
       logger.warn("⚠️  database表不存在,正在创建...");
-      // 创建必要的表
+      // 创建必要 表
       await client.execute(`
         CREATE TABLE IF NOT EXISTS positions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,14 +74,14 @@ async function syncPositionsOnly() {
     const exchangeClient = createExchangeClient();
     const positions = await exchangeClient.getPositions();
 
-    logger.info(`\n📊 交易所currentposition数: ${positions.length}`);
+    logger.info(`\n📊 交易所currently holding数: ${positions.length}`);
 
-    // 4. 保存现有position的元数据 (sl_orders, tp_orders等)
+    // 4. 保存现有position 元数据 (sl_orders, tp_orders等)
     const dbResult = await client.execute("SELECT symbol, sl_orders, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
-    logger.info(`💾 已保存 ${dbResult.rows.length} 个position的元数据`);
+    logger.info(`💾 已保存 ${dbResult.rows.length} position 元数据`);
 
     // 5. 清空本地position表
     await client.execute("DELETE FROM positions");
@@ -89,7 +89,7 @@ async function syncPositionsOnly() {
 
     // 6. syncposition到database
     if (positions.length > 0) {
-      logger.info(`\n🔄 sync ${positions.length} 个position到database...`);
+      logger.info(`\n🔄 sync ${positions.length} position到database...`);
 
       for (const pos of positions) {
         const symbol = pos.symbol;
@@ -101,7 +101,7 @@ async function syncPositionsOnly() {
         const pnl = pos.unrealizedPnl;
         const liqPrice = pos.liquidationPrice;
 
-        // 从保存的元数据中恢复
+        // 从保存 元数据中恢复
         const dbPos = dbPositionsMap.get(symbol);
         const entryOrderId = dbPos?.entry_order_id || "synced";
         const openedAt = dbPos?.opened_at || new Date().toISOString();

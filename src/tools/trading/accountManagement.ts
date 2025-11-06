@@ -77,7 +77,7 @@ export const getAccountBalanceTool = createTool({
 });
 
 /**
- * 获取currentposition工具
+ * 获取currently holding工具
  */
 export const getPositionsTool = createTool({
   name: "getPositions",
@@ -121,9 +121,9 @@ export const getPositionsTool = createTool({
  */
 export const getOpenOrdersTool = createTool({
   name: "getOpenOrders",
-  description: "获取所有not filled的pending order",
+  description: "获取所有not filled pending order",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选:仅获取指定symbol的order"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选:仅获取指定symbol order"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -162,7 +162,7 @@ export const getOpenOrdersTool = createTool({
  */
 export const checkOrderStatusTool = createTool({
   name: "checkOrderStatus",
-  description: "check指定order的详细状态,包括filled价格、filled数量等",
+  description: "check指定order 详细状态,包括filled价格, filledcount等",
   parameters: z.object({
     orderId: z.string().describe("orderID"),
   }),
@@ -208,7 +208,7 @@ export const checkOrderStatusTool = createTool({
  */
 export const calculateRiskTool = createTool({
   name: "calculateRisk",
-  description: "计算currentaccount的风险exposure和position size情况",
+  description: "计算currentaccount 风险exposure and position size情况",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -223,7 +223,7 @@ export const calculateRiskTool = createTool({
       const totalBalance = account.totalBalance;
       const availableBalance = account.availableBalance;
       
-      // 计算每个position的风险(需要异步获取contract乘数)
+      // 计算每position 风险(need异步获取contract乘数)
       const positionRisks = await Promise.all(
         positions.map(async (p) => {
           const size = p.quantity;
@@ -240,7 +240,7 @@ export const calculateRiskTool = createTool({
           const notionalValue = size * entryPrice * quantoMultiplier;
           const margin = notionalValue / leverage;
 
-          // 计算风险百分比(到强close的距离)
+          // 计算风险百分比(到强close 距离)
           const riskPercent = currentPrice > 0
             ? Math.abs((currentPrice - liquidationPrice) / currentPrice) * 100
             : 0;
@@ -308,7 +308,7 @@ export const calculateRiskTool = createTool({
  */
 export const syncPositionsTool = createTool({
   name: "syncPositions",
-  description: "sync交易所position数据到本地database,使用orderIDverifyposition和stop-losstake-profit状态",
+  description: "sync交易所position数据到本地database,使用orderIDverifyposition and stop-losstake-profit状态",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -634,7 +634,7 @@ export const syncPositionsTool = createTool({
         syncedCount,
         triggeredCount: triggeredOrders.length,
         triggeredOrders,
-        message: `✅ positionsync完成: ${syncedCount} 个position, ${triggeredOrders.length} 个triggered的stop-loss/take-profit`,
+        message: `✅ positionsync完成: ${syncedCount} position, ${triggeredOrders.length} triggered stop-loss/take-profit`,
       };
     } catch (error: any) {
       logger.error(`❌ Sync failed: ${error.message}`);

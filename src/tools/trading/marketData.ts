@@ -65,7 +65,7 @@ function calculateRSI(prices: number[], period: number) {
   let losses = 0;
 
   for (let i = prices.length - period; i < prices.length; i++) {
-    if (i === 0) continue; // 跳过第一个元素,避免访问 prices[-1]
+    if (i === 0) continue; // 跳过第一元素,避免访问 prices[-1]
     const change = prices[i] - prices[i - 1];
     if (change > 0) gains += change;
     else losses -= change;
@@ -106,7 +106,7 @@ function calculateATR(candles: any[], period: number) {
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // 处理old的交易所格式(FuturesCandlestick)
+    // 处理old 交易所格式(FuturesCandlestick)
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
@@ -161,14 +161,14 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理K线数据(支持标准化格式和old格式)
+  // 处理K线数据(支持标准化格式 and old格式)
   const closes = candles
     .map((c) => {
       // 标准化格式(Candle interface)
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // old的交易所格式(FuturesCandlestick)
+      // old 交易所格式(FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
@@ -187,7 +187,7 @@ function calculateIndicators(candles: any[]) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // old的交易所格式(FuturesCandlestick)
+      // old 交易所格式(FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
@@ -235,7 +235,7 @@ function calculateIndicators(candles: any[]) {
  */
 export const getMarketPriceTool = createTool({
   name: "getMarketPrice",
-  description: "获取指定symbol的实时市场价格",
+  description: "获取指定symbol 实时市场价格",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
@@ -264,11 +264,11 @@ export const getMarketPriceTool = createTool({
  */
 export const getTechnicalIndicatorsTool = createTool({
   name: "getTechnicalIndicators",
-  description: "获取指定symbol的技术指标(EMA、MACD、RSI等)",
+  description: "获取指定symbol 技术指标(EMA, MACD, RSI等)",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
     interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("K线周期"),
-    limit: z.number().default(100).describe("K线数量"),
+    limit: z.number().default(100).describe("K线count"),
   }),
   execute: async ({ symbol, interval, limit }) => {
     const client = createExchangeClient();
@@ -290,7 +290,7 @@ export const getTechnicalIndicatorsTool = createTool({
  */
 export const getFundingRateTool = createTool({
   name: "getFundingRate",
-  description: "获取指定symbol的资金费率",
+  description: "获取指定symbol 资金费率",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
@@ -313,10 +313,10 @@ export const getFundingRateTool = createTool({
  */
 export const getOrderBookTool = createTool({
   name: "getOrderBook",
-  description: "获取指定symbol的order簿深度数据",
+  description: "获取指定symbol order簿深度数据",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
-    limit: z.number().default(10).describe("深度档位数量"),
+    limit: z.number().default(10).describe("深度档位count"),
   }),
   execute: async ({ symbol, limit }) => {
     const client = createExchangeClient();
@@ -348,13 +348,13 @@ export const getOrderBookTool = createTool({
  */
 export const getOpenInterestTool = createTool({
   name: "getOpenInterest",
-  description: "获取指定symbol的contractposition量",
+  description: "获取指定symbol contractposition量",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
   execute: async ({ symbol }) => {
-    // 交易所 API 需要通过其他方式获取position量数据
-    // 暂时返回 0,后续可以通过其他端点获取
+    // 交易所 API need通过其他方式获取position量数据
+    // 暂时返回 0,后续can通过其他端点获取
     return {
       symbol,
       openInterest: 0,

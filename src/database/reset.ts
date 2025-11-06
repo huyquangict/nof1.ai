@@ -95,7 +95,7 @@ async function resetDatabase() {
     }
 
     client.close();
-    logger.info("\n🎉 database已重置为初始状态,可以open始交易了！");
+    logger.info("\n🎉 database已重置为初始状态,canopen始交易！");
     
   } catch (error) {
     logger.error("❌ database重置failed:", error as any);
