@@ -100,6 +100,7 @@ class TradingMonitor {
             this.initPauseButton(); // Initialize pause button
             this.initReverseButton(); // Initialize reverse button
             this.initCustomInstructions(); // Initialize custom instructions
+            this.initLearningSystem(); // Initialize AI learning system
         } catch (error) {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);
@@ -443,6 +444,288 @@ class TradingMonitor {
             if (!silent) {
                 alert(`Failed to save custom instructions: ${error.message}`);
             }
+        }
+    }
+
+    // Initialize AI learning system
+    initLearningSystem() {
+        const toggleButton = document.getElementById('toggle-learning-button');
+        const lessonCountSelect = document.getElementById('lesson-count');
+        const minSuccessRateSelect = document.getElementById('min-success-rate');
+        const lessonAgeSelect = document.getElementById('lesson-age');
+
+        if (!toggleButton) {
+            console.error('Learning system elements not found');
+            return;
+        }
+
+        // Load initial status
+        this.loadLearningStatus();
+
+        // Add toggle button handler
+        toggleButton.addEventListener('click', async () => {
+            await this.toggleLearning();
+        });
+
+        // Add config change handlers
+        [lessonCountSelect, minSuccessRateSelect, lessonAgeSelect].forEach(select => {
+            if (select) {
+                select.addEventListener('change', async () => {
+                    await this.updateLearningConfig();
+                });
+            }
+        });
+
+        // Add filter button handlers
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active state
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                // Apply filter
+                this.currentReflectionFilter = e.target.dataset.filter;
+                this.loadReflections(e.target.dataset.filter);
+            });
+        });
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            this.loadLearningStatus();
+            if (this.currentReflectionFilter) {
+                this.loadReflections(this.currentReflectionFilter);
+            }
+        }, 30000);
+    }
+
+    // Load learning system status
+    async loadLearningStatus() {
+        try {
+            const response = await fetch('/api/learning/status');
+            const data = await response.json();
+
+            // Update badge and button
+            const badge = document.getElementById('learning-status-badge');
+            const button = document.getElementById('toggle-learning-button');
+            const buttonText = document.getElementById('learning-button-text');
+
+            if (badge && button && buttonText) {
+                if (data.learningEnabled) {
+                    badge.textContent = 'ENABLED';
+                    badge.classList.add('enabled');
+                    buttonText.textContent = 'DISABLE LEARNING';
+                    button.classList.add('enabled');
+                } else {
+                    badge.textContent = 'DISABLED';
+                    badge.classList.remove('enabled');
+                    buttonText.textContent = 'ENABLE LEARNING';
+                    button.classList.remove('enabled');
+                }
+            }
+
+            // Update statistics
+            document.getElementById('total-reflections').textContent = data.totalReflections || 0;
+            document.getElementById('active-lessons').textContent = data.activeLessons || 0;
+            document.getElementById('pending-reviews').textContent = data.pendingReviews || 0;
+
+            const avgEffectivenessEl = document.getElementById('avg-effectiveness');
+            if (avgEffectivenessEl) {
+                const avgEff = data.avgEffectiveness || 0;
+                avgEffectivenessEl.textContent = avgEff.toFixed(1) + '%';
+                avgEffectivenessEl.className = 'stat-value ' + (avgEff >= 70 ? 'positive' : avgEff >= 50 ? '' : 'negative');
+            }
+
+            // Load lessons and reflections
+            await this.loadLessons();
+            await this.loadReflections(this.currentReflectionFilter || 'all');
+
+        } catch (error) {
+            console.error('Failed to load learning status:', error);
+        }
+    }
+
+    // Toggle learning system
+    async toggleLearning() {
+        const button = document.getElementById('toggle-learning-button');
+        if (!button) return;
+
+        const isEnabled = button.classList.contains('enabled');
+        const newState = !isEnabled;
+
+        try {
+            const response = await fetch('/api/learning/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ enabled: newState }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log(data.message);
+
+                // Show user notification
+                const message = data.enabled
+                    ? '🧠 AI Learning ENABLED - System will learn from predictions'
+                    : '🔕 AI Learning DISABLED - System will not record predictions';
+
+                this.showNotification(message, data.enabled ? 'success' : 'warning');
+
+                // Reload status
+                await this.loadLearningStatus();
+            } else {
+                console.error('Failed to toggle learning:', data.error);
+                alert(`Failed to toggle learning: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Failed to toggle learning:', error);
+            alert(`Failed to toggle learning: ${error.message}`);
+        }
+    }
+
+    // Update learning configuration
+    async updateLearningConfig() {
+        const lessonCount = parseInt(document.getElementById('lesson-count').value);
+        const minSuccessRate = parseInt(document.getElementById('min-success-rate').value);
+        const lessonAgeDays = parseInt(document.getElementById('lesson-age').value);
+
+        try {
+            const response = await fetch('/api/learning/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    lessonCount,
+                    minSuccessRate,
+                    lessonAgeDays,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log('Learning config updated:', data.config);
+                this.showNotification('⚙️ Learning configuration updated', 'success');
+
+                // Reload lessons with new config
+                await this.loadLessons();
+            } else {
+                console.error('Failed to update config:', data.error);
+                alert(`Failed to update config: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Failed to update config:', error);
+            alert(`Failed to update config: ${error.message}`);
+        }
+    }
+
+    // Load top lessons
+    async loadLessons() {
+        try {
+            const response = await fetch('/api/learning/lessons?limit=5');
+            const data = await response.json();
+
+            const lessonsList = document.getElementById('lessons-list');
+            if (!lessonsList) return;
+
+            if (!data.lessons || data.lessons.length === 0) {
+                lessonsList.innerHTML = '<div class="lessons-empty">No lessons yet. System needs more trading data to learn patterns.</div>';
+                return;
+            }
+
+            lessonsList.innerHTML = data.lessons.map((lesson, idx) => {
+                const categoryColors = {
+                    'risk_management': '#F97316',
+                    'entry_timing': '#3B82F6',
+                    'exit_strategy': '#10B981',
+                    'market_conditions': '#A855F7',
+                    'position_sizing': '#EAB308',
+                };
+
+                const categoryColor = categoryColors[lesson.lesson_category] || '#6B7280';
+                const successRate = (lesson.success_rate * 100).toFixed(0);
+                const effectivenessRate = lesson.effectiveness_rate
+                    ? (lesson.effectiveness_rate * 100).toFixed(0)
+                    : 'N/A';
+
+                const confidenceEmoji = lesson.confidence_level === 'high' ? '🔥' :
+                                       lesson.confidence_level === 'medium' ? '⭐' : '💡';
+
+                return `
+                    <div class="lesson-card" style="border-left-color: ${categoryColor}">
+                        <div class="lesson-header">
+                            <span class="lesson-category" style="background: ${categoryColor}">${lesson.lesson_category.replace('_', ' ').toUpperCase()}</span>
+                            <span class="lesson-confidence">${confidenceEmoji} ${lesson.confidence_level}</span>
+                        </div>
+                        <div class="lesson-text">${lesson.lesson_text}</div>
+                        <div class="lesson-footer">
+                            <span class="lesson-stat">✅ Success: ${successRate}%</span>
+                            <span class="lesson-stat">📊 Effectiveness: ${effectivenessRate}%</span>
+                            <span class="lesson-stat">🔢 Applied: ${lesson.times_applied || 0}x</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+        } catch (error) {
+            console.error('Failed to load lessons:', error);
+        }
+    }
+
+    // Load reflections (predictions with outcomes)
+    async loadReflections(filter = 'all') {
+        try {
+            const response = await fetch(`/api/learning/reflections?filter=${filter}&limit=10`);
+            const data = await response.json();
+
+            const reflectionsList = document.getElementById('reflections-list');
+            if (!reflectionsList) return;
+
+            if (!data.reflections || data.reflections.length === 0) {
+                reflectionsList.innerHTML = '<div class="reflections-empty">No reflections yet. Enable learning and start trading.</div>';
+                return;
+            }
+
+            reflectionsList.innerHTML = data.reflections.map(refl => {
+                const timestamp = new Date(refl.timestamp).toLocaleString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+
+                const hasFeedback = refl.feedback_score !== null;
+                const feedbackClass = hasFeedback
+                    ? (refl.feedback_score >= 8 ? 'accurate' : refl.feedback_score <= 4 ? 'inaccurate' : 'neutral')
+                    : 'pending';
+
+                const decisionIcon = refl.decision_type.includes('long') ? '📈' :
+                                    refl.decision_type.includes('short') ? '📉' : '⏸️';
+
+                const feedbackText = hasFeedback
+                    ? `Score: ${refl.feedback_score}/10 | PnL: ${refl.pnl_result >= 0 ? '+' : ''}${refl.pnl_result?.toFixed(2) || 'N/A'}`
+                    : 'Pending feedback...';
+
+                return `
+                    <div class="reflection-card ${feedbackClass}">
+                        <div class="reflection-header">
+                            <span class="reflection-symbol">${decisionIcon} ${refl.symbol}</span>
+                            <span class="reflection-time">${timestamp}</span>
+                            <span class="reflection-confidence">Confidence: ${refl.confidence_score}/10</span>
+                        </div>
+                        <div class="reflection-vision">"${refl.vision}"</div>
+                        <div class="reflection-footer">
+                            <span class="reflection-decision">${refl.decision_type.toUpperCase()}</span>
+                            <span class="reflection-feedback ${feedbackClass}">${feedbackText}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+        } catch (error) {
+            console.error('Failed to load reflections:', error);
         }
     }
 
