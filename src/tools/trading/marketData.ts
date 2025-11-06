@@ -106,13 +106,11 @@ function calculateATR(candles: any[], period: number) {
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // handle old exchange format (FuturesCandlestick)
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
       prevClose = Number.parseFloat(candles[i - 1].c);
     }
-    // handle array format (compatible with old code)
     else if (Array.isArray(candles[i])) {
       high = Number.parseFloat(candles[i][3]);
       low = Number.parseFloat(candles[i][4]);
@@ -161,18 +159,15 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // process candlestick data (support standardized format and old format)
   const closes = candles
     .map((c) => {
       // standardized format (Candle interface)
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // old exchange format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // array format (compatible with old code)
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -187,12 +182,10 @@ function calculateIndicators(candles: any[]) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // old exchange format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // array format (compatible with old code)
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;

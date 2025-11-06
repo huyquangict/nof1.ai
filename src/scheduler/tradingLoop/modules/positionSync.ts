@@ -271,8 +271,7 @@ export class PositionSynchronizer {
           }
         }
       } catch (parseError) {
-        logger.warn(`Failed to parse tp_orders for ${symbol}, falling back to old format`);
-        // Fallback to old format
+        logger.warn(`Failed to parse tp_orders for ${symbol}`);
         if (tpOrderId) {
           await this.checkSingleTakeProfitOrder(symbol, tpOrderId, entryData, entryOrderId);
         }

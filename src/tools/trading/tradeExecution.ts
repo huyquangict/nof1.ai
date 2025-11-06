@@ -291,7 +291,6 @@ export const openPositionTool = createTool({
             logger.warn(`⚠️ Error parsing sl_orders JSON: ${e.message}`);
           }
         }
-        // Fallback: cancel old single SL format (backward compatibility)
         else if (prevPosition.sl_order_id) {
           try {
             await client.cancelOrder(prevPosition.sl_order_id, symbol);
@@ -826,7 +825,6 @@ export const closePositionTool = createTool({
             logger.warn(`⚠️ Error parsing sl_orders JSON: ${e.message}`);
           }
         }
-        // Fallback: cancel old single SL format (backward compatibility)
         else if (dbPosition.sl_order_id) {
           try {
             await client.cancelOrder(dbPosition.sl_order_id, symbol);
@@ -1374,7 +1372,6 @@ export const cancelStopLossOrderTool = createTool({
           logger.warn(`Failed to parse sl_orders for ${symbol}`);
         }
       }
-      // Fallback: handle old single SL format (backward compatibility)
       else if (row.sl_order_id) {
         slOrders = [{
           orderId: row.sl_order_id,
@@ -1700,7 +1697,6 @@ export const setStopLossTool = createTool({
             existingSLs = [];
           }
         }
-        // Fallback: migrate old single SL (backward compatibility)
         else if (row.sl_order_id) {
           logger.info(`Migrating old single SL for ${symbol} to array format`);
           // We'll handle this by auto-canceling below

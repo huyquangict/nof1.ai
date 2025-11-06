@@ -407,7 +407,6 @@ export const syncPositionsTool = createTool({
             logger.warn(`  ⚠️  Could not parse sl_orders JSON: ${error.message}`);
           }
         }
-        // Fallback: Check old single SL format (backward compatibility)
         else if (dbPos.sl_order_id && dbPos.sl_order_id !== "") {
           try {
             const slOrder = await client.getOrder(dbPos.sl_order_id, symbol); // 🔧 Pass symbol for Binance
