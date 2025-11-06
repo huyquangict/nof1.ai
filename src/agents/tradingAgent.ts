@@ -1298,9 +1298,9 @@ Market data is sorted chronologically (oldest → newest), across multiple timef
 /**
  * Create Trading Agent
  * @param intervalMinutes - Trading interval in minutes
- * @param dbClient - Database client for fetching reverse trading state (optional)
+ * @param dbClient - Database client for fetching reverse trading state
  */
-export async function createTradingAgent(intervalMinutes: number = 5, dbClient?: any) {
+export async function createTradingAgent(intervalMinutes: number = 5, dbClient: any) {
   // Use OpenAI SDK, compatible with OpenRouter or other providers via baseURL configuration
   const openai = createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || "",
@@ -1320,20 +1320,16 @@ export async function createTradingAgent(intervalMinutes: number = 5, dbClient?:
 
   // Fetch reverse trading state from database
   let enableReverseTrading = false;
-  if (!dbClient) {
-    logger.error("Database client is required for createTradingAgent - reverse trading will be disabled");
-  } else {
-    try {
-      const reverseResult = await dbClient.execute({
-        sql: "SELECT value FROM system_config WHERE key = 'reverse_positions'",
-        args: [],
-      });
-      enableReverseTrading = reverseResult.rows.length > 0 && reverseResult.rows[0].value === '1';
-      logger.info(`🔄 Reverse trading state fetched from database: ${enableReverseTrading ? 'ENABLED' : 'DISABLED'}`);
-    } catch (error) {
-      logger.warn("Failed to fetch reverse trading state from database, using default (disabled):", error as any);
-      enableReverseTrading = false;
-    }
+  try {
+    const reverseResult = await dbClient.execute({
+      sql: "SELECT value FROM system_config WHERE key = 'reverse_positions'",
+      args: [],
+    });
+    enableReverseTrading = reverseResult.rows.length > 0 && reverseResult.rows[0].value === '1';
+    logger.info(`🔄 Reverse trading state fetched from database: ${enableReverseTrading ? 'ENABLED' : 'DISABLED'}`);
+  } catch (error) {
+    logger.warn("Failed to fetch reverse trading state from database, using default (disabled):", error as any);
+    enableReverseTrading = false;
   }
 
   const agent = new Agent({
