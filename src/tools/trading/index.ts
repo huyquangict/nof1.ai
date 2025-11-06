@@ -29,7 +29,7 @@ export {
   getOpenInterestTool,
 } from "./marketData";
 
-// 交易执行工具
+// Trade Execution Tools
 export {
   openPositionTool,
   closePositionTool,
@@ -41,7 +41,7 @@ export {
   setTakeProfitTool,
 } from "./tradeExecution";
 
-// 账户管理工具
+// account管理工具
 export {
   getAccountBalanceTool,
   getPositionsTool,

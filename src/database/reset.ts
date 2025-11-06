@@ -27,39 +27,39 @@ const logger = createPinoLogger({
 });
 
 /**
- * 强制重新初始化数据库
- * 清空所有数据并重新创建表
+ * 强制重newinitializedatabase
+ * 清空所有数据并重new创建表
  */
 async function resetDatabase() {
   try {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const initialBalance = Number.parseFloat(process.env.INITIAL_BALANCE || "1000");
 
-    logger.info("⚠️  强制重新初始化数据库");
-    logger.info(`数据库路径: ${dbUrl}`);
+    logger.info("⚠️  强制重newinitializedatabase");
+    logger.info(`database路径: ${dbUrl}`);
     logger.info(`初始资金: ${initialBalance} USDT`);
 
     const client = createClient({
       url: dbUrl,
     });
 
-    // 删除所有表
-    logger.info("🗑️  删除现有表...");
+    // delete所有表
+    logger.info("🗑️  delete现有表...");
     await client.execute("DROP TABLE IF EXISTS system_config");
     await client.execute("DROP TABLE IF EXISTS agent_decisions");
     await client.execute("DROP TABLE IF EXISTS trading_signals");
     await client.execute("DROP TABLE IF EXISTS trades");
     await client.execute("DROP TABLE IF EXISTS positions");
     await client.execute("DROP TABLE IF EXISTS account_history");
-    logger.info("✅ 现有表已删除");
+    logger.info("✅ 现有表已delete");
 
-    // 重新创建表
-    logger.info("📦 创建新表...");
+    // 重new创建表
+    logger.info("📦 创建new表...");
     await client.executeMultiple(CREATE_TABLES_SQL);
     logger.info("✅ 表创建完成");
 
-    // 插入初始资金记录
-    logger.info(`💰 插入初始资金记录: ${initialBalance} USDT`);
+    // insert初始资金记录
+    logger.info(`💰 insert初始资金记录: ${initialBalance} USDT`);
     await client.execute({
       sql: `INSERT INTO account_history 
             (timestamp, total_value, available_cash, unrealized_pnl, realized_pnl, return_percent) 
@@ -74,7 +74,7 @@ async function resetDatabase() {
       ],
     });
 
-    // 验证初始化结果
+    // verifyinitialize结果
     const latestAccount = await client.execute(
       "SELECT * FROM account_history ORDER BY timestamp DESC LIMIT 1"
     );
@@ -82,23 +82,23 @@ async function resetDatabase() {
     if (latestAccount.rows.length > 0) {
       const account = latestAccount.rows[0] as any;
       logger.info("\n" + "=".repeat(60));
-      logger.info("✅ 数据库重置成功！");
+      logger.info("✅ database重置successful！");
       logger.info("=".repeat(60));
-      logger.info("\n📊 初始账户状态:");
-      logger.info(`  总资产: ${account.total_value} USDT`);
-      logger.info(`  可用资金: ${account.available_cash} USDT`);
-      logger.info(`  未实现盈亏: ${account.unrealized_pnl} USDT`);
-      logger.info(`  已实现盈亏: ${account.realized_pnl} USDT`);
-      logger.info(`  总收益率: ${account.return_percent}%`);
-      logger.info("\n当前无持仓");
+      logger.info("\n📊 初始account状态:");
+      logger.info(`  total balance: ${account.total_value} USDT`);
+      logger.info(`  available balance: ${account.available_cash} USDT`);
+      logger.info(`  unrealized PnL: ${account.unrealized_pnl} USDT`);
+      logger.info(`  realized PnL: ${account.realized_pnl} USDT`);
+      logger.info(`  总return rate: ${account.return_percent}%`);
+      logger.info("\ncurrent无position");
       logger.info("\n" + "=".repeat(60));
     }
 
     client.close();
-    logger.info("\n🎉 数据库已重置为初始状态，可以开始交易了！");
+    logger.info("\n🎉 database已重置为初始状态，可以开始交易了！");
     
   } catch (error) {
-    logger.error("❌ 数据库重置失败:", error as any);
+    logger.error("❌ database重置failed:", error as any);
     process.exit(1);
   }
 }

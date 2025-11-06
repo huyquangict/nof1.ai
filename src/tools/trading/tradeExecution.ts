@@ -1,23 +1,23 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * 交易执行工具
+ * Trade Execution Tools
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
@@ -52,54 +52,54 @@ function formatPrice(price: number): string {
 
 
 /**
- * 开仓工具
+ * Open Position Tool
  */
 export const openPositionTool = createTool({
   name: "openPosition",
-  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 自动取消该币种的所有遗留SL/TP订单（defensive programming - 无需手动调用cancelAllOrdersForSymbol）。3) 交易手续费约0.05%，避免频繁交易。4) ✨ 系统会自动设置止损（SL）订单保护仓位，无需手动设置。止盈（TP）由利润管理器根据盈利水平自动动态调整（+8% → 锁定+3%, +15% → 锁定+8%, +25% → 锁定+15%）。你只需专注于开平仓决策。",
+  description: "open position - long或short指定symbol（使用market order，立即以current市场价格filled）。IMPORTANT: 1) open position前must先用getAccountBalance和getPositions工具queryavailable balance和现有position，避免资金不足。2) 自动cancel该symbol的所有遗留SL/TPorder（defensive programming - 无需手动调用cancelAllOrdersForSymbol）。3) 交易fee约0.05%，避免频繁交易。4) ✨ 系统会自动设置stop-loss（SL）order保护position size，无需手动设置。take-profit（TP）由利润管理器根据profit水平自动动态调整（+8% → 锁定+3%, +15% → 锁定+8%, +25% → 锁定+15%）。你只需专注于开close position决策。",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
-    side: z.enum(["long", "short"]).describe("方向：long=做多，short=做空"),
-    leverage: z.number().min(1).max(RISK_PARAMS.MAX_LEVERAGE).describe(`杠杆倍数（1-${RISK_PARAMS.MAX_LEVERAGE}倍，根据环境变量MAX_LEVERAGE配置）`),
-    amountUsdt: z.number().describe("开仓金额（USDT）"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
+    side: z.enum(["long", "short"]).describe("direction：long=long，short=short"),
+    leverage: z.number().min(1).max(RISK_PARAMS.MAX_LEVERAGE).describe(`leverage multiplier（1-${RISK_PARAMS.MAX_LEVERAGE}倍，根据环境变量MAX_LEVERAGE配置）`),
+    amountUsdt: z.number().describe("position amount（USDT）"),
   }),
   execute: async ({ symbol, side, leverage, amountUsdt }) => {
-    // 开仓时不设置止盈止损，由 AI 在每个周期主动决策
+    // open position时不设置take-profitstop-loss，由 AI 在每个周期主动决策
     const stopLoss = undefined;
     const takeProfit = undefined;
     const client = createExchangeClient();
     const contract = client.normalizeSymbol(symbol);
 
     try {
-      //  参数验证
+      //  参数verify
       if (!Number.isFinite(amountUsdt) || amountUsdt <= 0) {
         return {
           success: false,
-          message: `无效的开仓金额: ${amountUsdt}`,
+          message: `invalidposition amount: ${amountUsdt}`,
         };
       }
       
       if (!Number.isFinite(leverage) || leverage < 1 || leverage > RISK_PARAMS.MAX_LEVERAGE) {
         return {
           success: false,
-          message: `无效的杠杆倍数: ${leverage}（必须在1-${RISK_PARAMS.MAX_LEVERAGE}之间，最大值由环境变量MAX_LEVERAGE控制）`,
+          message: `invalidleverage multiplier: ${leverage}（must在1-${RISK_PARAMS.MAX_LEVERAGE}之间，最大值由环境变量MAX_LEVERAGE控制）`,
         };
       }
       
-      // ====== 开仓前强制风控检查 ======
+      // ====== open position前强制risk check ======
       
-      // 1. 检查持仓数量（最多5个）
+      // 1. checkposition数量（最多5个）
       const allPositions = await client.getPositions();
       const activePositions = allPositions; // Already filtered in adapter
 
       if (activePositions.length >= RISK_PARAMS.MAX_POSITIONS) {
         return {
           success: false,
-          message: `已达到最大持仓数量限制（${RISK_PARAMS.MAX_POSITIONS}个），当前持仓 ${activePositions.length} 个，无法开新仓`,
+          message: `reachedmax positions数量限制（${RISK_PARAMS.MAX_POSITIONS}个），currentposition ${activePositions.length} 个，无法开new仓`,
         };
       }
 
-      // 2. 检查该币种是否已有持仓（禁止双向持仓）
+      // 2. check该symbol是否已有position（禁止dual-direction position）
       const existingPosition = activePositions.find((p) => p.symbol === symbol);
 
       if (existingPosition) {
@@ -108,15 +108,15 @@ export const openPositionTool = createTool({
         if (existingSide !== side) {
           return {
             success: false,
-            message: `${symbol} 已有${existingSide === "long" ? "多" : "空"}单持仓，禁止同时持有双向持仓。请先平掉${existingSide === "long" ? "多" : "空"}单后再开${side === "long" ? "多" : "空"}单。`,
+            message: `${symbol} 已有${existingSide === "long" ? "多" : "空"}单position，dual-direction positions not allowed。please close${existingSide === "long" ? "多" : "空"}单before opening${side === "long" ? "多" : "空"}单。`,
           };
         }
 
-        // 如果方向相同，允许加仓（但需要注意总持仓限制）
-        logger.info(`${symbol} 已有${side === "long" ? "多" : "空"}单持仓，允许加仓`);
+        // 如果direction相同，允许add to position（但需要注意总position限制）
+        logger.info(`${symbol} 已有${side === "long" ? "多" : "空"}单position，允许add to position`);
       }
       
-      // 3. 获取账户信息
+      // 3. 获取account信息
       const account = await client.getFuturesAccount();
       const unrealisedPnl = account.unrealisedPnl;
       const totalBalance = account.totalBalance;
@@ -125,11 +125,11 @@ export const openPositionTool = createTool({
       if (!Number.isFinite(availableBalance) || availableBalance <= 0) {
         return {
           success: false,
-          message: `账户可用资金异常: ${availableBalance} USDT`,
+          message: `accountavailable balance异常: ${availableBalance} USDT`,
         };
       }
       
-      // 4. 检查账户回撤（从数据库获取初始净值和峰值净值）
+      // 4. checkaccountdrawdown（从database获取初始total balance和peaktotal balance）
       const initialBalanceResult = await dbClient.execute(
         "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
       );
@@ -151,17 +151,17 @@ export const openPositionTool = createTool({
       if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT) {
         return {
           success: false,
-          message: `账户回撤已达 ${drawdownFromPeak.toFixed(2)}% ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%，触发风控保护，禁止新开仓`,
+          message: `accountdrawdown已达 ${drawdownFromPeak.toFixed(2)}% ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%，triggeredrisk protection，禁止newopen position`,
         };
       }
       
-      // 5. 检查总敞口（不超过账户净值的15倍）
+      // 5. check总exposure（不exceedsaccounttotal balance的15倍）
       let currentTotalExposure = 0;
       for (const pos of activePositions) {
         const posSize = pos.quantity;
         const entryPrice = pos.entryPrice;
         const posLeverage = pos.leverage;
-        // 获取合约乘数
+        // 获取contract乘数
         const posQuantoMultiplier = await getQuantoMultiplier(pos.exchangeSymbol);
         const posValue = posSize * entryPrice * posQuantoMultiplier;
         currentTotalExposure += posValue;
@@ -169,49 +169,49 @@ export const openPositionTool = createTool({
       
       const newExposure = amountUsdt * leverage;
       const totalExposure = currentTotalExposure + newExposure;
-      const maxAllowedExposure = totalBalance * RISK_PARAMS.MAX_LEVERAGE; // 使用配置的最大杠杆
+      const maxAllowedExposure = totalBalance * RISK_PARAMS.MAX_LEVERAGE; // 使用配置的max leverage
       
       if (totalExposure > maxAllowedExposure) {
         return {
           success: false,
-          message: `新开仓将导致总敞口 ${totalExposure.toFixed(2)} USDT 超过限制 ${maxAllowedExposure.toFixed(2)} USDT（账户净值的${RISK_PARAMS.MAX_LEVERAGE}倍），拒绝开仓`,
+          message: `newopen position将导致总exposure ${totalExposure.toFixed(2)} USDT exceeds限制 ${maxAllowedExposure.toFixed(2)} USDT（accounttotal balance的${RISK_PARAMS.MAX_LEVERAGE}倍），拒绝open position`,
         };
       }
       
-      // 6. 检查单笔仓位（建议不超过账户净值的30%）
+      // 6. check单笔position size（建议不exceedsaccounttotal balance的30%）
       const maxSinglePosition = totalBalance * 0.30; // 30%
       if (amountUsdt > maxSinglePosition) {
-        logger.warn(`开仓金额 ${amountUsdt.toFixed(2)} USDT 超过建议仓位 ${maxSinglePosition.toFixed(2)} USDT（账户净值的30%）`);
+        logger.warn(`position amount ${amountUsdt.toFixed(2)} USDT exceeds建议position size ${maxSinglePosition.toFixed(2)} USDT（accounttotal balance的30%）`);
       }
       
-      // ====== 风控检查通过，继续开仓 ======
+      // ====== risk check通过，继续open position ======
       
       let adjustedAmountUsdt = amountUsdt;
       
-      // 设置杠杆
+      // 设置leverage
       await client.setLeverage(symbol, leverage);
 
-      // 获取当前价格和合约信息
+      // 获取current价格和contract信息
       const ticker = await client.getFuturesTicker(symbol);
       const currentPrice = ticker.lastPrice;
       const contractInfo = await client.getContractInfo(symbol);
 
-      // 永续合约的保证金计算
-      // 注意：使用"张数"作为单位，每张合约代表一定数量的币
-      // 对于 BTC_USDT: 1张 = 0.0001 BTC
-      // 保证金计算：保证金 = (张数 * quantoMultiplier * 价格) / 杠杆
+      // 永续contract的margin计算
+      // 注意：使用"contracts"作为单位，每 contractscontract代表一定数量的币
+      // 对于 BTC_USDT: 1 contracts = 0.0001 BTC
+      // margin计算：margin = (contracts * quantoMultiplier * 价格) / leverage
       
-      // 获取合约乘数
+      // 获取contract乘数
       const quantoMultiplier = await getQuantoMultiplier(contract);
       const minSize = contractInfo.orderSizeMin;
       const maxSize = contractInfo.orderSizeMax;
       
-      // 计算可以开多少张合约
+      // 计算可以开多少 contractscontract
       // adjustedAmountUsdt = (quantity * quantoMultiplier * currentPrice) / leverage
       // => quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice)
       let quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice);
 
-      // 向下取整到整数张数（合约必须是整数）
+      // 向下取整到整数contracts（contractmust是整数）
       quantity = Math.floor(quantity);
 
       // 确保数量在允许范围内
@@ -234,31 +234,31 @@ export const openPositionTool = createTool({
           if (requiredMargin > adjustedAmountUsdt) {
             return {
               success: false,
-              message: `Binance要求最小订单价值20 USDT。${symbol}价格${currentPrice} USDT，最少需要${minQuantityForNotional.toFixed(3)}张合约（${MIN_NOTIONAL} USDT订单价值），需要保证金${requiredMargin.toFixed(2)} USDT（${leverage}x杠杆），但当前可用资金仅${adjustedAmountUsdt.toFixed(2)} USDT。建议增加仓位大小或选择价格更低的币种。`,
+              message: `Binance要求最小order价值20 USDT。${symbol}价格${currentPrice} USDT，最少需要${minQuantityForNotional.toFixed(3)} contractscontract（${MIN_NOTIONAL} USDTorder价值），需要margin${requiredMargin.toFixed(2)} USDT（${leverage}xleverage），但currentavailable balance仅${adjustedAmountUsdt.toFixed(2)} USDT。建议增add to position位大小或选择价格更低的symbol。`,
             };
           }
 
           // Adjust quantity to meet minimum notional
           quantity = minQuantityForNotional;
-          logger.info(`调整 ${symbol} 数量从 ${(notional / currentPrice).toFixed(3)} 到 ${quantity.toFixed(3)} 以满足Binance最小订单价值要求(20 USDT)`);
+          logger.info(`调整 ${symbol} 数量从 ${(notional / currentPrice).toFixed(3)} 到 ${quantity.toFixed(3)} 以满足Binance最小order价值要求(20 USDT)`);
         }
       }
 
       let size = side === "long" ? quantity : -quantity;
 
-      // 最后验证：如果 size 为 0 或者太小，放弃开仓
+      // 最后verify：如果 size 为 0 或者太小，放弃open position
       if (Math.abs(size) < minSize) {
         const minMargin = (minSize * quantoMultiplier * currentPrice) / leverage;
         return {
           success: false,
-          message: `计算的数量 ${Math.abs(size)} 张小于最小限制 ${minSize} 张，需要至少 ${minMargin.toFixed(2)} USDT 保证金（当前${adjustedAmountUsdt.toFixed(2)} USDT，杠杆${leverage}x）`,
+          message: `计算的数量 ${Math.abs(size)}  contracts小于最小限制 ${minSize}  contracts，需要至少 ${minMargin.toFixed(2)} USDT margin（current${adjustedAmountUsdt.toFixed(2)} USDT，leverage${leverage}x）`,
         };
       }
       
-      // 计算实际使用的保证金
+      // 计算actual使用的margin
       let actualMargin = (Math.abs(size) * quantoMultiplier * currentPrice) / leverage;
       
-      logger.info(`开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverage}x)`);
+      logger.info(`open position ${symbol} ${side === "long" ? "long" : "short"} ${Math.abs(size)} contracts (leverage${leverage}x)`);
 
       // 🔥 Cancel any orphaned SL/TP orders from previous positions BEFORE opening new position (defensive programming)
       const prevPosResult = await dbClient.execute({
@@ -370,7 +370,7 @@ export const openPositionTool = createTool({
         logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
       }
 
-      //  市价单开仓（不设置止盈止损）
+      //  market orderopen position（不设置take-profitstop-loss）
       const order = await client.placeOrder({
         symbol,
         side,
@@ -379,14 +379,14 @@ export const openPositionTool = createTool({
         // price: undefined means market order
       });
 
-      //  等待并验证订单状态（带重试）
-      // 增加等待时间，确保交易所 API 更新持仓信息
+      //  等待并verifyorder状态（带重试）
+      // 增加等待time，确保交易所 API updateposition信息
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      //  检查订单状态并获取实际成交价格（最多重试3次）
+      //  checkorder状态并获取actualfilled价格（最多重试3次）
       let finalOrderStatus = order.status;
       let actualFillSize = 0;
-      let actualFillPrice = currentPrice; // 默认使用当前价格
+      let actualFillPrice = currentPrice; // 默认使用current价格
 
       if (order.id) {
         let retryCount = 0;
@@ -398,20 +398,20 @@ export const openPositionTool = createTool({
             finalOrderStatus = orderDetail.status;
             actualFillSize = orderDetail.filled;
 
-            //  获取实际成交价格
+            //  获取actualfilled价格
             if (orderDetail.price > 0) {
               actualFillPrice = orderDetail.price;
             }
             
-            logger.info(`成交: ${actualFillSize}张 @ ${actualFillPrice.toFixed(2)} USDT`);
+            logger.info(`filled: ${actualFillSize} contracts @ ${actualFillPrice.toFixed(2)} USDT`);
             
-            //  验证成交价格的合理性（滑点保护）
+            //  verifyfilled价格的合理性（slippage protection）
             const priceDeviation = Math.abs(actualFillPrice - currentPrice) / currentPrice;
             if (priceDeviation > 0.02) {
-              // 滑点超过2%，拒绝此次交易（回滚）
-              logger.error(`❌ 成交价偏离超过2%: ${currentPrice.toFixed(2)} → ${actualFillPrice.toFixed(2)} (偏离 ${(priceDeviation * 100).toFixed(2)}%)，拒绝交易`);
+              // slippageexceeds2%，拒绝此次交易（rollback）
+              logger.error(`❌ filled价deviationexceeds2%: ${currentPrice.toFixed(2)} → ${actualFillPrice.toFixed(2)} (deviation ${(priceDeviation * 100).toFixed(2)}%)，拒绝交易`);
               
-              // 尝试平仓回滚（如果已经成交）
+              // 尝试close positionrollback（如果已经filled）
               try {
                 await client.placeOrder({
                   symbol,
@@ -419,56 +419,56 @@ export const openPositionTool = createTool({
                   quantity: Math.abs(size),
                   reduceOnly: true,
                 });
-                logger.info(`已回滚交易`);
+                logger.info(`rolled back交易`);
               } catch (rollbackError: any) {
-                logger.error(`回滚失败: ${rollbackError.message}，请手动处理`);
+                logger.error(`rollbackfailed: ${rollbackError.message}，请手动处理`);
               }
               
               return {
                 success: false,
-                message: `开仓失败：成交价偏离超过2% (${currentPrice.toFixed(2)} → ${actualFillPrice.toFixed(2)})，已拒绝交易`,
+                message: `open positionfailed：filled价deviationexceeds2% (${currentPrice.toFixed(2)} → ${actualFillPrice.toFixed(2)})，已拒绝交易`,
               };
             }
             
-            // 如果订单被取消或未成交，返回失败
+            // 如果order被cancel或not filled，返回failed
             if (finalOrderStatus === 'cancelled' || actualFillSize === 0) {
               return {
                 success: false,
-                message: `开仓失败：订单${finalOrderStatus === 'cancelled' ? '被取消' : '未成交'}（订单ID: ${order.id}）`,
+                message: `open positionfailed：order${finalOrderStatus === 'cancelled' ? '被cancel' : 'not filled'}（orderID: ${order.id}）`,
               };
             }
             
-            // 成功获取订单信息，跳出循环
+            // successful获取order信息，跳出循环
             break;
             
           } catch (error: any) {
             retryCount++;
             if (retryCount >= maxRetries) {
-              logger.error(`获取订单详情失败（重试${retryCount}次）: ${error.message}`);
-              // 如果无法获取订单详情，使用预估值继续
-              logger.warn(`使用预估值继续: 数量=${Math.abs(size)}, 价格=${currentPrice}`);
+              logger.error(`获取order详情failed（重试${retryCount}次）: ${error.message}`);
+              // 如果无法获取order详情，使用estimated值继续
+              logger.warn(`使用estimated值继续: 数量=${Math.abs(size)}, 价格=${currentPrice}`);
               actualFillSize = Math.abs(size);
               actualFillPrice = currentPrice;
             } else {
-              logger.warn(`获取订单详情失败，${retryCount}/${maxRetries} 次重试...`);
+              logger.warn(`获取order详情failed，${retryCount}/${maxRetries} 次重试...`);
               await new Promise(resolve => setTimeout(resolve, 300));
             }
           }
         }
       }
       
-      //  使用实际成交数量和价格记录到数据库
+      //  使用actualfilled数量和价格记录到database
       const finalQuantity = actualFillSize > 0 ? actualFillSize : Math.abs(size);
 
-      // 计算手续费（taker费率 0.05%）
-      // 手续费 = 合约名义价值 * 0.05%
-      // 合约名义价值 = 张数 * quantoMultiplier * 价格
+      // 计算fee（taker费率 0.05%）
+      // fee = contractnotional value * 0.05%
+      // contractnotional value = contracts * quantoMultiplier * 价格
       const positionValue = finalQuantity * quantoMultiplier * actualFillPrice;
       const fee = positionValue * 0.0005; // 0.05%
       
-      // 记录开仓交易
-      // side: 持仓方向（long=做多, short=做空）
-      // 实际执行: long开仓=买入(+size), short开仓=卖出(-size)
+      // 记录open position交易
+      // side: positiondirection（long=long, short=short）
+      // actual执行: longopen position=buy(+size), shortopen position=sell(-size)
       // 映射状态：finished -> filled, open -> pending
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
       
@@ -478,18 +478,18 @@ export const openPositionTool = createTool({
         args: [
           order.id?.toString() || "",
           symbol,
-          side,            // 持仓方向（long/short）
+          side,            // positiondirection（long/short）
           "open",
-          actualFillPrice, // 使用实际成交价格
-          finalQuantity,   // 使用实际成交数量
+          actualFillPrice, // 使用actualfilled价格
+          finalQuantity,   // 使用actualfilled数量
           leverage,
-          fee,            // 手续费
+          fee,            // fee
           new Date().toISOString(),
           dbStatus,
         ],
       });
       
-      // 不设置止损止盈订单
+      // 不设置stop-losstake-profitorder
       let slOrderId: string | undefined;
       let tpOrderId: string | undefined;
       
@@ -503,7 +503,7 @@ export const openPositionTool = createTool({
 
       while (retryCount < maxRetries) {
         try {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 递增等待时间
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 递增等待time
 
           const positions = await client.getPositions();
 
@@ -528,7 +528,7 @@ export const openPositionTool = createTool({
               logger.info(`✅ Position verified: ${actualPositionQuantity} units on exchange (matches order fill)`);
             }
 
-            break; // 持仓已验证，跳出循环
+            break; // position已verify，跳出循环
           }
 
           retryCount++;
@@ -545,7 +545,7 @@ export const openPositionTool = createTool({
         }
       }
 
-      // 如果未能从交易所获取强平价，使用估算公式（仅作为后备）
+      // 如果未能从交易所获取liquidation price，使用估算公式（仅作为后备）
       if (liquidationPrice === 0) {
         liquidationPrice = side === "long"
           ? actualFillPrice * (1 - 0.9 / leverage)
@@ -558,14 +558,14 @@ export const openPositionTool = createTool({
         logger.error(`   Recommendation: Run syncPositionsTool to reconcile`);
       }
         
-      // 先检查是否已存在持仓
+      // 先check是否已存在position
       const existingResult = await dbClient.execute({
         sql: "SELECT symbol FROM positions WHERE symbol = ?",
         args: [symbol],
       });
       
       if (existingResult.rows.length > 0) {
-        // 更新现有持仓 - 🔥 Use ACTUAL exchange quantity
+        // update现有position - 🔥 Use ACTUAL exchange quantity
         await dbClient.execute({
           sql: `UPDATE positions SET
                 quantity = ?, entry_price = ?, current_price = ?, liquidation_price = ?,
@@ -590,7 +590,7 @@ export const openPositionTool = createTool({
         });
         logger.info(`✅ Updated position in database: ${symbol} ${side} ${actualPositionQuantity} units`);
       } else {
-        // 插入新持仓 - 🔥 Use ACTUAL exchange quantity
+        // insertnewposition - 🔥 Use ACTUAL exchange quantity
         await dbClient.execute({
           sql: `INSERT INTO positions
                 (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
@@ -694,55 +694,55 @@ export const openPositionTool = createTool({
         orderId: order.id?.toString(),
         symbol,
         side,
-        size: Math.abs(size), // 合约张数
-        contractAmount, // 实际币的数量
+        size: Math.abs(size), // contractcontracts
+        contractAmount, // actual币的数量
         price: actualFillPrice,
         leverage,
         actualMargin,
-        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。系统已自动设置止损（SL）保护，止盈（TP）将由利润管理器动态调整。`,
+        message: `✅ successfulopen position ${symbol} ${side === "long" ? "long" : "short"} ${Math.abs(size)}  contracts (${contractAmount.toFixed(4)} ${symbol})，filled价 ${formatPrice(actualFillPrice)}，margin ${actualMargin.toFixed(2)} USDT，leverage ${leverage}x。系统已自动设置stop-loss（SL）保护，take-profit（TP）将由利润管理器动态调整。`,
       };
     } catch (error: any) {
-      logger.error(`❌ 开仓失败 ${symbol} ${side}: ${error.message}`, error);
+      logger.error(`❌ open positionfailed ${symbol} ${side}: ${error.message}`, error);
       return {
         success: false,
         error: error.message,
-        message: `开仓失败: ${error.message}`,
+        message: `open positionfailed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 平仓工具
+ * Close Position Tool
  */
 export const closePositionTool = createTool({
   name: "closePosition",
-  description: "平仓 - 关闭指定币种的持仓。自动取消该币种的所有SL/TP订单（defensive programming - 确保平仓后不会有遗留订单触发）。",
+  description: "close position - 关闭指定symbol的position。自动cancel该symbol的所有SL/TPorder（defensive programming - 确保close position后不会有遗留ordertriggered）。",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
-    percentage: z.number().min(1).max(100).default(100).describe("平仓百分比（1-100）"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
+    percentage: z.number().min(1).max(100).default(100).describe("close position百分比（1-100）"),
   }),
   execute: async ({ symbol, percentage }) => {
     const client = createExchangeClient();
     const contract = client.normalizeSymbol(symbol);
     
     try {
-      //  参数验证
+      //  参数verify
       if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) {
         return {
           success: false,
-          message: `无效的平仓百分比: ${percentage}（必须在1-100之间）`,
+          message: `invalidclose position百分比: ${percentage}（must在1-100之间）`,
         };
       }
       
-      //  直接从交易所获取最新的持仓信息（不依赖数据库）
+      //  直接从交易所获取最new的position信息（不依赖database）
       const allPositions = await client.getPositions();
       const exchangePosition = allPositions.find((p) => p.symbol === symbol);
 
       if (!exchangePosition || exchangePosition.quantity === 0) {
         return {
           success: false,
-          message: `没有找到 ${symbol} 的持仓`,
+          message: `没有找到 ${symbol} 的position`,
         };
       }
 
@@ -759,42 +759,42 @@ export const closePositionTool = createTool({
         const ticker = await client.getFuturesTicker(symbol);
         if (currentPrice === 0) {
           currentPrice = ticker.markPrice;
-          logger.warn(`持仓标记价格为0，使用行情价格: ${currentPrice}`);
+          logger.warn(`position标记价格为0，使用行情价格: ${currentPrice}`);
         }
         if (entryPrice === 0) {
-          entryPrice = currentPrice; // 如果开仓价为0，使用当前价格
-          logger.warn(`持仓开仓价为0，使用当前价格: ${entryPrice}`);
+          entryPrice = currentPrice; // 如果open position价为0，使用current价格
+          logger.warn(`positionopen position价为0，使用current价格: ${entryPrice}`);
         }
       }
       
-      // 计算平仓数量 - No rounding, preserve full decimal precision
+      // 计算close position数量 - No rounding, preserve full decimal precision
       const closeSize = (quantity * percentage) / 100;
       const size = side === "long" ? -closeSize : closeSize;
       
-      //  获取合约乘数用于计算盈亏和手续费
+      //  获取contract乘数用于计算PnL和fee
       const quantoMultiplier = await getQuantoMultiplier(contract);
       
-      // 🔥 不再依赖交易所返回的unrealisedPnl，始终手动计算毛盈亏
-      // 手动计算盈亏公式：
-      // 对于做多：(currentPrice - entryPrice) * quantity * quantoMultiplier
-      // 对于做空：(entryPrice - currentPrice) * quantity * quantoMultiplier
+      // 🔥 不再依赖交易所返回的unrealisedPnl，始终手动计算gross PnL
+      // 手动计算PnL公式：
+      // 对于long：(currentPrice - entryPrice) * quantity * quantoMultiplier
+      // 对于short：(entryPrice - currentPrice) * quantity * quantoMultiplier
       const priceChange = side === "long" 
         ? (currentPrice - entryPrice) 
         : (entryPrice - currentPrice);
       
       const grossPnl = priceChange * closeSize * quantoMultiplier;
       
-      logger.info(`预估盈亏: ${grossPnl >= 0 ? '+' : ''}${grossPnl.toFixed(2)} USDT (价格变动: ${priceChange.toFixed(4)})`);
+      logger.info(`estimatedPnL: ${grossPnl >= 0 ? '+' : ''}${grossPnl.toFixed(2)} USDT (price change: ${priceChange.toFixed(4)})`);
       
-      //  计算手续费（开仓 + 平仓）
+      //  计算fee（open position + close position）
       const openFee = entryPrice * closeSize * quantoMultiplier * 0.0005;
       const closeFee = currentPrice * closeSize * quantoMultiplier * 0.0005;
       const totalFees = openFee + closeFee;
       
-      // 净盈亏 = 毛盈亏 - 总手续费（此值为预估，平仓后会基于实际成交价重新计算）
+      // net PnL = gross PnL - total fees（此值为estimated，close position后会基于actualfilled价重new计算）
       let pnl = grossPnl - totalFees;
       
-      logger.info(`平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${closeSize}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)})`);
+      logger.info(`close position ${symbol} ${side === "long" ? "long" : "short"} ${closeSize} contracts (入场: ${entryPrice.toFixed(2)}, current: ${currentPrice.toFixed(2)})`);
 
       // 🔥 Cancel all SL/TP orders BEFORE closing position (defensive programming)
       // Step 1: Cancel orders tracked in database
@@ -901,18 +901,18 @@ export const closePositionTool = createTool({
         logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
       }
 
-      //  市价单平仓
+      //  market orderclose position
       const order = await client.placeOrder({
         symbol,
         side: side === 'long' ? 'short' : 'long', // Opposite side to close
         quantity: closeSize,
-        reduceOnly: true, // 只减仓，不开新仓
+        reduceOnly: true, // 只减仓，不开new仓
       });
       
-      //  等待并验证订单状态（带重试）
+      //  等待并verifyorder状态（带重试）
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      //  获取实际成交价格和数量（最多重试3次）
+      //  获取actualfilled价格和数量（最多重试3次）
       let actualExitPrice = currentPrice;
       let actualCloseSize = closeSize;
       let finalOrderStatus = order.status;
@@ -931,102 +931,102 @@ export const closePositionTool = createTool({
               actualCloseSize = filled;
             }
 
-            // 获取实际成交价格
+            // 获取actualfilled价格
             if (orderDetail.price > 0) {
               actualExitPrice = orderDetail.price;
             }
             
-            logger.info(`成交: ${actualCloseSize}张 @ ${actualExitPrice.toFixed(2)} USDT`);
+            logger.info(`filled: ${actualCloseSize} contracts @ ${actualExitPrice.toFixed(2)} USDT`);
             
-            //  验证成交价格的合理性（滑点保护）
+            //  verifyfilled价格的合理性（slippage protection）
             const priceDeviation = Math.abs(actualExitPrice - currentPrice) / currentPrice;
             if (priceDeviation > 0.03) {
-              // 平仓时允许3%滑点（比开仓宽松，因为可能是紧急止损）
-              logger.warn(`⚠️ 平仓成交价偏离超过3%: ${currentPrice.toFixed(2)} → ${actualExitPrice.toFixed(2)} (偏离 ${(priceDeviation * 100).toFixed(2)}%)`);
+              // close position时允许3%slippage（比open position宽松，因为可能是紧急stop-loss）
+              logger.warn(`⚠️ close positionfilled价deviationexceeds3%: ${currentPrice.toFixed(2)} → ${actualExitPrice.toFixed(2)} (deviation ${(priceDeviation * 100).toFixed(2)}%)`);
             }
             
-            //  重新计算实际盈亏（基于真实成交价格）
-            // 获取合约乘数
+            //  重new计算actualPnL（基于真实filled价格）
+            // 获取contract乘数
             const quantoMultiplier = await getQuantoMultiplier(contract);
             
             const priceChange = side === "long" 
               ? (actualExitPrice - entryPrice) 
               : (entryPrice - actualExitPrice);
             
-            // 盈亏 = 价格变化 * 张数 * 合约乘数
+            // PnL = 价格变化 * contracts * contract乘数
             const grossPnl = priceChange * actualCloseSize * quantoMultiplier;
             
-            //  扣除手续费（开仓 + 平仓）
-            // 开仓手续费 = 开仓名义价值 * 0.05%
+            //  扣除fee（open position + close position）
+            // entry fee = open positionnotional value * 0.05%
             const openFee = entryPrice * actualCloseSize * quantoMultiplier * 0.0005;
-            // 平仓手续费 = 平仓名义价值 * 0.05%
+            // exit fee = close positionnotional value * 0.05%
             const closeFee = actualExitPrice * actualCloseSize * quantoMultiplier * 0.0005;
-            // 总手续费
+            // total fees
             const totalFees = openFee + closeFee;
             
-            // 净盈亏 = 毛盈亏 - 总手续费
+            // net PnL = gross PnL - total fees
             pnl = grossPnl - totalFees;
             
-            logger.info(`盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
+            logger.info(`PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
             
-            // 成功获取订单信息，跳出循环
+            // successful获取order信息，跳出循环
             break;
             
           } catch (error: any) {
             retryCount++;
             if (retryCount >= maxRetries) {
-              logger.error(`获取平仓订单详情失败（重试${retryCount}次）: ${error.message}`);
-              // 如果无法获取订单详情，使用预估值
-              logger.warn(`使用预估值继续: 数量=${closeSize}, 价格=${currentPrice}`);
+              logger.error(`获取close positionorder详情failed（重试${retryCount}次）: ${error.message}`);
+              // 如果无法获取order详情，使用estimated值
+              logger.warn(`使用estimated值继续: 数量=${closeSize}, 价格=${currentPrice}`);
               actualCloseSize = closeSize;
               actualExitPrice = currentPrice;
-              // 重新计算盈亏（需要乘以合约乘数）
+              // 重new计算PnL（需要乘以contract乘数）
               const quantoMultiplier = await getQuantoMultiplier(contract);
               const priceChange = side === "long" 
                 ? (actualExitPrice - entryPrice) 
                 : (entryPrice - actualExitPrice);
               const grossPnl = priceChange * actualCloseSize * quantoMultiplier;
-              // 扣除手续费
+              // 扣除fee
               const openFee = entryPrice * actualCloseSize * quantoMultiplier * 0.0005;
               const closeFee = actualExitPrice * actualCloseSize * quantoMultiplier * 0.0005;
               pnl = grossPnl - openFee - closeFee;
             } else {
-              logger.warn(`获取平仓订单详情失败，${retryCount}/${maxRetries} 次重试...`);
+              logger.warn(`获取close positionorder详情failed，${retryCount}/${maxRetries} 次重试...`);
               await new Promise(resolve => setTimeout(resolve, 300));
             }
           }
         }
       }
       
-      // 获取账户信息用于记录当前总资产
+      // 获取account信息用于记录currenttotal balance
       const account = await client.getFuturesAccount();
       const totalBalance = account.totalBalance;
       
-      //  计算总手续费（开仓 + 平仓）用于数据库记录
-      // 需要获取合约乘数
+      //  计算total fees（open position + close position）用于database记录
+      // 需要获取contract乘数
       const dbQuantoMultiplier = await getQuantoMultiplier(contract);
       
-      // 开仓手续费 = 开仓名义价值 * 0.05%
+      // entry fee = open positionnotional value * 0.05%
       const dbOpenFee = entryPrice * actualCloseSize * dbQuantoMultiplier * 0.0005;
-      // 平仓手续费 = 平仓名义价值 * 0.05%
+      // exit fee = close positionnotional value * 0.05%
       const dbCloseFee = actualExitPrice * actualCloseSize * dbQuantoMultiplier * 0.0005;
-      // 总手续费
+      // total fees
       const totalFee = dbOpenFee + dbCloseFee;
       
-      // 🔥 关键验证：检查盈亏计算是否正确
+      // 🔥 关键verify：checkPnL计算是否正确
       const notionalValue = actualExitPrice * actualCloseSize * dbQuantoMultiplier;
       const priceChangeCheck = side === "long" 
         ? (actualExitPrice - entryPrice) 
         : (entryPrice - actualExitPrice);
       const expectedPnl = priceChangeCheck * actualCloseSize * dbQuantoMultiplier - totalFee;
       
-      // 检测盈亏是否被错误地设置为名义价值
+      // 检测PnL是否被error地设置为notional value
       if (Math.abs(pnl - notionalValue) < Math.abs(pnl - expectedPnl)) {
-        logger.error(`🚨 检测到盈亏计算异常！`);
-        logger.error(`  当前pnl: ${pnl.toFixed(2)} USDT 接近名义价值 ${notionalValue.toFixed(2)} USDT`);
+        logger.error(`🚨 检测到PnL计算异常！`);
+        logger.error(`  currentpnl: ${pnl.toFixed(2)} USDT 接近notional value ${notionalValue.toFixed(2)} USDT`);
         logger.error(`  预期pnl: ${expectedPnl.toFixed(2)} USDT`);
-        logger.error(`  开仓价: ${entryPrice}, 平仓价: ${actualExitPrice}, 数量: ${actualCloseSize}, 合约乘数: ${dbQuantoMultiplier}`);
-        logger.error(`  价格变动: ${priceChangeCheck.toFixed(4)}, 手续费: ${totalFee.toFixed(4)}`);
+        logger.error(`  open position价: ${entryPrice}, exit price: ${actualExitPrice}, 数量: ${actualCloseSize}, contract乘数: ${dbQuantoMultiplier}`);
+        logger.error(`  price change: ${priceChangeCheck.toFixed(4)}, fee: ${totalFee.toFixed(4)}`);
         
         // 强制修正为正确值
         pnl = expectedPnl;
@@ -1034,13 +1034,13 @@ export const closePositionTool = createTool({
       }
       
       // 详细日志记录（用于debug）
-      logger.info(`【平仓盈亏详情】${symbol} ${side}`);
-      logger.info(`  开仓价: ${entryPrice.toFixed(4)}, 平仓价: ${actualExitPrice.toFixed(4)}, 数量: ${actualCloseSize}张`);
-      logger.info(`  价格变动: ${priceChangeCheck.toFixed(4)}, 合约乘数: ${dbQuantoMultiplier}`);
-      logger.info(`  毛盈亏: ${(priceChangeCheck * actualCloseSize * dbQuantoMultiplier).toFixed(2)} USDT`);
-      logger.info(`  开仓手续费: ${dbOpenFee.toFixed(4)} USDT, 平仓手续费: ${dbCloseFee.toFixed(4)} USDT`);
-      logger.info(`  总手续费: ${totalFee.toFixed(4)} USDT`);
-      logger.info(`  净盈亏: ${pnl.toFixed(2)} USDT`);
+      logger.info(`【close positionPnL详情】${symbol} ${side}`);
+      logger.info(`  open position价: ${entryPrice.toFixed(4)}, exit price: ${actualExitPrice.toFixed(4)}, 数量: ${actualCloseSize} contracts`);
+      logger.info(`  price change: ${priceChangeCheck.toFixed(4)}, contract乘数: ${dbQuantoMultiplier}`);
+      logger.info(`  gross PnL: ${(priceChangeCheck * actualCloseSize * dbQuantoMultiplier).toFixed(2)} USDT`);
+      logger.info(`  entry fee: ${dbOpenFee.toFixed(4)} USDT, exit fee: ${dbCloseFee.toFixed(4)} USDT`);
+      logger.info(`  total fees: ${totalFee.toFixed(4)} USDT`);
+      logger.info(`  net PnL: ${pnl.toFixed(2)} USDT`);
       
       // 获取entry_order_id from database for linking
       let entryOrderId: string | null = null;
@@ -1056,11 +1056,11 @@ export const closePositionTool = createTool({
         logger.warn(`Could not fetch entry_order_id: ${error.message}`);
       }
 
-      // 记录平仓交易
-      // side: 原持仓方向（long/short）
-      // 实际执行方向: long平仓=卖出, short平仓=买入
-      // pnl: 净盈亏（已扣除手续费）
-      // fee: 总手续费（开仓+平仓）
+      // 记录close position交易
+      // side: 原positiondirection（long/short）
+      // actual执行direction: longclose position=sell, shortclose position=buy
+      // pnl: net PnL（已扣除fee）
+      // fee: total fees（open position+close position）
       // 映射状态：finished -> filled, open -> pending
       const dbStatus = finalOrderStatus === 'finished' ? 'filled' : 'pending';
 
@@ -1070,13 +1070,13 @@ export const closePositionTool = createTool({
         args: [
           order.id?.toString() || "",
           symbol,
-          side,             // 原持仓方向（便于统计某个币种的多空盈亏）
+          side,             // 原positiondirection（便于统计某个symbol的多空PnL）
           "close",
-          actualExitPrice,   // 使用实际成交价格
-          actualCloseSize,   // 使用实际成交数量
+          actualExitPrice,   // 使用actualfilled价格
+          actualCloseSize,   // 使用actualfilled数量
           leverage,
-          pnl,              // 净盈亏（已扣除手续费）
-          totalFee,         // 总手续费（开仓+平仓）
+          pnl,              // net PnL（已扣除fee）
+          totalFee,         // total fees（open position+close position）
           new Date().toISOString(),
           dbStatus,
           'manual',         // Manual close by LLM
@@ -1084,7 +1084,7 @@ export const closePositionTool = createTool({
         ],
       });
 
-      // 如果全部平仓，从持仓表删除；否则不操作（交由同步任务更新）
+      // 如果全部close position，从position表delete；否则不操作（交由sync任务update）
       if (percentage === 100) {
         await dbClient.execute({
           sql: "DELETE FROM positions WHERE symbol = ?",
@@ -1097,34 +1097,34 @@ export const closePositionTool = createTool({
         orderId: order.id?.toString(),
         symbol,
         side,
-        closedSize: actualCloseSize,  // 使用实际成交数量
+        closedSize: actualCloseSize,  // 使用actualfilled数量
         entryPrice,
-        exitPrice: actualExitPrice,   // 使用实际成交价格
+        exitPrice: actualExitPrice,   // 使用actualfilled价格
         leverage,
-        pnl,                          // 净盈亏（已扣除手续费）
-        fee: totalFee,                // 总手续费
+        pnl,                          // net PnL（已扣除fee）
+        fee: totalFee,                // total fees
         totalBalance,
-        message: `成功平仓 ${symbol} ${actualCloseSize} 张，入场价 ${formatPrice(entryPrice)}，平仓价 ${formatPrice(actualExitPrice)}，净盈亏 ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣手续费 ${totalFee.toFixed(2)} USDT)，当前总资产 ${totalBalance.toFixed(2)} USDT`,
+        message: `successfulclose position ${symbol} ${actualCloseSize}  contracts，entry price ${formatPrice(entryPrice)}，exit price ${formatPrice(actualExitPrice)}，net PnL ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣fee ${totalFee.toFixed(2)} USDT)，currenttotal balance ${totalBalance.toFixed(2)} USDT`,
       };
     } catch (error: any) {
-      logger.error(`平仓失败: ${error.message}`, error);
+      logger.error(`close positionfailed: ${error.message}`, error);
       return {
         success: false,
         error: error.message,
-        message: `平仓失败: ${error.message}`,
+        message: `close positionfailed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 取消订单工具
+ * Cancel Order Tool
  */
 export const cancelOrderTool = createTool({
   name: "cancelOrder",
-  description: "取消指定的挂单",
+  description: "cancel指定的pending order",
   parameters: z.object({
-    orderId: z.string().describe("订单ID"),
+    orderId: z.string().describe("orderID"),
   }),
   execute: async ({ orderId }) => {
     const client = createExchangeClient();
@@ -1135,13 +1135,13 @@ export const cancelOrderTool = createTool({
       return {
         success: true,
         orderId,
-        message: `订单 ${orderId} 已取消`,
+        message: `order ${orderId} cancelled`,
       };
     } catch (error: any) {
       return {
         success: false,
         error: error.message,
-        message: `取消订单失败: ${error.message}`,
+        message: `cancelorderfailed: ${error.message}`,
       };
     }
   },

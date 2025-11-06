@@ -17,7 +17,7 @@
  */
 
 /**
- * 账户管理工具
+ * account管理工具
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
@@ -46,11 +46,11 @@ function formatPrice(price: number): string {
 }
 
 /**
- * 获取账户余额工具
+ * 获取accountbalance工具
  */
 export const getAccountBalanceTool = createTool({
   name: "getAccountBalance",
-  description: "获取账户余额和资金信息",
+  description: "获取accountbalance和资金信息",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -70,18 +70,18 @@ export const getAccountBalanceTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取账户余额失败: ${error.message}`,
+        message: `获取accountbalancefailed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 获取当前持仓工具
+ * 获取currentposition工具
  */
 export const getPositionsTool = createTool({
   name: "getPositions",
-  description: "获取当前所有持仓信息",
+  description: "获取current所有position信息",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -110,20 +110,20 @@ export const getPositionsTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取持仓失败: ${error.message}`,
+        message: `获取positionfailed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 获取未成交订单工具
+ * 获取not filledorder工具
  */
 export const getOpenOrdersTool = createTool({
   name: "getOpenOrders",
-  description: "获取所有未成交的挂单",
+  description: "获取所有not filled的pending order",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选：仅获取指定币种的订单"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选：仅获取指定symbol的order"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -151,20 +151,20 @@ export const getOpenOrdersTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取未成交订单失败: ${error.message}`,
+        message: `获取not filledorderfailed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 检查订单状态工具
+ * checkorder状态工具
  */
 export const checkOrderStatusTool = createTool({
   name: "checkOrderStatus",
-  description: "检查指定订单的详细状态，包括成交价格、成交数量等",
+  description: "check指定order的详细状态，包括filled价格、filled数量等",
   parameters: z.object({
-    orderId: z.string().describe("订单ID"),
+    orderId: z.string().describe("orderID"),
   }),
   execute: async ({ orderId }) => {
     const client = createExchangeClient();
@@ -191,24 +191,24 @@ export const checkOrderStatusTool = createTool({
         finishedAt: orderDetail.status === 'finished' ? Math.floor(orderDetail.timestamp / 1000) : undefined,
         isFullyFilled: leftSize === 0,
         fillPercentage: totalSize > 0 ? (filledSize / totalSize * 100).toFixed(2) : "0",
-        message: `订单 ${orderId} 状态: ${orderDetail.status}, 已成交 ${filledSize}/${totalSize} 张 (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), 成交价 ${formatPrice(fillPrice)}`,
+        message: `order ${orderId} 状态: ${orderDetail.status}, 已filled ${filledSize}/${totalSize}  contracts (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), filled价 ${formatPrice(fillPrice)}`,
       };
     } catch (error: any) {
       return {
         success: false,
         error: error.message,
-        message: `获取订单状态失败: ${error.message}`,
+        message: `获取order状态failed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 计算风险敞口工具
+ * 计算风险exposure工具
  */
 export const calculateRiskTool = createTool({
   name: "calculateRisk",
-  description: "计算当前账户的风险敞口和仓位情况",
+  description: "计算currentaccount的风险exposure和position size情况",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -223,7 +223,7 @@ export const calculateRiskTool = createTool({
       const totalBalance = account.totalBalance;
       const availableBalance = account.availableBalance;
       
-      // 计算每个持仓的风险（需要异步获取合约乘数）
+      // 计算每个position的风险（需要异步获取contract乘数）
       const positionRisks = await Promise.all(
         positions.map(async (p) => {
           const size = p.quantity;
@@ -233,10 +233,10 @@ export const calculateRiskTool = createTool({
           const currentPrice = p.currentPrice;
           const pnl = p.unrealizedPnl;
 
-          // 获取合约乘数（修复：正确计算名义价值）
+          // 获取contract乘数（修复：正确计算notional value）
           const quantoMultiplier = await getQuantoMultiplier(p.exchangeSymbol);
 
-          // 正确计算名义价值：张数 × 入场价格 × 合约乘数
+          // 正确计算notional value：contracts × entry price格 × contract乘数
           const notionalValue = size * entryPrice * quantoMultiplier;
           const margin = notionalValue / leverage;
 
@@ -261,7 +261,7 @@ export const calculateRiskTool = createTool({
       const totalMargin = positionRisks.reduce((sum: number, p: any) => sum + p.margin, 0);
       const usedMarginPercent = totalBalance > 0 ? (totalMargin / totalBalance) * 100 : 0;
       
-      // 从数据库获取初始资金
+      // 从database获取初始资金
       const initialBalanceResult = await dbClient.execute(
         "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
       );
@@ -296,19 +296,19 @@ export const calculateRiskTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `计算风险失败: ${error.message}`,
+        message: `计算风险failed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 同步持仓到数据库工具
+ * syncposition到database工具
  * 🔥 ID-BASED TRACKING: Uses entry_order_id, sl_order_id, tp_orders to verify everything
  */
 export const syncPositionsTool = createTool({
   name: "syncPositions",
-  description: "同步交易所持仓数据到本地数据库，使用订单ID验证持仓和止损止盈状态",
+  description: "sync交易所position数据到本地database，使用orderIDverifyposition和stop-losstake-profit状态",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -634,14 +634,14 @@ export const syncPositionsTool = createTool({
         syncedCount,
         triggeredCount: triggeredOrders.length,
         triggeredOrders,
-        message: `✅ 持仓同步完成: ${syncedCount} 个持仓, ${triggeredOrders.length} 个触发的止损/止盈`,
+        message: `✅ positionsync完成: ${syncedCount} 个position, ${triggeredOrders.length} 个triggered的stop-loss/take-profit`,
       };
     } catch (error: any) {
       logger.error(`❌ Sync failed: ${error.message}`);
       return {
         success: false,
         error: error.message,
-        message: `同步持仓失败: ${error.message}`,
+        message: `syncpositionfailed: ${error.message}`,
       };
     }
   },

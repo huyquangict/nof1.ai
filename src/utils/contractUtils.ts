@@ -17,7 +17,7 @@
  */
 
 /**
- * 合约工具函数
+ * contract工具函数
  */
 import { createPinoLogger } from "@voltagent/logger";
 
@@ -26,12 +26,12 @@ const logger = createPinoLogger({
   level: "info",
 });
 
-// 合约乘数缓存（避免重复API调用）
+// contract乘数缓存（避免重复API调用）
 const quantoMultiplierCache = new Map<string, number>();
 
 /**
- * 默认合约乘数映射
- * 从交易所 API 获取失败时使用
+ * 默认contract乘数映射
+ * 从交易所 API 获取failed时使用
  */
 const DEFAULT_MULTIPLIERS: Record<string, number> = {
   // USDT-margined perpetual contracts: 1 contract = 1 coin (1:1 ratio)
@@ -49,26 +49,26 @@ const DEFAULT_MULTIPLIERS: Record<string, number> = {
 };
 
 /**
- * 获取合约乘数（quanto multiplier）
+ * 获取contract乘数（quanto multiplier）
  * 
- * 合约乘数表示：1张合约代表多少个币
- * 例如：BTC_USDT合约，1张 = 0.0001 BTC
+ * contract乘数表示：1 contractscontract代表多少个币
+ * 例如：BTC_USDTcontract，1 contracts = 0.0001 BTC
  *
- * 优先从交易所 API 获取，失败时使用默认值
+ * 优先从交易所 API 获取，failed时使用默认值
  * 支持缓存以减少API调用次数
  * 
- * @param contract 合约名称，如 "BTC_USDT"
+ * @param contract contract名称，如 "BTC_USDT"
  * @param useCache 是否使用缓存（默认true）
- * @returns 合约乘数
+ * @returns contract乘数
  */
 export async function getQuantoMultiplier(
   contract: string,
   useCache: boolean = true
 ): Promise<number> {
-  // 检查缓存
+  // check缓存
   if (useCache && quantoMultiplierCache.has(contract)) {
     const cached = quantoMultiplierCache.get(contract)!;
-    logger.debug(`使用缓存的 ${contract} 合约乘数: ${cached}`);
+    logger.debug(`使用缓存的 ${contract} contract乘数: ${cached}`);
     return cached;
   }
 
@@ -86,29 +86,29 @@ export async function getQuantoMultiplier(
 }
 
 /**
- * 清除缓存（用于测试或强制刷新）
+ * 清除缓存（用于测试或强制刷new）
  */
 export function clearQuantoMultiplierCache(contract?: string) {
   if (contract) {
     quantoMultiplierCache.delete(contract);
-    logger.debug(`清除 ${contract} 合约乘数缓存`);
+    logger.debug(`清除 ${contract} contract乘数缓存`);
   } else {
     quantoMultiplierCache.clear();
-    logger.debug(`清除所有合约乘数缓存`);
+    logger.debug(`清除所有contract乘数缓存`);
   }
 }
 
 /**
- * 预加载常用合约的乘数（可选，用于启动时预热缓存）
+ * 预加载常用contract的乘数（可选，用于start时预热缓存）
  */
 export async function preloadQuantoMultipliers(contracts: string[]): Promise<void> {
-  logger.info(`预加载 ${contracts.length} 个合约的乘数...`);
+  logger.info(`预加载 ${contracts.length} 个contract的乘数...`);
   
   const results = await Promise.allSettled(
     contracts.map(contract => getQuantoMultiplier(contract, true))
   );
   
   const successCount = results.filter(r => r.status === 'fulfilled').length;
-  logger.info(`成功预加载 ${successCount}/${contracts.length} 个合约乘数`);
+  logger.info(`successful预加载 ${successCount}/${contracts.length} 个contract乘数`);
 }
 

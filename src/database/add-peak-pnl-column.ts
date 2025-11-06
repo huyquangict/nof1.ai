@@ -17,7 +17,7 @@
  */
 
 /**
- * 数据库迁移脚本：添加 peak_pnl_percent 字段到 positions 表
+ * database迁移脚本：添加 peak_pnl_percent 字段到 positions 表
  */
 import { createClient } from "@libsql/client";
 
@@ -27,9 +27,9 @@ const dbClient = createClient({
 
 async function addPeakPnlColumn() {
   try {
-    console.log("开始数据库迁移：添加 peak_pnl_percent 字段...");
+    console.log("开始database迁移：添加 peak_pnl_percent 字段...");
     
-    // 检查字段是否已存在
+    // check字段是否已存在
     const tableInfo = await dbClient.execute("PRAGMA table_info(positions)");
     const columnExists = tableInfo.rows.some((row: any) => row.name === "peak_pnl_percent");
     
@@ -44,9 +44,9 @@ async function addPeakPnlColumn() {
       ADD COLUMN peak_pnl_percent REAL DEFAULT 0
     `);
     
-    console.log("✅ 成功添加 peak_pnl_percent 字段到 positions 表");
+    console.log("✅ successful添加 peak_pnl_percent 字段到 positions 表");
     
-    // 为现有持仓初始化峰值盈亏
+    // 为现有positioninitializepeakPnL
     const positions = await dbClient.execute("SELECT * FROM positions");
     
     for (const pos of positions.rows) {
@@ -55,13 +55,13 @@ async function addPeakPnlColumn() {
       const leverage = Number.parseInt(pos.leverage as string);
       const side = pos.side as string;
       
-      // 计算当前盈亏百分比
+      // 计算currentPnL百分比
       const priceChangePercent = entryPrice > 0 
         ? ((currentPrice - entryPrice) / entryPrice * 100 * (side === 'long' ? 1 : -1))
         : 0;
       const pnlPercent = priceChangePercent * leverage;
       
-      // 初始化峰值为当前盈亏（如果是正数）或0
+      // initializepeak为currentPnL（如果是正数）或0
       const initialPeak = Math.max(pnlPercent, 0);
       
       await dbClient.execute({
@@ -70,16 +70,16 @@ async function addPeakPnlColumn() {
       });
     }
     
-    console.log(`✅ 初始化了 ${positions.rows.length} 个持仓的峰值盈亏百分比`);
+    console.log(`✅ initialize了 ${positions.rows.length} 个position的peakPnL百分比`);
     
   } catch (error: any) {
-    console.error("❌ 数据库迁移失败:", error.message);
+    console.error("❌ database迁移failed:", error.message);
     process.exit(1);
   }
 }
 
 addPeakPnlColumn().then(() => {
-  console.log("数据库迁移完成");
+  console.log("database迁移完成");
   process.exit(0);
 });
 

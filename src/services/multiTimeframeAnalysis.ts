@@ -17,7 +17,7 @@
  */
 
 /**
- * 多时间框架分析模块（极简版 - 只提供原始数据）
+ * 多time框架分析模块（极简版 - 只提供原始数据）
  */
 
 import { createPinoLogger } from "@voltagent/logger";
@@ -29,7 +29,7 @@ const logger = createPinoLogger({
 });
 
 /**
- * 时间框架定义
+ * time框架定义
  */
 export interface TimeframeConfig {
   interval: "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "4h" | "8h" | "1d";
@@ -37,7 +37,7 @@ export interface TimeframeConfig {
   description: string;
 }
 
-// 标准时间框架配置 - 短线交易配置
+// 标准time框架配置 - 短线交易配置
 export const TIMEFRAMES: Record<string, TimeframeConfig> = {
   VERY_SHORT: {
     interval: "1m",
@@ -178,7 +178,7 @@ function calculateMACD(prices: number[]): { macd: number; signal: number; histog
 }
 
 /**
- * 单个时间框架的原始数据
+ * 单个time框架的原始数据
  */
 export interface TimeframeIndicators {
   interval: string;
@@ -194,7 +194,7 @@ export interface TimeframeIndicators {
   // RSI
   rsi14: number;
   
-  // 成交量
+  // filled量
   volume: number;
   avgVolume: number;
   
@@ -203,7 +203,7 @@ export interface TimeframeIndicators {
 }
 
 /**
- * 分析单个时间框架（只计算原始指标）
+ * 分析单个time框架（只计算原始指标）
  */
 export async function analyzeTimeframe(
   symbol: string,
@@ -223,7 +223,7 @@ export async function analyzeTimeframe(
     throw new Error(`无法获取 ${symbol} 的 ${config.interval} K线数据`);
   }
   
-  // 提取价格和成交量数据
+  // 提取价格和filled量数据
   const closes = candles.map((c: any) => Number.parseFloat(c.c)).filter((n: number) => Number.isFinite(n));
   const volumes = candles.map((c: any) => {
     const vol = Number.parseFloat(c.v);
@@ -264,13 +264,13 @@ export async function analyzeTimeframe(
 }
 
 /**
- * 多时间框架原始数据
+ * 多time框架原始数据
  */
 export interface MultiTimeframeAnalysis {
   symbol: string;
   timestamp: string;
   
-  // 各时间框架原始数据
+  // 各time框架原始数据
   timeframes: {
     veryshort?: TimeframeIndicators;
     short1?: TimeframeIndicators;
@@ -288,17 +288,17 @@ export interface MultiTimeframeAnalysis {
 }
 
 /**
- * 执行多时间框架分析（极简版 - 只提供原始数据）
+ * 执行多time框架分析（极简版 - 只提供原始数据）
  */
 export async function performMultiTimeframeAnalysis(
   symbol: string,
   timeframesToUse: string[] = ["VERY_SHORT", "SHORT_1", "SHORT", "SHORT_CONFIRM", "MEDIUM_SHORT", "MEDIUM"]
 ): Promise<MultiTimeframeAnalysis> {
-  logger.info(`获取 ${symbol} 多时间框架数据...`);
+  logger.info(`获取 ${symbol} 多time框架数据...`);
   
   const timeframes: MultiTimeframeAnalysis["timeframes"] = {};
   
-  // 并行获取所有时间框架数据
+  // 并行获取所有time框架数据
   const promises: Promise<any>[] = [];
   
   for (const tfName of timeframesToUse) {
@@ -312,7 +312,7 @@ export async function performMultiTimeframeAnalysis(
           timeframes[key as keyof typeof timeframes] = data;
         })
         .catch(error => {
-          logger.error(`获取 ${symbol} ${config.interval} 数据失败:`, error);
+          logger.error(`获取 ${symbol} ${config.interval} 数据failed:`, error);
         })
     );
   }
@@ -329,7 +329,7 @@ export async function performMultiTimeframeAnalysis(
     keyLevels,
   };
   
-  logger.info(`${symbol} 多时间框架数据获取完成`);
+  logger.info(`${symbol} 多time框架数据获取完成`);
   
   return analysis;
 }
@@ -342,7 +342,7 @@ function calculateKeyLevels(
 ): MultiTimeframeAnalysis["keyLevels"] {
   const prices: number[] = [];
   
-  // 收集所有时间框架的关键价格
+  // 收集所有time框架的关键价格
   for (const [_, data] of Object.entries(timeframes)) {
     if (!data) continue;
     prices.push(data.currentPrice);

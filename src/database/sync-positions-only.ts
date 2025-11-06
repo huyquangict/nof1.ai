@@ -17,8 +17,8 @@
  */
 
 /**
- * 快速同步持仓（不重置数据库）
- * 只从交易所同步持仓到本地数据库
+ * 快速syncposition（不重置database）
+ * 只从交易所syncposition到本地database
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
@@ -32,20 +32,20 @@ const logger = createPinoLogger({
 
 async function syncPositionsOnly() {
   try {
-    logger.info("🔄 从交易所同步持仓...");
+    logger.info("🔄 从交易所syncposition...");
 
-    // 1. 连接数据库
+    // 1. 连接database
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const client = createClient({
       url: dbUrl,
     });
 
-    // 2. 检查表是否存在，不存在则创建
+    // 2. check表是否存在，不存在则创建
     try {
       await client.execute("SELECT COUNT(*) FROM positions");
-      logger.info("✅ 数据库表已存在");
+      logger.info("✅ database表已存在");
     } catch (error) {
-      logger.warn("⚠️  数据库表不存在，正在创建...");
+      logger.warn("⚠️  database表不存在，正在创建...");
       // 创建必要的表
       await client.execute(`
         CREATE TABLE IF NOT EXISTS positions (
@@ -67,29 +67,29 @@ async function syncPositionsOnly() {
           closed_at TEXT
         )
       `);
-      logger.info("✅ 数据库表创建完成");
+      logger.info("✅ database表创建完成");
     }
 
-    // 3. 从交易所获取持仓 (adapter already filters non-zero positions)
+    // 3. 从交易所获取position (adapter already filters non-zero positions)
     const exchangeClient = createExchangeClient();
     const positions = await exchangeClient.getPositions();
 
-    logger.info(`\n📊 交易所当前持仓数: ${positions.length}`);
+    logger.info(`\n📊 交易所currentposition数: ${positions.length}`);
 
-    // 4. 保存现有持仓的元数据 (sl_orders, tp_orders等)
+    // 4. 保存现有position的元数据 (sl_orders, tp_orders等)
     const dbResult = await client.execute("SELECT symbol, sl_orders, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
-    logger.info(`💾 已保存 ${dbResult.rows.length} 个持仓的元数据`);
+    logger.info(`💾 已保存 ${dbResult.rows.length} 个position的元数据`);
 
-    // 5. 清空本地持仓表
+    // 5. 清空本地position表
     await client.execute("DELETE FROM positions");
-    logger.info("✅ 已清空本地持仓表");
+    logger.info("✅ 已清空本地position表");
 
-    // 6. 同步持仓到数据库
+    // 6. syncposition到database
     if (positions.length > 0) {
-      logger.info(`\n🔄 同步 ${positions.length} 个持仓到数据库...`);
+      logger.info(`\n🔄 sync ${positions.length} 个position到database...`);
 
       for (const pos of positions) {
         const symbol = pos.symbol;
@@ -123,8 +123,8 @@ async function syncPositionsOnly() {
             side,
             entryOrderId,
             openedAt,
-            dbPos?.sl_orders || null,  // 🔧 保留 SL 订单数组
-            dbPos?.tp_orders || null,  // 🔧 保留 TP 订单数组
+            dbPos?.sl_orders || null,  // 🔧 保留 SL order数组
+            dbPos?.tp_orders || null,  // 🔧 保留 TP order数组
             dbPos?.sl_order_id || null,
             dbPos?.tp_order_id || null,
             dbPos?.sl_percentage || null,
@@ -134,21 +134,21 @@ async function syncPositionsOnly() {
           ],
         });
         
-        logger.info(`   ✅ ${symbol}: ${quantity} 张 (${side}) @ ${entryPrice} | 盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
+        logger.info(`   ✅ ${symbol}: ${quantity}  contracts (${side}) @ ${entryPrice} | PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
       }
     } else {
-      logger.info("✅ 当前无持仓");
+      logger.info("✅ current无position");
     }
     
     client.close();
-    logger.info("\n✅ 持仓同步完成");
+    logger.info("\n✅ positionsync完成");
 
   } catch (error: any) {
-    logger.error("❌ 同步失败:", error);
+    logger.error("❌ syncfailed:", error);
     process.exit(1);
   }
 }
 
-// 执行同步
+// 执行sync
 syncPositionsOnly();
 

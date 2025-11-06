@@ -17,7 +17,7 @@
  */
 
 /**
- * 数据库模式定义
+ * database模式定义
  */
 
 export interface TakeProfitOrder {
@@ -73,7 +73,7 @@ export interface Position {
   opened_at: string;
   confidence?: number;
   risk_usd?: number;
-  peak_pnl_percent?: number; // 历史最高盈亏百分比（考虑杠杆）
+  peak_pnl_percent?: number; // 历史最高PnL百分比（考虑leverage）
 }
 
 export interface AccountHistory {
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS trades (
 
 CREATE INDEX IF NOT EXISTS idx_trades_entry_order_id ON trades(entry_order_id);
 
--- 持仓表
+-- position表
 CREATE TABLE IF NOT EXISTS positions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol TEXT NOT NULL UNIQUE,
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS positions (
   peak_pnl_percent REAL DEFAULT 0
 );
 
--- 账户历史表
+-- account历史表
 CREATE TABLE IF NOT EXISTS account_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,

@@ -290,7 +290,7 @@ function calculateIntradaySeries(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // 旧格式 (FuturesCandlestick)
+    // old格式 (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -369,7 +369,7 @@ function calculateLongerTermContext(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // 旧格式 (FuturesCandlestick)
+    // old格式 (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -563,7 +563,7 @@ function calculateIndicators(candles: any[]) {
       if (c && typeof c === 'object' && 'close' in c) {
         return Number.parseFloat(c.close);
       }
-      // 旧格式 (FuturesCandlestick)
+      // old格式 (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
@@ -582,7 +582,7 @@ function calculateIndicators(candles: any[]) {
         const vol = Number.parseFloat(c.volume);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 旧格式 (FuturesCandlestick)
+      // old格式 (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;

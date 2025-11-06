@@ -17,7 +17,7 @@
  */
 
 /**
- * 平仓并重置数据库脚本
+ * close position并重置database脚本
  * 用于在运行时快速重置系统状态
  */
 import { createClient } from "@libsql/client";
@@ -98,23 +98,23 @@ CREATE TABLE IF NOT EXISTS trade_logs (
 `;
 
 /**
- * 平仓所有持仓
+ * close position所有position
  */
 async function closeAllPositions(): Promise<void> {
   const exchangeClient = createExchangeClient();
   const exchangeName = exchangeClient.getExchangeName();
 
   try {
-    logger.info(`📊 获取 ${exchangeName} 当前持仓...`);
+    logger.info(`📊 获取 ${exchangeName} currentposition...`);
 
     const positions = await exchangeClient.getPositions();
 
     if (positions.length === 0) {
-      logger.info("✅ 当前无持仓，跳过平仓");
+      logger.info("✅ current无position，跳过close position");
       return;
     }
 
-    logger.warn(`⚠️  发现 ${positions.length} 个持仓，开始平仓...`);
+    logger.warn(`⚠️  发现 ${positions.length} 个position，开始close position...`);
 
     for (const pos of positions) {
       const symbol = pos.symbol;
@@ -122,7 +122,7 @@ async function closeAllPositions(): Promise<void> {
       const quantity = pos.quantity;
 
       try {
-        logger.info(`🔄 平仓中: ${symbol} ${side} ${quantity}张`);
+        logger.info(`🔄 close position中: ${symbol} ${side} ${quantity} contracts`);
 
         await exchangeClient.placeOrder({
           symbol,
@@ -131,51 +131,51 @@ async function closeAllPositions(): Promise<void> {
           reduceOnly: true, // 只减仓
         });
 
-        logger.info(`✅ 已平仓: ${symbol} ${side} ${quantity}张`);
+        logger.info(`✅ 已close position: ${symbol} ${side} ${quantity} contracts`);
       } catch (error: any) {
-        logger.error(`❌ 平仓失败: ${symbol} - ${error.message}`);
+        logger.error(`❌ close positionfailed: ${symbol} - ${error.message}`);
       }
     }
     
-    logger.info("✅ 所有持仓平仓完成");
+    logger.info("✅ 所有positionclose position完成");
   } catch (error: any) {
-    logger.error(`❌ 平仓过程出错: ${error.message}`);
+    logger.error(`❌ close position过程出错: ${error.message}`);
     throw error;
   }
 }
 
 /**
- * 重置数据库
+ * 重置database
  */
 async function resetDatabase(): Promise<void> {
   try {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const initialBalance = Number.parseFloat(process.env.INITIAL_BALANCE || "1000");
 
-    logger.info("🗄️  开始重置数据库...");
-    logger.info(`数据库路径: ${dbUrl}`);
+    logger.info("🗄️  开始重置database...");
+    logger.info(`database路径: ${dbUrl}`);
     logger.info(`初始资金: ${initialBalance} USDT`);
 
     const client = createClient({
       url: dbUrl,
     });
 
-    // 删除所有表
-    logger.info("🗑️  删除现有表...");
+    // delete所有表
+    logger.info("🗑️  delete现有表...");
     await client.execute("DROP TABLE IF EXISTS trade_logs");
     await client.execute("DROP TABLE IF EXISTS agent_decisions");
     await client.execute("DROP TABLE IF EXISTS trading_signals");
     await client.execute("DROP TABLE IF EXISTS positions");
     await client.execute("DROP TABLE IF EXISTS account_history");
-    logger.info("✅ 现有表已删除");
+    logger.info("✅ 现有表已delete");
 
-    // 重新创建表
-    logger.info("📦 创建新表...");
+    // 重new创建表
+    logger.info("📦 创建new表...");
     await client.executeMultiple(CREATE_TABLES_SQL);
     logger.info("✅ 表创建完成");
 
-    // 插入初始资金记录
-    logger.info(`💰 插入初始资金记录: ${initialBalance} USDT`);
+    // insert初始资金记录
+    logger.info(`💰 insert初始资金记录: ${initialBalance} USDT`);
     await client.execute({
       sql: `INSERT INTO account_history 
             (timestamp, total_value, available_cash, unrealized_pnl, realized_pnl, return_percent) 
@@ -190,7 +190,7 @@ async function resetDatabase(): Promise<void> {
       ],
     });
 
-    // 验证初始化结果
+    // verifyinitialize结果
     const latestAccount = await client.execute(
       "SELECT * FROM account_history ORDER BY timestamp DESC LIMIT 1"
     );
@@ -198,28 +198,28 @@ async function resetDatabase(): Promise<void> {
     if (latestAccount.rows.length > 0) {
       const account = latestAccount.rows[0] as any;
       logger.info("\n" + "=".repeat(60));
-      logger.info("✅ 数据库重置成功！");
+      logger.info("✅ database重置successful！");
       logger.info("=".repeat(60));
-      logger.info("\n📊 初始账户状态:");
-      logger.info(`  总资产: ${account.total_value} USDT`);
-      logger.info(`  可用资金: ${account.available_cash} USDT`);
-      logger.info(`  未实现盈亏: ${account.unrealized_pnl} USDT`);
-      logger.info(`  已实现盈亏: ${account.realized_pnl} USDT`);
-      logger.info(`  总收益率: ${account.return_percent}%`);
-      logger.info("\n当前无持仓");
+      logger.info("\n📊 初始account状态:");
+      logger.info(`  total balance: ${account.total_value} USDT`);
+      logger.info(`  available balance: ${account.available_cash} USDT`);
+      logger.info(`  unrealized PnL: ${account.unrealized_pnl} USDT`);
+      logger.info(`  realized PnL: ${account.realized_pnl} USDT`);
+      logger.info(`  总return rate: ${account.return_percent}%`);
+      logger.info("\ncurrent无position");
       logger.info("\n" + "=".repeat(60));
     }
 
     client.close();
     
   } catch (error) {
-    logger.error("❌ 数据库重置失败:", error as any);
+    logger.error("❌ database重置failed:", error as any);
     throw error;
   }
 }
 
 /**
- * 同步持仓数据
+ * syncposition数据
  */
 async function syncPositions(): Promise<void> {
   const exchangeClient = createExchangeClient();
@@ -227,24 +227,24 @@ async function syncPositions(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
 
   try {
-    logger.info(`🔄 从 ${exchangeName} 同步持仓...`);
+    logger.info(`🔄 从 ${exchangeName} syncposition...`);
 
     const client = createClient({
       url: dbUrl,
     });
 
-    // 从交易所获取持仓
+    // 从交易所获取position
     const positions = await exchangeClient.getPositions();
 
-    logger.info(`📊 ${exchangeName} 当前持仓数: ${positions.length}`);
+    logger.info(`📊 ${exchangeName} currentposition数: ${positions.length}`);
 
-    // 清空本地持仓表
+    // 清空本地position表
     await client.execute("DELETE FROM positions");
-    logger.info("✅ 已清空本地持仓表");
+    logger.info("✅ 已清空本地position表");
 
-    // 同步持仓到数据库
+    // syncposition到database
     if (positions.length > 0) {
-      logger.info(`🔄 同步 ${positions.length} 个持仓到数据库...`);
+      logger.info(`🔄 sync ${positions.length} 个position到database...`);
 
       for (const pos of positions) {
         if (pos.quantity === 0) continue;
@@ -277,17 +277,17 @@ async function syncPositions(): Promise<void> {
           ],
         });
         
-        logger.info(`   ✅ ${symbol}: ${quantity} 张 (${side}) @ ${entryPrice} | 盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
+        logger.info(`   ✅ ${symbol}: ${quantity}  contracts (${side}) @ ${entryPrice} | PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
       }
     } else {
-      logger.info("✅ 当前无持仓");
+      logger.info("✅ current无position");
     }
     
     client.close();
-    logger.info("✅ 持仓同步完成");
+    logger.info("✅ positionsync完成");
     
   } catch (error: any) {
-    logger.error(`❌ 持仓同步失败: ${error.message}`);
+    logger.error(`❌ positionsyncfailed: ${error.message}`);
     throw error;
   }
 }
@@ -297,43 +297,43 @@ async function syncPositions(): Promise<void> {
  */
 async function closeAndReset() {
   logger.info("=".repeat(80));
-  logger.info("🔄 开始执行平仓并重置数据库");
+  logger.info("🔄 开始执行close position并重置database");
   logger.info("=".repeat(80));
   logger.info("");
   
   try {
-    // 步骤1：平仓所有持仓
-    logger.info("【步骤 1/3】平仓所有持仓");
+    // 步骤1：close position所有position
+    logger.info("【步骤 1/3】close position所有position");
     logger.info("-".repeat(80));
     await closeAllPositions();
     logger.info("");
     
-    // 等待2秒确保平仓完成
-    logger.info("⏱️  等待2秒确保平仓完成...");
+    // 等待2秒确保close position完成
+    logger.info("⏱️  等待2秒确保close position完成...");
     await new Promise(resolve => setTimeout(resolve, 2000));
     logger.info("");
     
-    // 步骤2：重置数据库
-    logger.info("【步骤 2/3】重置数据库");
+    // 步骤2：重置database
+    logger.info("【步骤 2/3】重置database");
     logger.info("-".repeat(80));
     await resetDatabase();
     logger.info("");
     
-    // 步骤3：同步持仓数据
-    logger.info("【步骤 3/3】从交易所同步持仓数据");
+    // 步骤3：syncposition数据
+    logger.info("【步骤 3/3】从交易所syncposition数据");
     logger.info("-".repeat(80));
     await syncPositions();
     logger.info("");
     
     logger.info("=".repeat(80));
-    logger.info("🎉 平仓并重置完成！系统已恢复到初始状态");
+    logger.info("🎉 close position并重置完成！系统已恢复到初始状态");
     logger.info("=".repeat(80));
     logger.info("");
-    logger.info("💡 提示：可以重新启动交易系统开始新的交易");
+    logger.info("💡 提示：可以重newstart交易系统开始new的交易");
     
   } catch (error) {
     logger.error("=".repeat(80));
-    logger.error("❌ 执行失败:", error as any);
+    logger.error("❌ 执行failed:", error as any);
     logger.error("=".repeat(80));
     process.exit(1);
   }

@@ -106,13 +106,13 @@ function calculateATR(candles: any[], period: number) {
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // 处理旧的交易所格式（FuturesCandlestick）
+    // 处理old的交易所格式（FuturesCandlestick）
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
       prevClose = Number.parseFloat(candles[i - 1].c);
     }
-    // 处理数组格式（兼容旧代码）
+    // 处理数组格式（兼容old代码）
     else if (Array.isArray(candles[i])) {
       high = Number.parseFloat(candles[i][3]);
       low = Number.parseFloat(candles[i][4]);
@@ -136,13 +136,13 @@ function calculateATR(candles: any[], period: number) {
  * 
  * K线数据格式：FuturesCandlestick 对象
  * {
- *   t: number,    // 时间戳
- *   v: number,    // 成交量
+ *   t: number,    // time戳
+ *   v: number,    // filled量
  *   c: string,    // 收盘价
  *   h: string,    // 最高价
  *   l: string,    // 最低价
  *   o: string,    // 开盘价
- *   sum: string   // 总成交额
+ *   sum: string   // 总filled额
  * }
  */
 function calculateIndicators(candles: any[]) {
@@ -161,18 +161,18 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理K线数据（支持标准化格式和旧格式）
+  // 处理K线数据（支持标准化格式和old格式）
   const closes = candles
     .map((c) => {
       // 标准化格式（Candle interface）
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // 旧的交易所格式（FuturesCandlestick）
+      // old的交易所格式（FuturesCandlestick）
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // 数组格式（兼容旧代码）
+      // 数组格式（兼容old代码）
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -187,19 +187,19 @@ function calculateIndicators(candles: any[]) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 旧的交易所格式（FuturesCandlestick）
+      // old的交易所格式（FuturesCandlestick）
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 数组格式（兼容旧代码）
+      // 数组格式（兼容old代码）
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
       return 0;
     })
-    .filter(n => n >= 0); // 过滤掉负数成交量
+    .filter(n => n >= 0); // 过滤掉负数filled量
 
   if (closes.length === 0 || volumes.length === 0) {
     return {
@@ -235,9 +235,9 @@ function calculateIndicators(candles: any[]) {
  */
 export const getMarketPriceTool = createTool({
   name: "getMarketPrice",
-  description: "获取指定币种的实时市场价格",
+  description: "获取指定symbol的实时市场价格",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -264,9 +264,9 @@ export const getMarketPriceTool = createTool({
  */
 export const getTechnicalIndicatorsTool = createTool({
   name: "getTechnicalIndicators",
-  description: "获取指定币种的技术指标（EMA、MACD、RSI等）",
+  description: "获取指定symbol的技术指标（EMA、MACD、RSI等）",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
     interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("K线周期"),
     limit: z.number().default(100).describe("K线数量"),
   }),
@@ -290,9 +290,9 @@ export const getTechnicalIndicatorsTool = createTool({
  */
 export const getFundingRateTool = createTool({
   name: "getFundingRate",
-  description: "获取指定币种的资金费率",
+  description: "获取指定symbol的资金费率",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -309,13 +309,13 @@ export const getFundingRateTool = createTool({
 });
 
 /**
- * 获取订单簿深度工具
+ * 获取order簿深度工具
  */
 export const getOrderBookTool = createTool({
   name: "getOrderBook",
-  description: "获取指定币种的订单簿深度数据",
+  description: "获取指定symbol的order簿深度数据",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
     limit: z.number().default(10).describe("深度档位数量"),
   }),
   execute: async ({ symbol, limit }) => {
@@ -344,16 +344,16 @@ export const getOrderBookTool = createTool({
 });
 
 /**
- * 获取合约持仓量工具
+ * 获取contractposition量工具
  */
 export const getOpenInterestTool = createTool({
   name: "getOpenInterest",
-  description: "获取指定币种的合约持仓量",
+  description: "获取指定symbol的contractposition量",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
   execute: async ({ symbol }) => {
-    // 交易所 API 需要通过其他方式获取持仓量数据
+    // 交易所 API 需要通过其他方式获取position量数据
     // 暂时返回 0，后续可以通过其他端点获取
     return {
       symbol,

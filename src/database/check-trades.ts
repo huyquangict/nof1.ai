@@ -30,7 +30,7 @@ async function checkTrades() {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
     const client = createClient({ url: dbUrl });
     
-    logger.info("📊 查询最近5条交易记录...\n");
+    logger.info("📊 query最近5条交易记录...\n");
     
     const result = await client.execute({
       sql: `SELECT id, symbol, side, type, price, quantity, leverage, fee, timestamp 
@@ -54,19 +54,19 @@ async function checkTrades() {
       const feeText = row.fee ? `${Number(row.fee).toFixed(4)}` : '0';
       
       console.log(`ID: ${row.id}`);
-      console.log(`  币种: ${row.symbol}`);
+      console.log(`  symbol: ${row.symbol}`);
       console.log(`  操作: ${typeText}${sideText} (side=${row.side}, type=${row.type})`);
       console.log(`  价格: ${Number(row.price).toFixed(4)}`);
       console.log(`  数量: ${row.quantity}`);
-      console.log(`  杠杆: ${row.leverage}x`);
-      console.log(`  手续费: ${feeText} USDT`);
-      console.log(`  时间: ${row.timestamp}`);
+      console.log(`  leverage: ${row.leverage}x`);
+      console.log(`  fee: ${feeText} USDT`);
+      console.log(`  time: ${row.timestamp}`);
       console.log("-".repeat(100));
     }
     
     process.exit(0);
   } catch (error: any) {
-    logger.error(`❌ 查询失败: ${error.message}`);
+    logger.error(`❌ queryfailed: ${error.message}`);
     process.exit(1);
   }
 }

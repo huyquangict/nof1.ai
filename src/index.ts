@@ -26,7 +26,7 @@ import { runProfitManager } from "./scheduler/profitManager";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 
-// 设置时区为中国时间（Asia/Shanghai，UTC+8）
+// 设置时区为中国time（Asia/Shanghai，UTC+8）
 process.env.TZ = 'Asia/Shanghai';
 
 // 创建日志实例（使用中国时区）
@@ -37,7 +37,7 @@ const logger = createPinoLogger({
     timestamp: () => {
       // 使用系统时区设置，已经是 Asia/Shanghai
       const now = new Date();
-      // 正确格式化：使用 toLocaleString 获取中国时间，然后转换为 ISO 格式
+      // 正确格式化：使用 toLocaleString 获取中国time，然后转换为 ISO 格式
       const chinaOffset = 8 * 60; // 中国时区偏移（分钟）
       const utc = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
       const chinaTime = new Date(utc + (chinaOffset * 60 * 1000));
@@ -146,5 +146,5 @@ async function gracefulShutdown(signal: string) {
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-// 启动应用
+// start应用
 await main();

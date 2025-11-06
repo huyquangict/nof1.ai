@@ -31,15 +31,15 @@ const logger = createPinoLogger({
 async function addFeeColumn() {
   try {
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
-    logger.info(`📦 连接数据库: ${dbUrl}`);
+    logger.info(`📦 连接database: ${dbUrl}`);
     
     const client = createClient({
       url: dbUrl,
     });
     
-    logger.info("🔧 检查trades表结构...");
+    logger.info("🔧 checktrades表结构...");
     
-    // 检查fee列是否已存在
+    // checkfee列是否已存在
     const tableInfo = await client.execute({
       sql: "PRAGMA table_info(trades)",
       args: [],
@@ -59,24 +59,24 @@ async function addFeeColumn() {
       args: [],
     });
     
-    logger.info("✅ fee字段添加成功");
+    logger.info("✅ fee字段添加successful");
     
-    // 验证
+    // verify
     const newTableInfo = await client.execute({
       sql: "PRAGMA table_info(trades)",
       args: [],
     });
     
-    logger.info("\n当前trades表结构:");
+    logger.info("\ncurrenttrades表结构:");
     for (const row of newTableInfo.rows) {
       logger.info(`  - ${row.name}: ${row.type}`);
     }
     
-    logger.info("\n✅ 数据库迁移完成！");
+    logger.info("\n✅ database迁移完成！");
     
     process.exit(0);
   } catch (error: any) {
-    logger.error(`❌ 迁移失败: ${error.message}`);
+    logger.error(`❌ 迁移failed: ${error.message}`);
     process.exit(1);
   }
 }

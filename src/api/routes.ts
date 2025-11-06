@@ -103,26 +103,26 @@ export function createApiRoutes() {
   // });
 
   /**
-   * 获取账户总览
+   * 获取account总览
    *
-   * 交易所账户结构：
+   * 交易所account结构：
    * - account.total = available + positionMargin
-   * - account.total 不包含未实现盈亏
-   * - 真实总资产 = account.total + unrealisedPnl
+   * - account.total 不包含unrealized PnL
+   * - 真实total balance = account.total + unrealisedPnl
    * 
    * API返回说明：
-   * - totalBalance: 不包含未实现盈亏的总资产（用于计算已实现收益）
-   * - unrealisedPnl: 当前持仓的未实现盈亏
+   * - totalBalance: 不包含unrealized PnL的total balance（用于计算已实现收益）
+   * - unrealisedPnl: currentposition的unrealized PnL
    * 
    * 前端显示：
-   * - 总资产显示 = totalBalance + unrealisedPnl（实时反映持仓盈亏）
+   * - total balance显示 = totalBalance + unrealisedPnl（实时反映positionPnL）
    */
   app.get("/api/account", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const account = await exchangeClient.getFuturesAccount();
       
-      // 从数据库获取初始资金
+      // 从database获取初始资金
       const initialResult = await dbClient.execute(
         "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
       );
@@ -134,7 +134,7 @@ export function createApiRoutes() {
       const totalBalance = account.totalBalance;
       const unrealisedPnl = account.unrealisedPnl;
 
-      // 收益率 = (总资产 - 初始资金) / 初始资金 * 100
+      // return rate = (total balance - 初始资金) / 初始资金 * 100
       const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
       
       return c.json({
@@ -152,20 +152,20 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取当前持仓 - 从交易所获取实时数据
+   * 获取currentposition - 从交易所获取实时数据
    */
   app.get("/api/positions", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const exchangePositions = await exchangeClient.getPositions();
 
-      // 从数据库获取止损止盈信息和订单ID
+      // 从database获取stop-losstake-profit信息和orderID
       const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, sl_orders, entry_order_id, sl_order_id FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
 
-      // 格式化持仓 (positions are already filtered by adapter)
+      // 格式化position (positions are already filtered by adapter)
       const positions = exchangePositions.map((p) => {
           const dbPos = dbPositionsMap.get(p.symbol);
 
@@ -217,7 +217,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 手动平仓
+   * 手动close position
    */
   app.post("/api/positions/:symbol/close", async (c) => {
     try {
@@ -255,7 +255,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取账户价值历史（用于绘图）
+   * 获取account价值历史（用于绘图）
    */
   app.get("/api/history", async (c) => {
     try {
@@ -293,7 +293,7 @@ export function createApiRoutes() {
         totalValue: Number.parseFloat(row.total_value as string) || 0,
         unrealizedPnl: Number.parseFloat(row.unrealized_pnl as string) || 0,
         returnPercent: Number.parseFloat(row.return_percent as string) || 0,
-      })).reverse(); // 反转，使时间从旧到新
+      })).reverse(); // 反转，使time从old到new
 
       return c.json({ history });
     } catch (error: any) {
@@ -302,14 +302,14 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取交易记录 - 从数据库获取历史仓位（已平仓的记录）
+   * 获取交易记录 - 从database获取历史position size（已close position的记录）
    */
   app.get("/api/trades", async (c) => {
     try {
       const limit = Number.parseInt(c.req.query("limit") || "10");
-      const symbol = c.req.query("symbol"); // 可选，筛选特定币种
+      const symbol = c.req.query("symbol"); // 可选，筛选特定symbol
       
-      // 从数据库获取历史交易记录
+      // 从database获取历史交易记录
       let sql = `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`;
       let args: any[] = [limit];
       
@@ -327,7 +327,7 @@ export function createApiRoutes() {
         return c.json({ trades: [] });
       }
       
-      // 转换数据库格式到前端需要的格式
+      // 转换database格式到前端需要的格式
       const trades = result.rows.map((row: any) => {
         return {
           id: row.id,
@@ -349,7 +349,7 @@ export function createApiRoutes() {
       
       return c.json({ trades });
     } catch (error: any) {
-      logger.error("获取历史仓位失败:", error);
+      logger.error("获取历史position sizefailed:", error);
       return c.json({ error: error.message }, 500);
     }
   });
@@ -389,13 +389,13 @@ export function createApiRoutes() {
    */
   app.get("/api/stats", async (c) => {
     try {
-      // 统计总交易次数 - 使用 pnl IS NOT NULL 来确保这是已完成的平仓交易
+      // 统计总交易次数 - 使用 pnl IS NOT NULL 来确保这是已完成的close position交易
       const totalTradesResult = await dbClient.execute(
         "SELECT COUNT(*) as count FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
       const totalTrades = (totalTradesResult.rows[0] as any).count;
       
-      // 统计盈利交易
+      // 统计profit交易
       const winTradesResult = await dbClient.execute(
         "SELECT COUNT(*) as count FROM trades WHERE type = 'close' AND pnl IS NOT NULL AND pnl > 0"
       );
@@ -404,13 +404,13 @@ export function createApiRoutes() {
       // 计算胜率
       const winRate = totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
       
-      // 计算总盈亏
+      // 计算总PnL
       const pnlResult = await dbClient.execute(
         "SELECT SUM(pnl) as total_pnl FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
       const totalPnl = (pnlResult.rows[0] as any).total_pnl || 0;
       
-      // 获取最大单笔盈利和亏损
+      // 获取最大单笔profit和loss
       const maxWinResult = await dbClient.execute(
         "SELECT MAX(pnl) as max_win FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
@@ -436,7 +436,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取多个币种的实时价格
+   * 获取多个symbol的实时价格
    */
   app.get("/api/prices", async (c) => {
     try {
@@ -446,14 +446,14 @@ export function createApiRoutes() {
       const exchangeClient = createExchangeClient();
       const prices: Record<string, number> = {};
 
-      // 并发获取所有币种价格
+      // 并发获取所有symbol价格
       await Promise.all(
         symbols.map(async (symbol) => {
           try {
             const ticker = await exchangeClient.getFuturesTicker(symbol);
             prices[symbol] = ticker.lastPrice;
           } catch (error: any) {
-            logger.error(`获取 ${symbol} 价格失败:`, error);
+            logger.error(`获取 ${symbol} 价格failed:`, error);
             prices[symbol] = 0;
           }
         })

@@ -17,7 +17,7 @@
  */
 
 /**
- * 数据库初始化脚本
+ * databaseinitialize脚本
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
