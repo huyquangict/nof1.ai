@@ -28,6 +28,24 @@ import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 
+
+// Import modular utilities and indicators
+import { ensureFinite, ensureRange } from "./tradingLoop/utils/validation";
+import {
+  calculateIndicators,
+  calculateIntradaySeries,
+  calculateLongerTermContext,
+  calcEMA,
+  calcRSI,
+  calcMACD,
+  calcATR,
+} from "./tradingLoop/modules/indicators";
+import { createMarketDataCollector } from "./tradingLoop/modules/marketData";
+import { createAccountManager } from "./tradingLoop/modules/accountManager";
+import { createPositionSynchronizer } from "./tradingLoop/modules/positionSync";
+import { createRiskChecker } from "./tradingLoop/modules/riskChecker";
+import { createConfigManager } from "./tradingLoop/modules/configManager";
+
 const logger = createPinoLogger({
   name: "trading-loop",
   level: "info",
@@ -70,32 +88,30 @@ let iterationCount = 0;
 // Account risk configuration
 let accountRiskConfig = getAccountRiskConfig();
 
-/**
- * Ensure the value is a valid finite number, otherwise return the default value
- */
-function ensureFinite(value: number, defaultValue: number = 0): number {
-  if (!Number.isFinite(value)) {
-    return defaultValue;
-  }
-  return value;
-}
 
-/**
- * Ensure the value is within the specified range
- */
-function ensureRange(value: number, min: number, max: number, defaultValue?: number): number {
-  if (!Number.isFinite(value)) {
-    return defaultValue !== undefined ? defaultValue : (min + max) / 2;
-  }
-  if (value < min) return min;
-  if (value > max) return max;
-  return value;
-}
+
+
 
 /**
  * Collect all market data (including multi-timeframe analysis and time series data)
  * Optimization: Add data validation and error handling, return time series data for prompts
  */
+async function collectMarketData() {
+  const exchangeClient = createExchangeClient();
+
+  // Use the market data collector module
+  const collector = createMarketDataCollector(exchangeClient, dbClient, {
+    symbols: SYMBOLS,
+    enabledTimeframes: ENABLED_TIMEFRAMES,
+    timeframeConfigs: TIMEFRAME_CONFIGS,
+  });
+
+  const marketData = await collector.collectAll();
+  return marketData;
+}
+
+// OLD IMPLEMENTATION (now replaced by module):
+/*
 async function collectMarketData() {
   const exchangeClient = createExchangeClient();
   const marketData: Record<string, any> = {};
@@ -267,364 +283,10 @@ async function collectMarketData() {
 
   return marketData;
 }
+*/
 
-/**
- * Calculate intraday time series data (3-minute level)
- * Refer to 1.md format
- * @param candles All historical data (at least 60 data points)
- */
-function calculateIntradaySeries(candles: any[]) {
-  if (!candles || candles.length === 0) {
-    return {
-      midPrices: [],
-      ema20Series: [],
-      macdSeries: [],
-      rsi7Series: [],
-      rsi14Series: [],
-    };
-  }
-
-  // Extract closing prices
-  const closes = candles.map((c) => {
-    // Standard Candle format (Binance, CCXT)
-    if (c && typeof c === 'object' && 'close' in c) {
-      return Number.parseFloat(c.close);
-    }
-    // old format (FuturesCandlestick)
-    if (c && typeof c === 'object' && 'c' in c) {
-      return Number.parseFloat(c.c);
-    }
-    // Array format (for backward compatibility)
-    if (Array.isArray(c)) {
-      return Number.parseFloat(c[4]); // Index 4 for close price
-    }
-    return NaN;
-  }).filter(n => Number.isFinite(n));
-
-  if (closes.length === 0) {
-    return {
-      midPrices: [],
-      ema20Series: [],
-      macdSeries: [],
-      rsi7Series: [],
-      rsi14Series: [],
-    };
-  }
-
-  // Calculate indicators for each time point
-  const midPrices = closes;
-  const ema20Series: number[] = [];
-  const macdSeries: number[] = [];
-  const rsi7Series: number[] = [];
-  const rsi14Series: number[] = [];
-
-  // Calculate indicators for each data point (using all historical data up to that point)
-  for (let i = 0; i < closes.length; i++) {
-    const historicalPrices = closes.slice(0, i + 1);
-
-    // EMA20 - requires at least 20 data points
-    ema20Series.push(historicalPrices.length >= 20 ? calcEMA(historicalPrices, 20) : historicalPrices[historicalPrices.length - 1]);
-
-    // MACD - requires at least 26 data points
-    macdSeries.push(historicalPrices.length >= 26 ? calcMACD(historicalPrices) : 0);
-
-    // RSI7 - requires at least 8 data points
-    rsi7Series.push(historicalPrices.length >= 8 ? calcRSI(historicalPrices, 7) : 50);
-
-    // RSI14 - requires at least 15 data points
-    rsi14Series.push(historicalPrices.length >= 15 ? calcRSI(historicalPrices, 14) : 50);
-  }
-
-  // Return only the last 10 data points
-  const sliceIndex = Math.max(0, midPrices.length - 10);
-  return {
-    midPrices: midPrices.slice(sliceIndex),
-    ema20Series: ema20Series.slice(sliceIndex),
-    macdSeries: macdSeries.slice(sliceIndex),
-    rsi7Series: rsi7Series.slice(sliceIndex),
-    rsi14Series: rsi14Series.slice(sliceIndex),
-  };
-}
-
-/**
- * Calculate longer-term context data (1-hour level - for short-term trading)
- * Refer to 1.md format
- */
-function calculateLongerTermContext(candles: any[]) {
-  if (!candles || candles.length < 26) {
-    return {
-      ema20: 0,
-      ema50: 0,
-      atr3: 0,
-      atr14: 0,
-      currentVolume: 0,
-      avgVolume: 0,
-      macdSeries: [],
-      rsi14Series: [],
-    };
-  }
-
-  const closes = candles.map((c) => {
-    // Standard Candle format (Binance, CCXT)
-    if (c && typeof c === 'object' && 'close' in c) {
-      return Number.parseFloat(c.close);
-    }
-    // old format (FuturesCandlestick)
-    if (c && typeof c === 'object' && 'c' in c) {
-      return Number.parseFloat(c.c);
-    }
-    // Array format (for backward compatibility)
-    if (Array.isArray(c)) {
-      return Number.parseFloat(c[4]); // Index 4 for close price
-    }
-    return NaN;
-  }).filter(n => Number.isFinite(n));
-
-  const highs = candles.map((c) => {
-    if (c && typeof c === 'object' && 'high' in c) {
-      return Number.parseFloat(c.high);
-    }
-    if (c && typeof c === 'object' && 'h' in c) {
-      return Number.parseFloat(c.h);
-    }
-    if (Array.isArray(c)) {
-      return Number.parseFloat(c[2]); // Index 2 for high price
-    }
-    return NaN;
-  }).filter(n => Number.isFinite(n));
-
-  const lows = candles.map((c) => {
-    if (c && typeof c === 'object' && 'low' in c) {
-      return Number.parseFloat(c.low);
-    }
-    if (c && typeof c === 'object' && 'l' in c) {
-      return Number.parseFloat(c.l);
-    }
-    if (Array.isArray(c)) {
-      return Number.parseFloat(c[3]); // Index 3 for low price
-    }
-    return NaN;
-  }).filter(n => Number.isFinite(n));
-
-  const volumes = candles.map((c) => {
-    if (c && typeof c === 'object' && 'volume' in c) {
-      return Number.parseFloat(c.volume);
-    }
-    if (c && typeof c === 'object' && 'v' in c) {
-      return Number.parseFloat(c.v);
-    }
-    if (Array.isArray(c)) {
-      return Number.parseFloat(c[5]); // Index 5 for volume
-    }
-    return NaN;
-  }).filter(n => Number.isFinite(n));
-
-  // Calculate EMA
-  const ema20 = calcEMA(closes, 20);
-  const ema50 = calcEMA(closes, 50);
-
-  // Calculate ATR
-  const atr3 = calcATR(highs, lows, closes, 3);
-  const atr14 = calcATR(highs, lows, closes, 14);
-
-  // Calculate volume
-  const currentVolume = volumes.length > 0 ? volumes[volumes.length - 1] : 0;
-  const avgVolume = volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0;
-
-  // Calculate MACD and RSI14 for the last 10 data points
-  const macdSeries: number[] = [];
-  const rsi14Series: number[] = [];
-
-  const recentPoints = Math.min(10, closes.length);
-  for (let i = closes.length - recentPoints; i < closes.length; i++) {
-    const historicalPrices = closes.slice(0, i + 1);
-    macdSeries.push(calcMACD(historicalPrices));
-    rsi14Series.push(calcRSI(historicalPrices, 14));
-  }
-
-  return {
-    ema20,
-    ema50,
-    atr3,
-    atr14,
-    currentVolume,
-    avgVolume,
-    macdSeries,
-    rsi14Series,
-  };
-}
-
-/**
- * Calculate ATR (Average True Range)
- */
-function calcATR(highs: number[], lows: number[], closes: number[], period: number) {
-  if (highs.length < period + 1 || lows.length < period + 1 || closes.length < period + 1) {
-    return 0;
-  }
-
-  const trueRanges: number[] = [];
-  for (let i = 1; i < highs.length; i++) {
-    const high = highs[i];
-    const low = lows[i];
-    const prevClose = closes[i - 1];
-
-    const tr = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose)
-    );
-    trueRanges.push(tr);
-  }
-
-  // Calculate average
-  const recentTR = trueRanges.slice(-period);
-  const atr = recentTR.reduce((sum, tr) => sum + tr, 0) / recentTR.length;
-
-  return Number.isFinite(atr) ? atr : 0;
-}
-
-// Calculate EMA
-function calcEMA(prices: number[], period: number) {
-  if (prices.length === 0) return 0;
-  const k = 2 / (period + 1);
-  let ema = prices[0];
-  for (let i = 1; i < prices.length; i++) {
-    ema = prices[i] * k + ema * (1 - k);
-  }
-  return Number.isFinite(ema) ? ema : 0;
-}
-
-// Calculate RSI
-function calcRSI(prices: number[], period: number) {
-  if (prices.length < period + 1) return 50; // Insufficient data, return neutral value
-
-  let gains = 0;
-  let losses = 0;
-
-  for (let i = prices.length - period; i < prices.length; i++) {
-    const change = prices[i] - prices[i - 1];
-    if (change > 0) gains += change;
-    else losses -= change;
-  }
-
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-
-  if (avgLoss === 0) return avgGain > 0 ? 100 : 50;
-
-  const rs = avgGain / avgLoss;
-  const rsi = 100 - 100 / (1 + rs);
-
-  // Ensure RSI is within 0-100 range
-  return ensureRange(rsi, 0, 100, 50);
-}
-
-// Calculate MACD
-function calcMACD(prices: number[]) {
-  if (prices.length < 26) return 0; // Insufficient data
-  const ema12 = calcEMA(prices, 12);
-  const ema26 = calcEMA(prices, 26);
-  const macd = ema12 - ema26;
-  return Number.isFinite(macd) ? macd : 0;
-}
-
-/**
- * Calculate technical indicators
- *
- * Candlestick data format: FuturesCandlestick object
- * {
- *   t: number,    // timestamp
- *   v: number,    // volume
- *   c: string,    // closing price
- *   h: string,    // highest price
- *   l: string,    // lowest price
- *   o: string,    // opening price
- *   sum: string   // total trading value
- * }
- */
-function calculateIndicators(candles: any[]) {
-  if (!candles || candles.length === 0) {
-    return {
-      currentPrice: 0,
-      ema20: 0,
-      ema50: 0,
-      macd: 0,
-      rsi7: 50,
-      rsi14: 50,
-      volume: 0,
-      avgVolume: 0,
-    };
-  }
-
-  // Handle different candlestick data formats from different exchanges
-  const closes = candles
-    .map((c) => {
-      // Standard Candle format (Binance, CCXT)
-      if (c && typeof c === 'object' && 'close' in c) {
-        return Number.parseFloat(c.close);
-      }
-      // old format (FuturesCandlestick)
-      if (c && typeof c === 'object' && 'c' in c) {
-        return Number.parseFloat(c.c);
-      }
-      // Array format (for backward compatibility)
-      if (Array.isArray(c)) {
-        return Number.parseFloat(c[4]); // Index 4 is close price in [timestamp, open, high, low, close, volume]
-      }
-      return NaN;
-    })
-    .filter(n => Number.isFinite(n));
-
-  const volumes = candles
-    .map((c) => {
-      // Standard Candle format (Binance, CCXT)
-      if (c && typeof c === 'object' && 'volume' in c) {
-        const vol = Number.parseFloat(c.volume);
-        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
-      }
-      // old format (FuturesCandlestick)
-      if (c && typeof c === 'object' && 'v' in c) {
-        const vol = Number.parseFloat(c.v);
-        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
-      }
-      // Array format (for backward compatibility)
-      if (Array.isArray(c)) {
-        const vol = Number.parseFloat(c[5]); // Index 5 is volume in [timestamp, open, high, low, close, volume]
-        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
-      }
-      return 0;
-    })
-    .filter(n => n >= 0); // Filter out negative volumes
-
-  if (closes.length === 0 || volumes.length === 0) {
-    return {
-      currentPrice: 0,
-      ema20: 0,
-      ema50: 0,
-      macd: 0,
-      rsi7: 50,
-      rsi14: 50,
-      volume: 0,
-      avgVolume: 0,
-    };
-  }
-
-  return {
-    currentPrice: ensureFinite(closes.at(-1) || 0),
-    ema20: ensureFinite(calcEMA(closes, 20)),
-    ema50: ensureFinite(calcEMA(closes, 50)),
-    macd: ensureFinite(calcMACD(closes)),
-    rsi7: ensureRange(calcRSI(closes, 7), 0, 100, 50),
-    rsi14: ensureRange(calcRSI(closes, 14), 0, 100, 50),
-    volume: ensureFinite(volumes.at(-1) || 0),
-    avgVolume: ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0),
-  };
-}
-
-/**
- * Calculate Sharpe Ratio
- * Uses recent 30 days of account history data
- */
+// OLD IMPLEMENTATION (now replaced by accountManager module):
+/*
 async function calculateSharpeRatio(): Promise<number> {
   try {
     // Try to fetch all account history data (not limited to 30 days)
@@ -676,17 +338,6 @@ async function calculateSharpeRatio(): Promise<number> {
   }
 }
 
-/**
- * Get account information
- *
- * Exchange account.total does not include unrealized P&L
- * Total assets (excluding unrealized P&L) = account.total = available + positionMargin
- *
- * Therefore:
- * - totalBalance does not include unrealized P&L
- * - returnPercent reflects realized P&L
- * - unrealizedPnl needs to be added when displaying on the frontend
- */
 async function getAccountInfo() {
   const exchangeClient = createExchangeClient();
 
@@ -734,6 +385,16 @@ async function getAccountInfo() {
     };
   }
 }
+*/
+
+/**
+ * Get account information using accountManager module
+ */
+async function getAccountInfo() {
+  const exchangeClient = createExchangeClient();
+  const accountManager = createAccountManager(exchangeClient, dbClient);
+  return await accountManager.getAccountInfo();
+}
 
 /**
  * Sync positions from exchange to database
@@ -743,6 +404,14 @@ async function getAccountInfo() {
  * 2. Providing historical queries and monitoring page display
  * Real-time position data should be fetched directly from the exchange
  */
+async function syncPositionsFromExchange(cachedPositions?: any[]) {
+  const exchangeClient = createExchangeClient();
+  const synchronizer = createPositionSynchronizer(exchangeClient, dbClient);
+  await synchronizer.syncPositions(cachedPositions);
+}
+
+// OLD IMPLEMENTATION (replaced by positionSync module):
+/*
 async function syncPositionsFromExchange(cachedPositions?: any[]) {
   const exchangeClient = createExchangeClient();
 
@@ -1293,6 +962,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
     logger.error("Failed to sync positions:", error as any);
   }
 }
+*/
 
 /**
  * Get position information - fetch latest data directly from the exchange
@@ -1421,8 +1091,31 @@ async function getRecentDecisions(limit: number = 3) {
 }
 
 /**
- * Sync risk configuration to database
+ * Sync risk configuration to database using configManager module
  */
+async function syncConfigToDatabase() {
+  const configManager = createConfigManager(dbClient, getAccountRiskConfig);
+  await configManager.syncConfigToDatabase();
+}
+
+/**
+ * Load risk configuration from database using configManager module
+ */
+async function loadConfigFromDatabase() {
+  const configManager = createConfigManager(dbClient, getAccountRiskConfig);
+  const config = await configManager.loadConfigFromDatabase();
+
+  // Update module-level config if loaded successfully
+  if (config) {
+    accountRiskConfig = {
+      ...config,
+      syncOnStartup: accountRiskConfig.syncOnStartup,
+    };
+  }
+}
+
+// OLD IMPLEMENTATION (replaced by configManager module):
+/*
 async function syncConfigToDatabase() {
   try {
     const config = getAccountRiskConfig();
@@ -1445,9 +1138,6 @@ async function syncConfigToDatabase() {
   }
 }
 
-/**
- * Load risk configuration from database
- */
 async function loadConfigFromDatabase() {
   try {
     const stopLossResult = await dbClient.execute({
@@ -1473,11 +1163,38 @@ async function loadConfigFromDatabase() {
     logger.warn("Failed to load configuration from database, using environment variable configuration:", error as any);
   }
 }
+*/
 
 /**
- * Fix historical P&L records
- * Automatically called at the end of each cycle to ensure all trade records have correct P&L calculations
+ * Fix historical P&L records using riskChecker module
  */
+async function fixHistoricalPnlRecords() {
+  const exchangeClient = createExchangeClient();
+  const riskChecker = createRiskChecker(exchangeClient, dbClient, accountRiskConfig);
+  await riskChecker.fixHistoricalPnlRecords();
+}
+
+/**
+ * Close all positions using riskChecker module
+ */
+async function closeAllPositions(reason: string): Promise<void> {
+  const exchangeClient = createExchangeClient();
+  const riskChecker = createRiskChecker(exchangeClient, dbClient, accountRiskConfig);
+  await riskChecker.closeAllPositions(reason);
+}
+
+/**
+ * Check if account balance triggers stop loss or take profit using riskChecker module
+ * @returns true: exit condition triggered, false: continue running
+ */
+async function checkAccountThresholds(accountInfo: any): Promise<boolean> {
+  const exchangeClient = createExchangeClient();
+  const riskChecker = createRiskChecker(exchangeClient, dbClient, accountRiskConfig);
+  return await riskChecker.checkAccountThresholds(accountInfo);
+}
+
+// OLD IMPLEMENTATION (replaced by riskChecker module):
+/*
 async function fixHistoricalPnlRecords() {
   try {
     // Query all closing trade records
@@ -1557,9 +1274,6 @@ async function fixHistoricalPnlRecords() {
   }
 }
 
-/**
- * Close all positions
- */
 async function closeAllPositions(reason: string): Promise<void> {
   const exchangeClient = createExchangeClient();
 
@@ -1600,10 +1314,6 @@ async function closeAllPositions(reason: string): Promise<void> {
   }
 }
 
-/**
- * Check if account balance triggers stop loss or take profit
- * @returns true: exit condition triggered, false: continue running
- */
 async function checkAccountThresholds(accountInfo: any): Promise<boolean> {
   const totalBalance = accountInfo.totalBalance;
 
@@ -1623,6 +1333,7 @@ async function checkAccountThresholds(accountInfo: any): Promise<boolean> {
 
   return false;
 }
+*/
 
 /**
  * Execute trading decision
