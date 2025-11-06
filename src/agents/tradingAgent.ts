@@ -24,6 +24,7 @@ import { LibSQLMemoryAdapter } from "@voltagent/libsql";
 import { createPinoLogger } from "@voltagent/logger";
 import { createOpenAI } from "@ai-sdk/openai";
 import * as tradingTools from "../tools/trading";
+import * as learningTools from "../tools/learning";
 import { formatChinaTime } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 
@@ -1362,6 +1363,7 @@ export async function createTradingAgent(intervalMinutes: number = 5, dbClient: 
       tradingTools.checkOrderStatusTool,
       tradingTools.calculateRiskTool,
       // tradingTools.syncPositionsTool, // REMOVED: Automatic sync in tradingLoop is sufficient, AI calling this erases sl_orders
+      learningTools.recordTradingVisionTool, // AI Learning: Record predictions with confidence scores
     ],
     memory,
     hooks: {
