@@ -636,9 +636,9 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
 
       prompt += `各时间框架详情:\n`;
       for (const score of c.scores) {
-        const direction = score.direction === 'BULLISH' ? '↗看涨' : score.direction === 'BEARISH' ? '↘看跌' : '→中性';
-        prompt += `  ${score.interval} ${direction} (总分: ${score.totalScore.toFixed(1)}, 加权: ${score.weightedScore.toFixed(1)}, 权重: ${score.weight.toFixed(1)}x)\n`;
-        prompt += `    价格-EMA20: ${score.priceVsEma20.toFixed(1)}, 价格-EMA50: ${score.priceVsEma50.toFixed(1)}, MACD: ${score.macdStrength.toFixed(1)}, RSI: ${score.rsiPosition.toFixed(1)}, 成交量: ${score.volumeConfirmation.toFixed(1)}\n`;
+        const direction = score.signals.direction === 'BULLISH' ? '↗看涨' : score.signals.direction === 'BEARISH' ? '↘看跌' : '→中性';
+        prompt += `  ${score.interval} ${direction} (总分: ${score.signals.totalScore.toFixed(1)}, 加权: ${score.weightedScore.toFixed(1)}, 权重: ${score.weight.toFixed(1)}x)\n`;
+        prompt += `    价格-EMA20: ${score.signals.priceVsEma20.toFixed(1)}, 价格-EMA50: ${score.signals.priceVsEma50.toFixed(1)}, MACD: ${score.signals.macdStrength.toFixed(1)}, RSI: ${score.signals.rsiPosition.toFixed(1)}, 成交量: ${score.signals.volumeConfirmation.toFixed(1)}\n`;
       }
 
       prompt += `\n关键提示：\n`;
