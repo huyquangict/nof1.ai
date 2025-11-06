@@ -730,20 +730,32 @@ body {
     }
 
     .nav-bar {
-        flex-direction: row;
-        gap: var(--space-md);
+        flex-direction: column;
+        gap: var(--space-sm);
+        align-items: stretch;
     }
 
     .logo {
         font-size: 1.25rem;
+        text-align: center;
     }
 
     .nav-menu {
-        gap: var(--space-md);
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+        justify-content: center;
     }
 
     .nav-link {
         font-size: 0.75rem;
+    }
+
+    /* Stack buttons vertically on mobile for better UX */
+    .connection-status {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+        order: 3;
     }
 
     /* Ticker */
@@ -913,6 +925,30 @@ body {
     }
 
     .nav-link {
+        font-size: 0.625rem;
+        padding: 6px 10px;
+    }
+
+    .nav-menu {
+        gap: var(--space-xs);
+    }
+
+    .pause-button,
+    .reverse-button {
+        padding: 6px 10px;
+        font-size: 0.625rem;
+        gap: 6px;
+    }
+
+    .pause-button svg,
+    .reverse-button svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .pause-text,
+    .reverse-text {
+        min-width: 40px;
         font-size: 0.625rem;
     }
 
@@ -1184,17 +1220,22 @@ body {
 /* Mobile adjustments for pause button */
 @media (max-width: 768px) {
   .pause-button {
-    padding: 6px 12px;
+    padding: 8px 14px;
     font-size: 0.75rem;
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
   }
 
   .pause-button svg {
     width: 14px;
     height: 14px;
+    flex-shrink: 0;
   }
 
   .pause-text {
-    min-width: 50px;
+    min-width: 45px;
+    text-align: center;
   }
 }
 
@@ -1249,17 +1290,22 @@ body {
 /* Mobile adjustments for reverse button */
 @media (max-width: 768px) {
   .reverse-button {
-    padding: 6px 12px;
+    padding: 8px 14px;
     font-size: 0.75rem;
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
   }
 
   .reverse-button svg {
     width: 14px;
     height: 14px;
+    flex-shrink: 0;
   }
 
   .reverse-text {
-    min-width: 60px;
+    min-width: 50px;
+    text-align: center;
   }
 }
 
