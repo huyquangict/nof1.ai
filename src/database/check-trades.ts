@@ -50,14 +50,14 @@ async function checkTrades() {
     
     for (const row of result.rows) {
       const typeText = row.type === 'open' ? 'open' : 'close';
-      const sideText = row.side === 'long' ? '多' : '空';
+      const sideText = row.side === 'long' ? 'long' : 'short';
       const feeText = row.fee ? `${Number(row.fee).toFixed(4)}` : '0';
       
       console.log(`ID: ${row.id}`);
       console.log(`  symbol: ${row.symbol}`);
-      console.log(`  操作: ${typeText}${sideText} (side=${row.side}, type=${row.type})`);
-      console.log(`  价格: ${Number(row.price).toFixed(4)}`);
-      console.log(`  count: ${row.quantity}`);
+      console.log(`  Action: ${typeText} ${sideText} (side=${row.side}, type=${row.type})`);
+      console.log(`  price: ${Number(row.price).toFixed(4)}`);
+      console.log(`  quantity: ${row.quantity}`);
       console.log(`  leverage: ${row.leverage}x`);
       console.log(`  fee: ${feeText} USDT`);
       console.log(`  time: ${row.timestamp}`);

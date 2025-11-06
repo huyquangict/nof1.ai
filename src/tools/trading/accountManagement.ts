@@ -77,11 +77,11 @@ export const getAccountBalanceTool = createTool({
 });
 
 /**
- * 获取currently holding工具
+ * Get current holdings tool
  */
 export const getPositionsTool = createTool({
   name: "getPositions",
-  description: "获取current所有position信息",
+  description: "get/fetchall current position information",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -104,26 +104,26 @@ export const getPositionsTool = createTool({
 
       return {
         positions: formattedPositions,
-        count: formattedPositions.length,
+        quantity: formattedPositions.length,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取positionfailed: ${error.message}`,
+        message: `get/fetchposition failed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 获取not filledorder工具
+ * get/fetchunfilled orders tool
  */
 export const getOpenOrdersTool = createTool({
   name: "getOpenOrders",
-  description: "获取所有not filled pending order",
+  description: "Get all unfilled pending orders",
   parameters: z.object({
-    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选:仅获取指定symbol order"),
+    symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("optional: only fetch specified symbol order"),
   }),
   execute: async ({ symbol }) => {
     const client = createExchangeClient();
@@ -145,26 +145,26 @@ export const getOpenOrdersTool = createTool({
 
       return {
         orders: formattedOrders,
-        count: formattedOrders.length,
+        quantity: formattedOrders.length,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
       return {
         error: error.message,
-        message: `获取not filledorderfailed: ${error.message}`,
+        message: `failed to fetch unfilled orders: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * checkorder状态工具
+ * check order status tool
  */
 export const checkOrderStatusTool = createTool({
   name: "checkOrderStatus",
-  description: "check指定order 详细状态,包括filled价格, filledcount等",
+  description: "check specified order detailed status, including filled price, filled quantity, etc",
   parameters: z.object({
-    orderId: z.string().describe("orderID"),
+    orderId: z.string().describe("order ID"),
   }),
   execute: async ({ orderId }) => {
     const client = createExchangeClient();
@@ -191,24 +191,24 @@ export const checkOrderStatusTool = createTool({
         finishedAt: orderDetail.status === 'finished' ? Math.floor(orderDetail.timestamp / 1000) : undefined,
         isFullyFilled: leftSize === 0,
         fillPercentage: totalSize > 0 ? (filledSize / totalSize * 100).toFixed(2) : "0",
-        message: `order ${orderId} 状态: ${orderDetail.status}, 已filled ${filledSize}/${totalSize}  contracts (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), filled价 ${formatPrice(fillPrice)}`,
+        message: `order ${orderId} status: ${orderDetail.status}, filled ${filledSize}/${totalSize}  contracts (${totalSize > 0 ? (filledSize / totalSize * 100).toFixed(1) : '0'}%), fill price ${formatPrice(fillPrice)}`,
       };
     } catch (error: any) {
       return {
         success: false,
         error: error.message,
-        message: `获取order状态failed: ${error.message}`,
+        message: `failed to fetch order status: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * 计算风险exposure工具
+ * calculate risk exposure tool
  */
 export const calculateRiskTool = createTool({
   name: "calculateRisk",
-  description: "计算currentaccount 风险exposure and position size情况",
+  description: "calculate current account risk exposure and position size situation",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -223,7 +223,7 @@ export const calculateRiskTool = createTool({
       const totalBalance = account.totalBalance;
       const availableBalance = account.availableBalance;
       
-      // 计算每position 风险(need异步获取contract乘数)
+      // calculate per position risk (need to async fetch contract multiplier)
       const positionRisks = await Promise.all(
         positions.map(async (p) => {
           const size = p.quantity;
@@ -233,14 +233,14 @@ export const calculateRiskTool = createTool({
           const currentPrice = p.currentPrice;
           const pnl = p.unrealizedPnl;
 
-          // 获取contract乘数(修复:正确计算notional value)
+          // fetch contract multiplier (fix: correctly calculate notional value)
           const quantoMultiplier = await getQuantoMultiplier(p.exchangeSymbol);
 
-          // 正确计算notional value:contracts × entry price格 × contract乘数
+          // correctly calculate notional value: contracts × entry price × contract multiplier
           const notionalValue = size * entryPrice * quantoMultiplier;
           const margin = notionalValue / leverage;
 
-          // 计算风险百分比(到强close 距离)
+          // calculate risk percentage (to forced close distance)
           const riskPercent = currentPrice > 0
             ? Math.abs((currentPrice - liquidationPrice) / currentPrice) * 100
             : 0;
@@ -261,7 +261,7 @@ export const calculateRiskTool = createTool({
       const totalMargin = positionRisks.reduce((sum: number, p: any) => sum + p.margin, 0);
       const usedMarginPercent = totalBalance > 0 ? (totalMargin / totalBalance) * 100 : 0;
       
-      // 从database获取初始资金
+      // fetch initial capital from database
       const initialBalanceResult = await dbClient.execute(
         "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
       );
@@ -296,19 +296,19 @@ export const calculateRiskTool = createTool({
     } catch (error: any) {
       return {
         error: error.message,
-        message: `计算风险failed: ${error.message}`,
+        message: `calculate risk failed: ${error.message}`,
       };
     }
   },
 });
 
 /**
- * syncposition到database工具
+ * sync positions to database tool
  * 🔥 ID-BASED TRACKING: Uses entry_order_id, sl_order_id, tp_orders to verify everything
  */
 export const syncPositionsTool = createTool({
   name: "syncPositions",
-  description: "sync交易所position数据到本地database,使用orderIDverifyposition and stop-losstake-profit状态",
+  description: "sync exchange position data to local database, use order ID to verify position and stop-loss take-profit status",
   parameters: z.object({}),
   execute: async () => {
     const client = createExchangeClient();
@@ -634,14 +634,14 @@ export const syncPositionsTool = createTool({
         syncedCount,
         triggeredCount: triggeredOrders.length,
         triggeredOrders,
-        message: `✅ positionsync完成: ${syncedCount} position, ${triggeredOrders.length} triggered stop-loss/take-profit`,
+        message: `✅ position sync complete: ${syncedCount} positions, ${triggeredOrders.length} triggered stop-loss/take-profit`,
       };
     } catch (error: any) {
       logger.error(`❌ Sync failed: ${error.message}`);
       return {
         success: false,
         error: error.message,
-        message: `syncpositionfailed: ${error.message}`,
+        message: `syncposition failed: ${error.message}`,
       };
     }
   },

@@ -38,15 +38,15 @@ async function addPeakPnlColumn() {
       return;
     }
     
-    // 添加字段
+    // add field
     await dbClient.execute(`
       ALTER TABLE positions 
       ADD COLUMN peak_pnl_percent REAL DEFAULT 0
     `);
     
-    console.log("✅ successful添加 peak_pnl_percent 字段到 positions 表");
+    console.log("✅ Successfully added peak_pnl_percent field to positions table");
     
-    // 为现有positioninitializepeakPnL
+    // Initialize peak PnL for existing positions
     const positions = await dbClient.execute("SELECT * FROM positions");
     
     for (const pos of positions.rows) {
@@ -55,13 +55,13 @@ async function addPeakPnlColumn() {
       const leverage = Number.parseInt(pos.leverage as string);
       const side = pos.side as string;
       
-      // 计算currentPnL百分比
+      // Calculate current PnL percentage
       const priceChangePercent = entryPrice > 0 
         ? ((currentPrice - entryPrice) / entryPrice * 100 * (side === 'long' ? 1 : -1))
         : 0;
       const pnlPercent = priceChangePercent * leverage;
       
-      // initializepeak为currentPnL(If是正数) or 0
+      // Initialize peak to current PnL (if positive) or 0
       const initialPeak = Math.max(pnlPercent, 0);
       
       await dbClient.execute({
@@ -70,16 +70,16 @@ async function addPeakPnlColumn() {
       });
     }
     
-    console.log(`✅ initialize ${positions.rows.length} position peakPnL百分比`);
+    console.log(`✅ Initialized peak PnL percentage for ${positions.rows.length} positions`);
     
   } catch (error: any) {
-    console.error("❌ database迁移failed:", error.message);
+    console.error("❌ Database migration failed:", error.message);
     process.exit(1);
   }
 }
 
 addPeakPnlColumn().then(() => {
-  console.log("database迁移完成");
+  console.log("Database migration complete");
   process.exit(0);
 });
 

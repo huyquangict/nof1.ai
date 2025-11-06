@@ -57,15 +57,15 @@ function calculateEMA(prices: number[], period: number) {
   return Number.isFinite(ema) ? ema : 0;
 }
 
-// 计算 RSI
+// calculate RSI
 function calculateRSI(prices: number[], period: number) {
-  if (!prices || prices.length < period + 1) return 50; // 数据不足,返回中性值
+  if (!prices || prices.length < period + 1) return 50; // insufficient data, return neutral value
   
   let gains = 0;
   let losses = 0;
 
   for (let i = prices.length - period; i < prices.length; i++) {
-    if (i === 0) continue; // 跳过第一元素,避免访问 prices[-1]
+    if (i === 0) continue; // skip first element, avoid accessing prices[-1]
     const change = prices[i] - prices[i - 1];
     if (change > 0) gains += change;
     else losses -= change;
@@ -83,16 +83,16 @@ function calculateRSI(prices: number[], period: number) {
   return ensureRange(rsi, 0, 100, 50);
 }
 
-// 计算 MACD
+// calculate MACD
 function calculateMACD(prices: number[]) {
-  if (!prices || prices.length < 26) return 0; // 数据不足
+  if (!prices || prices.length < 26) return 0; // insufficient data
   const ema12 = calculateEMA(prices, 12);
   const ema26 = calculateEMA(prices, 26);
   const macd = ema12 - ema26;
   return Number.isFinite(macd) ? macd : 0;
 }
 
-// 计算 ATR
+// calculate ATR
 function calculateATR(candles: any[], period: number) {
   if (!candles || candles.length < 2) return 0;
 
@@ -100,19 +100,19 @@ function calculateATR(candles: any[], period: number) {
   for (let i = 1; i < candles.length; i++) {
     let high: number, low: number, prevClose: number;
 
-    // 处理标准化格式(Candle interface)
+    // handle standardized format (Candle interface)
     if (candles[i] && typeof candles[i] === 'object' && 'high' in candles[i]) {
       high = candles[i].high;
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // 处理old 交易所格式(FuturesCandlestick)
+    // handle old exchange format (FuturesCandlestick)
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
       prevClose = Number.parseFloat(candles[i - 1].c);
     }
-    // 处理数组格式(兼容old代码)
+    // handle array format (compatible with old code)
     else if (Array.isArray(candles[i])) {
       high = Number.parseFloat(candles[i][3]);
       low = Number.parseFloat(candles[i][4]);
@@ -132,17 +132,17 @@ function calculateATR(candles: any[], period: number) {
 }
 
 /**
- * 计算技术指标
+ * calculate technical indicators
  * 
- * K线数据格式:FuturesCandlestick 对象
+ * Candlestick data format: FuturesCandlestick object
  * {
- *   t: number,    // time戳
+ *   t: number,    // timestamp
  *   v: number,    // Volume
- *   c: string,    // 收盘价
- *   h: string,    // 最高价
- *   l: string,    // 最低价
- *   o: string,    // open盘价
- *   sum: string   // 总filled额
+ *   c: string,    // close price
+ *   h: string,    // high price
+ *   l: string,    // low price
+ *   o: string,    // open price
+ *   sum: string   // total filled amount
  * }
  */
 function calculateIndicators(candles: any[]) {
@@ -161,18 +161,18 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // 处理K线数据(支持标准化格式 and old格式)
+  // process candlestick data (support standardized format and old format)
   const closes = candles
     .map((c) => {
-      // 标准化格式(Candle interface)
+      // standardized format (Candle interface)
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // old 交易所格式(FuturesCandlestick)
+      // old exchange format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
-      // 数组格式(兼容old代码)
+      // array format (compatible with old code)
       if (Array.isArray(c)) {
         return Number.parseFloat(c[2]);
       }
@@ -182,24 +182,24 @@ function calculateIndicators(candles: any[]) {
 
   const volumes = candles
     .map((c) => {
-      // 标准化格式(Candle interface)
+      // standardized format (Candle interface)
       if (c && typeof c === 'object' && 'volume' in c) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // old 交易所格式(FuturesCandlestick)
+      // old exchange format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 数组格式(兼容old代码)
+      // array format (compatible with old code)
       if (Array.isArray(c)) {
         const vol = Number.parseFloat(c[1]);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
       return 0;
     })
-    .filter(n => n >= 0); // 过滤掉负数Volume
+    .filter(n => n >= 0); // filter out negative volume
 
   if (closes.length === 0 || volumes.length === 0) {
     return {
@@ -231,11 +231,11 @@ function calculateIndicators(candles: any[]) {
 }
 
 /**
- * 获取市场价格工具
+ * get market price tool
  */
 export const getMarketPriceTool = createTool({
   name: "getMarketPrice",
-  description: "获取指定symbol 实时市场价格",
+  description: "get specified symbol real-time market price",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
@@ -260,15 +260,15 @@ export const getMarketPriceTool = createTool({
 });
 
 /**
- * 获取技术指标工具
+ * get technical indicators tool
  */
 export const getTechnicalIndicatorsTool = createTool({
   name: "getTechnicalIndicators",
-  description: "获取指定symbol 技术指标(EMA, MACD, RSI等)",
+  description: "get specified symbol technical indicators (EMA, MACD, RSI, etc)",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
-    interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("K线周期"),
-    limit: z.number().default(100).describe("K线count"),
+    interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("candlestick period"),
+    limit: z.number().default(100).describe("candlestick quantity"),
   }),
   execute: async ({ symbol, interval, limit }) => {
     const client = createExchangeClient();
@@ -286,11 +286,11 @@ export const getTechnicalIndicatorsTool = createTool({
 });
 
 /**
- * 获取资金费率工具
+ * get funding rate tool
  */
 export const getFundingRateTool = createTool({
   name: "getFundingRate",
-  description: "获取指定symbol 资金费率",
+  description: "get specified symbol funding rate",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
@@ -309,14 +309,14 @@ export const getFundingRateTool = createTool({
 });
 
 /**
- * 获取order簿深度工具
+ * get order book depth tool
  */
 export const getOrderBookTool = createTool({
   name: "getOrderBook",
-  description: "获取指定symbol order簿深度数据",
+  description: "get specified symbol order book depth data",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
-    limit: z.number().default(10).describe("深度档位count"),
+    limit: z.number().default(10).describe("depth level quantity"),
   }),
   execute: async ({ symbol, limit }) => {
     const client = createExchangeClient();
@@ -344,17 +344,17 @@ export const getOrderBookTool = createTool({
 });
 
 /**
- * 获取contractposition量工具
+ * get contract position quantity tool
  */
 export const getOpenInterestTool = createTool({
   name: "getOpenInterest",
-  description: "获取指定symbol contractposition量",
+  description: "get specified symbol contract position quantity",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("symbol code"),
   }),
   execute: async ({ symbol }) => {
-    // 交易所 API need通过其他方式获取position量数据
-    // 暂时返回 0,后续can通过其他端点获取
+    // exchange API need to fetch position quantity data through other means
+    // temporarily return 0,can fetch through other endpoints later
     return {
       symbol,
       openInterest: 0,

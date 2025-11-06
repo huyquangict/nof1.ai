@@ -40,13 +40,13 @@ async function syncPositionsOnly() {
       url: dbUrl,
     });
 
-    // 2. check表是否存在,不存在则创建
+    // 2. check if tables exist, create if not
     try {
       await client.execute("SELECT COUNT(*) FROM positions");
-      logger.info("✅ database表已存在");
+      logger.info("✅ database tables already exist");
     } catch (error) {
-      logger.warn("⚠️  database表不存在,正在创建...");
-      // 创建必要 表
+      logger.warn("⚠️  database tables do not exist, creating now...");
+      // create necessary tables
       await client.execute(`
         CREATE TABLE IF NOT EXISTS positions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,29 +67,29 @@ async function syncPositionsOnly() {
           closed_at TEXT
         )
       `);
-      logger.info("✅ database表创建完成");
+      logger.info("✅ database tables created");
     }
 
-    // 3. 从交易所获取position (adapter already filters non-zero positions)
+    // 3. fetch positions from exchange (adapter already filters non-zero positions)
     const exchangeClient = createExchangeClient();
     const positions = await exchangeClient.getPositions();
 
-    logger.info(`\n📊 交易所currently holding数: ${positions.length}`);
+    logger.info(`\n📊 exchange currently holding quantity: ${positions.length}`);
 
-    // 4. 保存现有position 元数据 (sl_orders, tp_orders等)
+    // 4. save existing position metadata (sl_orders, tp_orders, etc.)
     const dbResult = await client.execute("SELECT symbol, sl_orders, tp_orders, sl_order_id, tp_order_id, sl_percentage, tp_percentage, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
-    logger.info(`💾 已保存 ${dbResult.rows.length} position 元数据`);
+    logger.info(`💾 saved ${dbResult.rows.length} position metadata`);
 
-    // 5. 清空本地position表
+    // 5. clear local position table
     await client.execute("DELETE FROM positions");
-    logger.info("✅ 已清空本地position表");
+    logger.info("✅ local position table cleared");
 
-    // 6. syncposition到database
+    // 6. sync positions to database
     if (positions.length > 0) {
-      logger.info(`\n🔄 sync ${positions.length} position到database...`);
+      logger.info(`\n🔄 sync ${positions.length} positions to database...`);
 
       for (const pos of positions) {
         const symbol = pos.symbol;
@@ -101,7 +101,7 @@ async function syncPositionsOnly() {
         const pnl = pos.unrealizedPnl;
         const liqPrice = pos.liquidationPrice;
 
-        // 从保存 元数据中恢复
+        // from saved recover from metadata
         const dbPos = dbPositionsMap.get(symbol);
         const entryOrderId = dbPos?.entry_order_id || "synced";
         const openedAt = dbPos?.opened_at || new Date().toISOString();
@@ -123,8 +123,8 @@ async function syncPositionsOnly() {
             side,
             entryOrderId,
             openedAt,
-            dbPos?.sl_orders || null,  // 🔧 保留 SL order数组
-            dbPos?.tp_orders || null,  // 🔧 保留 TP order数组
+            dbPos?.sl_orders || null,  // 🔧 preserve/retain SL order array
+            dbPos?.tp_orders || null,  // 🔧 preserve/retain TP order array
             dbPos?.sl_order_id || null,
             dbPos?.tp_order_id || null,
             dbPos?.sl_percentage || null,
@@ -137,11 +137,11 @@ async function syncPositionsOnly() {
         logger.info(`   ✅ ${symbol}: ${quantity}  contracts (${side}) @ ${entryPrice} | PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT`);
       }
     } else {
-      logger.info("✅ current无position");
+      logger.info("✅ currently no positions");
     }
     
     client.close();
-    logger.info("\n✅ positionsync完成");
+    logger.info("\n✅ position sync complete");
 
   } catch (error: any) {
     logger.error("❌ syncfailed:", error);
@@ -149,6 +149,6 @@ async function syncPositionsOnly() {
   }
 }
 
-// 执行sync
+// execute sync
 syncPositionsOnly();
 

@@ -37,29 +37,29 @@ async function resetDatabase() {
 
     logger.info("⚠️  Force reinitialize database");
     logger.info(`Database path: ${dbUrl}`);
-    logger.info(`初始资金: ${initialBalance} USDT`);
+    logger.info(`initial capital: ${initialBalance} USDT`);
 
     const client = createClient({
       url: dbUrl,
     });
 
-    // delete所有表
-    logger.info("🗑️  delete现有表...");
+    // drop all tables
+    logger.info("🗑️  drop existing tables...");
     await client.execute("DROP TABLE IF EXISTS system_config");
     await client.execute("DROP TABLE IF EXISTS agent_decisions");
     await client.execute("DROP TABLE IF EXISTS trading_signals");
     await client.execute("DROP TABLE IF EXISTS trades");
     await client.execute("DROP TABLE IF EXISTS positions");
     await client.execute("DROP TABLE IF EXISTS account_history");
-    logger.info("✅ 现有表已delete");
+    logger.info("✅ existing tables dropped");
 
-    // 重new创建表
-    logger.info("📦 创建new表...");
+    // recreate tables
+    logger.info("📦 create new tables...");
     await client.executeMultiple(CREATE_TABLES_SQL);
-    logger.info("✅ 表创建完成");
+    logger.info("✅ tables created");
 
-    // insert初始资金记录
-    logger.info(`💰 insert初始资金记录: ${initialBalance} USDT`);
+    // insert initial capital record
+    logger.info(`💰 insert initial capital record: ${initialBalance} USDT`);
     await client.execute({
       sql: `INSERT INTO account_history 
             (timestamp, total_value, available_cash, unrealized_pnl, realized_pnl, return_percent) 
@@ -74,7 +74,7 @@ async function resetDatabase() {
       ],
     });
 
-    // verifyinitialize结果
+    // verify initialization results
     const latestAccount = await client.execute(
       "SELECT * FROM account_history ORDER BY timestamp DESC LIMIT 1"
     );
@@ -82,27 +82,27 @@ async function resetDatabase() {
     if (latestAccount.rows.length > 0) {
       const account = latestAccount.rows[0] as any;
       logger.info("\n" + "=".repeat(60));
-      logger.info("✅ database重置successful！");
+      logger.info("✅ database reset successful！");
       logger.info("=".repeat(60));
-      logger.info("\n📊 初始account状态:");
+      logger.info("\n📊 initial account status:");
       logger.info(`  total balance: ${account.total_value} USDT`);
       logger.info(`  available balance: ${account.available_cash} USDT`);
       logger.info(`  unrealized PnL: ${account.unrealized_pnl} USDT`);
       logger.info(`  realized PnL: ${account.realized_pnl} USDT`);
-      logger.info(`  总return rate: ${account.return_percent}%`);
-      logger.info("\ncurrent无position");
+      logger.info(`  total return rate: ${account.return_percent}%`);
+      logger.info("\ncurrently no positions");
       logger.info("\n" + "=".repeat(60));
     }
 
     client.close();
-    logger.info("\n🎉 database已重置为初始状态,canopen始交易！");
+    logger.info("\n🎉 database reset to initial state, can start trading！");
     
   } catch (error) {
-    logger.error("❌ database重置failed:", error as any);
+    logger.error("❌ database reset failed:", error as any);
     process.exit(1);
   }
 }
 
-// 执行重置
+// execute reset
 resetDatabase();
 

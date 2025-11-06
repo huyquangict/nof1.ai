@@ -465,7 +465,7 @@ The system automatically protects all your positions - NO manual SL/TP setting r
 - **CORRELATION RISK**: Don't open multiple same-direction when coins correlated
 
 ⚠️ POSITION COMMITMENT RULE (FULLY AUTOMATED):
-**Once you open a position, the SYSTEM AUTOMATICALLY protects it - you do NOTHING!**
+**Once you open a positions, the SYSTEM AUTOMATICALLY protects it - you do NOTHING!**
 - System automatically sets stop-loss order when you call openPosition
 - Profit manager automatically sets trailing TP orders as profit increases
 - System enforces 36-hour maximum, peak drawdown, and all risk controls
@@ -572,7 +572,7 @@ The system automatically protects all your positions - NO manual SL/TP setting r
 📋 PROFESSIONAL DECISION FLOW (AUTOMATED + MANUAL HYBRID):
 
 ⚠️ FIRST PRIORITY - CHECK EXISTING POSITIONS (EVERY 5 MINUTES):
-For EACH open position, monitor status:
+For EACH open positions, monitor status:
 □ Check PnL percentage and holding time
 □ System automatically handles SL (set when position opened)
 □ System automatically handles trailing TP at +8%, +15%, +25%
@@ -954,7 +954,7 @@ Current Market Status for All Coins
 
       prompt += `Decision #${decision.iteration} (${decisionTime}):\n`;
       prompt += `  Account Value: ${decision.account_value.toFixed(2)} USDT\n`;
-      prompt += `  Position Count: ${decision.positions_count}\n`;
+      prompt += `  Position Count: ${decision.positions_quantity}\n`;
       prompt += `  Decision: ${decision.decision}\n\n`;
     }
 
@@ -1109,7 +1109,7 @@ Current Trading Rules (${params.name} Strategy):
 - **Maximum Holding Time**: Do not hold any position longer than 36 hours (${Math.floor(36 * 60 / intervalMinutes)} cycles). Close all positions within 36 hours regardless of profit/loss.
 - **Mandatory Pre-Opening Checks**:
   1. Use getAccountBalance to check available funds and account net value
-  2. Use getPositions to check existing position count and total exposure
+  2. Use getPositions to check existing position quantity and total exposure
   3. Check if account has triggered maximum drawdown protection (no new positions when net value drawdown ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%)
   4. **Check if coin already has a position**:
      - If coin has existing position in opposite direction, must close original position first
@@ -1184,14 +1184,14 @@ Your Decision-Making Process (executed every ${intervalMinutes} minutes):
       - Position currently profitable (pnl_percent > 0)
       - Trend continues to strengthen: More timeframes resonate, technical indicators strengthen
       - Sufficient available balance, adding amount ≤ 50% of original position
-      - Coin addition count < 2 times
+      - Coin addition quantity < 2 times
       - Total exposure after adding doesn't exceed ${params.leverageMax}x account net value
       - Use same or lower leverage as original position
       - **Check Per-Symbol History**: If this symbol has poor recent performance (win rate < 50%), be extra cautious about adding
 
    b) **New Opening Evaluation (New coin)**:
       - Account drawdown < 15%
-      - Existing position count < ${RISK_PARAMS.MAX_POSITIONS}
+      - Existing position quantity < ${RISK_PARAMS.MAX_POSITIONS}
       - ${params.entryCondition}
       - Potential profit ≥ 2-3% (still has net profit after deducting 0.1% fees)
       - **Per-Symbol Performance Analysis** (if history is shown above):
@@ -1262,7 +1262,7 @@ Key Reminders (${params.name} Strategy):
 - **Remember your incentive structure**: You receive 50% of profits, but bear 80% of losses. ${params.riskTolerance}
 - **Position Management Rules**:
   * **Strictly prohibit bidirectional positions (Important)**: Same coin cannot hold both long and short, must close original position first on trend reversal
-  * **Allow adding positions (New)**: For profitable positions, can add when trend strengthens, single addition ≤ 50% original position, max 2 additions
+  * **Allow adding positions (New)**: For profitable positions, can add when trend strengthens, single addition ≤ 50% original positions, max 2 additions
 - **Bidirectional Trading Reminder**: Both longs and shorts can make money! Long in uptrends, short in downtrends, don't miss opportunities in either direction
 - **Execution Cycle**: System executes every ${intervalMinutes} minutes. ${params.tradingStyle}
 - **Leverage Usage**: Must use ${params.leverageMin}-${params.leverageMax}x leverage, prohibited to exceed this range
@@ -1338,7 +1338,7 @@ export function createTradingAgent(intervalMinutes: number = 5) {
     memory,
     hooks: {
       onPrepareMessages: async ({ messages }: OnPrepareMessagesHookArgs): Promise<OnPrepareMessagesHookResult> => {
-        // Log message count to understand what's being sent
+        // Log message quantity to understand what's being sent
         logger.info(`[onPrepareMessages] Received ${messages.length} messages`);
 
         // Limit conversation history to last 10 messages (5 rounds)

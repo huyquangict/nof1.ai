@@ -48,18 +48,18 @@ async function addFeeColumn() {
     const hasFeeColumn = tableInfo.rows.some((row: any) => row.name === 'fee');
     
     if (hasFeeColumn) {
-      logger.info("✅ fee字段已存在,无需添加");
+      logger.info("✅ fee field already exists, no need to add");
       return;
     }
     
-    // 添加fee列
-    logger.info("➕ 添加fee字段到trades表...");
+    // Add fee column
+    logger.info("➕ Adding fee field to trades table...");
     await client.execute({
       sql: "ALTER TABLE trades ADD COLUMN fee REAL",
       args: [],
     });
     
-    logger.info("✅ fee字段添加successful");
+    logger.info("✅ Fee field added successfully");
     
     // verify
     const newTableInfo = await client.execute({
@@ -67,16 +67,16 @@ async function addFeeColumn() {
       args: [],
     });
     
-    logger.info("\ncurrenttrades表结构:");
+    logger.info("\nCurrent trades table structure:");
     for (const row of newTableInfo.rows) {
       logger.info(`  - ${row.name}: ${row.type}`);
     }
     
-    logger.info("\n✅ database迁移完成！");
+    logger.info("\n✅ Database migration complete!");
     
     process.exit(0);
   } catch (error: any) {
-    logger.error(`❌ 迁移failed: ${error.message}`);
+    logger.error(`❌ Migration failed: ${error.message}`);
     process.exit(1);
   }
 }

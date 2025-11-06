@@ -26,7 +26,7 @@ import { runProfitManager } from "./scheduler/profitManager";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 
-// 设置时区为中国time(Asia/Shanghai,UTC+8)
+// Set timezone to China time (Asia/Shanghai, UTC+8)
 process.env.TZ = 'Asia/Shanghai';
 
 // Create logger instance (using China timezone)
@@ -37,8 +37,8 @@ const logger = createPinoLogger({
     timestamp: () => {
       // Using system timezone setting, already set to Asia/Shanghai
       const now = new Date();
-      // 正确格式化:Use toLocaleString to get China time, then convert to ISO format
-      const chinaOffset = 8 * 60; // 中国时区偏移(分钟)
+      // Correct formatting: Use toLocaleString to get China time, then convert to ISO format
+      const chinaOffset = 8 * 60; // China timezone offset (minutes)
       const utc = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
       const chinaTime = new Date(utc + (chinaOffset * 60 * 1000));
       return `, "time": "${chinaTime.toISOString().replace('Z', '+08:00')}"`;
@@ -46,11 +46,11 @@ const logger = createPinoLogger({
   }
 });
 
-// 全局服务器实例
+// Global server instance
 let server: any = null;
 
 /**
- * 主函数
+ * Main function
  */
 async function main() {
   logger.info("Starting AI Cryptocurrency Auto-Trading System");
@@ -142,9 +142,9 @@ async function gracefulShutdown(signal: string) {
   }
 }
 
-// 监听退出信号
+// Listen for exit signals
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-// startshould用
+// should start with
 await main();

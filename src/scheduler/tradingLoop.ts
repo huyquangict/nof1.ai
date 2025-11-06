@@ -172,7 +172,7 @@ async function collectMarketData() {
       // Validate technical indicators validity and data completeness
       const dataTimestamp = new Date().toISOString();
 
-      // Build candle count object dynamically
+      // Build candle quantity object dynamically
       const candleCount: Record<string, number> = {};
       for (const timeframe of ENABLED_TIMEFRAMES) {
         candleCount[timeframe] = candlesData[timeframe]?.length || 0;
@@ -198,7 +198,7 @@ async function collectMarketData() {
 
       if (issues.length > 0) {
         logger.warn(`${symbol} data quality issues [${dataTimestamp}]: ${issues.join(", ")}`);
-        logger.debug(`${symbol} candlestick count:`, dataQuality.candleCount);
+        logger.debug(`${symbol} candlestick quantity:`, dataQuality.candleCount);
       } else {
         logger.debug(`${symbol} data quality check passed [${dataTimestamp}]`);
       }
@@ -290,7 +290,7 @@ function calculateIntradaySeries(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // old格式 (FuturesCandlestick)
+    // old format (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -369,7 +369,7 @@ function calculateLongerTermContext(candles: any[]) {
     if (c && typeof c === 'object' && 'close' in c) {
       return Number.parseFloat(c.close);
     }
-    // old格式 (FuturesCandlestick)
+    // old format (FuturesCandlestick)
     if (c && typeof c === 'object' && 'c' in c) {
       return Number.parseFloat(c.c);
     }
@@ -563,7 +563,7 @@ function calculateIndicators(candles: any[]) {
       if (c && typeof c === 'object' && 'close' in c) {
         return Number.parseFloat(c.close);
       }
-      // old格式 (FuturesCandlestick)
+      // old format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
@@ -582,7 +582,7 @@ function calculateIndicators(candles: any[]) {
         const vol = Number.parseFloat(c.volume);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // old格式 (FuturesCandlestick)
+      // old format (FuturesCandlestick)
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
@@ -858,7 +858,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
 
               // Record in agent decisions for tracking
               await dbClient.execute({
-                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
                       VALUES (?, 0, 'Stop-loss triggered', 'Stop-loss executed', ?, 0, 0)`,
                 args: [
                   new Date().toISOString(),
@@ -947,7 +947,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
 
                     // Record in agent decisions
                     await dbClient.execute({
-                      sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                      sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
                             VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                       args: [
                         new Date().toISOString(),
@@ -1017,7 +1017,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
                   });
 
                   await dbClient.execute({
-                    sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                    sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
                           VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                     args: [
                       new Date().toISOString(),
@@ -1077,7 +1077,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
               });
 
               await dbClient.execute({
-                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
                       VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                 args: [
                   new Date().toISOString(),
@@ -1184,7 +1184,7 @@ async function syncPositionsFromExchange(cachedPositions?: any[]) {
 
                 // Record in agent decisions
                 await dbClient.execute({
-                  sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+                  sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
                         VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
                   args: [
                     new Date().toISOString(),
@@ -1322,7 +1322,7 @@ async function getPositions(cachedPositions?: any[]) {
         // If not in database, use current time
         if (!openedAt) {
           openedAt = getChinaTimeISO();
-          logger.warn(`Opening time missing for ${symbol} position, using current time`);
+          logger.warn(`Opening time missing for ${symbol} positions, using current time`);
         }
 
         return {
@@ -1395,7 +1395,7 @@ async function getTradeHistory(limit: number = 10) {
 async function getRecentDecisions(limit: number = 3) {
   try {
     const result = await dbClient.execute({
-      sql: `SELECT timestamp, iteration, decision, account_value, positions_count
+      sql: `SELECT timestamp, iteration, decision, account_value, positions_quantity
             FROM agent_decisions
             ORDER BY timestamp DESC
             LIMIT ?`,
@@ -1412,7 +1412,7 @@ async function getRecentDecisions(limit: number = 3) {
       iteration: row.iteration,
       decision: row.decision,
       account_value: Number.parseFloat(row.account_value || "0"),
-      positions_count: Number.parseInt(row.positions_count || "0"),
+      positions_quantity: Number.parseInt(row.positions_quantity || "0"),
     }));
   } catch (error) {
     logger.error("Failed to get recent decision records:", error as any);
@@ -1695,8 +1695,8 @@ async function executeTradingDecision() {
       positions = await getPositions(rawPositions);
       await syncPositionsFromExchange(rawPositions);
 
-      const dbPositions = await dbClient.execute("SELECT COUNT(*) as count FROM positions");
-      const dbCount = (dbPositions.rows[0] as any).count;
+      const dbPositions = await dbClient.execute("SELECT COUNT(*) as quantity FROM positions");
+      const dbCount = (dbPositions.rows[0] as any).quantity;
 
       if (positions.length !== dbCount) {
         logger.warn(`Position sync inconsistency: Exchange=${positions.length}, DB=${dbCount}`);
@@ -1837,7 +1837,7 @@ async function executeTradingDecision() {
       // Save decision record
       await dbClient.execute({
         sql: `INSERT INTO agent_decisions
-              (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
+              (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           new Date().toISOString(),
@@ -1962,9 +1962,9 @@ export function setTradingStartTime(time: Date) {
 }
 
 /**
- * Reset iteration count (for recovering previous trades)
+ * Reset iteration quantity (for recovering previous trades)
  */
-export function setIterationCount(count: number) {
-  iterationCount = count;
+export function setIterationCount(quantity: number) {
+  iterationCount = quantity;
 }
 

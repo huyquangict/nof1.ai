@@ -112,7 +112,7 @@ export interface AgentDecision {
   decision: string;
   actions_taken: string;
   account_value: number;
-  positions_count: number;
+  positions_quantity: number;
 }
 
 export interface SystemConfig {
@@ -123,7 +123,7 @@ export interface SystemConfig {
 }
 
 /**
- * SQL 建表语句
+ * SQL CREATE TABLE statements
  */
 export const CREATE_TABLES_SQL = `
 -- Trade records table
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS trades (
 
 CREATE INDEX IF NOT EXISTS idx_trades_entry_order_id ON trades(entry_order_id);
 
--- position表
+-- positions table
 CREATE TABLE IF NOT EXISTS positions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol TEXT NOT NULL UNIQUE,
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS positions (
   peak_pnl_percent REAL DEFAULT 0
 );
 
--- account历史表
+-- account history table
 CREATE TABLE IF NOT EXISTS account_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS account_history (
   sharpe_ratio REAL
 );
 
--- 技术指标表
+-- technical indicators table
 CREATE TABLE IF NOT EXISTS trading_signals (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol TEXT NOT NULL,
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS trading_signals (
   atr_14 REAL
 );
 
--- Agent 决策记录表
+-- Agent decision log table
 CREATE TABLE IF NOT EXISTS agent_decisions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,
@@ -211,10 +211,10 @@ CREATE TABLE IF NOT EXISTS agent_decisions (
   decision TEXT NOT NULL,
   actions_taken TEXT NOT NULL,
   account_value REAL NOT NULL,
-  positions_count INTEGER NOT NULL
+  positions_quantity INTEGER NOT NULL
 );
 
--- 系统configured表
+-- system configuration table
 CREATE TABLE IF NOT EXISTS system_config (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   key TEXT NOT NULL UNIQUE,
@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS system_config (
   updated_at TEXT NOT NULL
 );
 
--- 创建索引
+-- create indexes
 CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
 CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON trading_signals(timestamp);

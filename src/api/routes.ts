@@ -107,22 +107,22 @@ export function createApiRoutes() {
    *
    * Exchange account structure:
    * - account.total = available + positionMargin
-   * - account.total 不包含unrealized PnL
-   * - 真实total balance = account.total + unrealisedPnl
+   * - account.total does not includeunrealized PnL
+   * - actual total balance = account.total + unrealisedPnl
    * 
-   * API返回说明:
-   * - totalBalance: 不包含unrealized PnL total balance(用于计算已实现收益)
+   * API return description:
+   * - totalBalance: does not includeunrealized PnL total balance(used to calculate realized profit)
    * - unrealisedPnl: currently holding unrealized PnL
    * 
-   * 前端显示:
-   * - total balance显示 = totalBalance + unrealisedPnl(实时反映positionPnL)
+   * Frontend display:
+   * - total balance display = totalBalance + unrealisedPnl(real-time reflect position PnL)
    */
   app.get("/api/account", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const account = await exchangeClient.getFuturesAccount();
       
-      // 从database获取初始资金
+      // fetch initial capital from database
       const initialResult = await dbClient.execute(
         "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
       );
@@ -134,7 +134,7 @@ export function createApiRoutes() {
       const totalBalance = account.totalBalance;
       const unrealisedPnl = account.unrealisedPnl;
 
-      // return rate = (total balance - 初始资金) / 初始资金 * 100
+      // return rate = (total balance - initial capital) / initial capital * 100
       const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
       
       return c.json({
@@ -152,20 +152,20 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取currently holding - 从交易所获取实时数据
+   * Get current holdings - fetch real-time data from exchange
    */
   app.get("/api/positions", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const exchangePositions = await exchangeClient.getPositions();
 
-      // 从database获取stop-losstake-profit信息 and orderID
+      // fetch from databasestop-loss take-profit information and order ID
       const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target, tp_orders, sl_orders, entry_order_id, sl_order_id FROM positions");
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
       );
 
-      // 格式化position (positions are already filtered by adapter)
+      // Format positions (positions are already filtered by adapter)
       const positions = exchangePositions.map((p) => {
           const dbPos = dbPositionsMap.get(p.symbol);
 
@@ -217,7 +217,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 手动close position
+   * Manual close position
    */
   app.post("/api/positions/:symbol/close", async (c) => {
     try {
@@ -255,16 +255,16 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取account价值历史(用于绘图)
+   * Get account value history (for charting)
    */
   app.get("/api/history", async (c) => {
     try {
       const limitParam = c.req.query("limit");
-      const hoursParam = c.req.query("hours") || "8"; // 默认显示最近8小时
+      const hoursParam = c.req.query("hours") || "8"; // Default: show last 8 hours
 
       let result;
       if (limitParam) {
-        // If传递 limit 参数,使用 LIMIT 子句
+        // If passed limit parameter, use LIMIT clause
         const limit = Number.parseInt(limitParam);
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
@@ -274,10 +274,10 @@ export function createApiRoutes() {
           args: [limit],
         });
       } else {
-        // 默认返回最近N小时 数据(避免x轴溢出)
-        // 假设每10分钟记录一次,8小时 = 48条记录,取60条确保覆盖
+        // default return recent N hours data (avoid x-axis overflow)
+        // assume recording every 10 minutes, 8 hours = 48records, fetch 60 to ensure coverage
         const hours = Number.parseInt(hoursParam);
-        const estimatedRecords = Math.ceil(hours * 6); // 每小时6条记录(10分钟间隔)
+        const estimatedRecords = Math.ceil(hours * 6); // 6 records per hour (10-minute interval)
 
         result = await dbClient.execute({
           sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
@@ -293,7 +293,7 @@ export function createApiRoutes() {
         totalValue: Number.parseFloat(row.total_value as string) || 0,
         unrealizedPnl: Number.parseFloat(row.unrealized_pnl as string) || 0,
         returnPercent: Number.parseFloat(row.return_percent as string) || 0,
-      })).reverse(); // 反转,使time从old到new
+      })).reverse(); // reverse, make time from old to new
 
       return c.json({ history });
     } catch (error: any) {
@@ -302,14 +302,14 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取交易记录 - 从database获取历史position size(已close position 记录)
+   * Get trade records - fetch historical position size from database (closed positions records)
    */
   app.get("/api/trades", async (c) => {
     try {
       const limit = Number.parseInt(c.req.query("limit") || "10");
-      const symbol = c.req.query("symbol"); // 可选,筛选特定symbol
+      const symbol = c.req.query("symbol"); // optional, filter specific symbol
       
-      // 从database获取历史交易记录
+      // fetch historical trade records from database
       let sql = `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`;
       let args: any[] = [limit];
       
@@ -327,7 +327,7 @@ export function createApiRoutes() {
         return c.json({ trades: [] });
       }
       
-      // 转换database格式到前端need 格式
+      // convert database format to frontend needs format
       const trades = result.rows.map((row: any) => {
         return {
           id: row.id,
@@ -349,13 +349,13 @@ export function createApiRoutes() {
       
       return c.json({ trades });
     } catch (error: any) {
-      logger.error("获取历史position sizefailed:", error);
+      logger.error("Failed to fetch historical trades:", error);
       return c.json({ error: error.message }, 500);
     }
   });
 
   /**
-   * 获取 Agent 决策日志
+   * Get Agent decision logs
    */
   app.get("/api/logs", async (c) => {
     try {
@@ -375,7 +375,7 @@ export function createApiRoutes() {
         decision: row.decision,
         actionsTaken: row.actions_taken,
         accountValue: row.account_value,
-        positionsCount: row.positions_count,
+        positionsCount: row.positions_quantity,
       }));
       
       return c.json({ logs });
@@ -385,32 +385,32 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取交易统计
+   * Get trading statistics
    */
   app.get("/api/stats", async (c) => {
     try {
-      // 统计总交易次数 - 使用 pnl IS NOT NULL 来确保这是已完成 close position交易
+      // Count total trades - use pnl IS NOT NULL to ensure these are completed close position trades
       const totalTradesResult = await dbClient.execute(
-        "SELECT COUNT(*) as count FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
+        "SELECT COUNT(*) as quantity FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
-      const totalTrades = (totalTradesResult.rows[0] as any).count;
+      const totalTrades = (totalTradesResult.rows[0] as any).quantity;
       
-      // 统计profit交易
+      // quantity profitable trades
       const winTradesResult = await dbClient.execute(
-        "SELECT COUNT(*) as count FROM trades WHERE type = 'close' AND pnl IS NOT NULL AND pnl > 0"
+        "SELECT COUNT(*) as quantity FROM trades WHERE type = 'close' AND pnl IS NOT NULL AND pnl > 0"
       );
-      const winTrades = (winTradesResult.rows[0] as any).count;
+      const winTrades = (winTradesResult.rows[0] as any).quantity;
       
-      // 计算胜率
+      // calculate win rate
       const winRate = totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
       
-      // 计算总PnL
+      // calculate total PnL
       const pnlResult = await dbClient.execute(
         "SELECT SUM(pnl) as total_pnl FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
       const totalPnl = (pnlResult.rows[0] as any).total_pnl || 0;
       
-      // 获取最大单笔profit and loss
+      // get maximum single profit and loss
       const maxWinResult = await dbClient.execute(
         "SELECT MAX(pnl) as max_win FROM trades WHERE type = 'close' AND pnl IS NOT NULL"
       );
@@ -436,7 +436,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取多symbol 实时价格
+   * get multiple symbols real-time prices
    */
   app.get("/api/prices", async (c) => {
     try {
@@ -446,14 +446,14 @@ export function createApiRoutes() {
       const exchangeClient = createExchangeClient();
       const prices: Record<string, number> = {};
 
-      // 并发获取所有symbol价格
+      // concurrently fetch all symbol prices
       await Promise.all(
         symbols.map(async (symbol) => {
           try {
             const ticker = await exchangeClient.getFuturesTicker(symbol);
             prices[symbol] = ticker.lastPrice;
           } catch (error: any) {
-            logger.error(`获取 ${symbol} 价格failed:`, error);
+            logger.error(`get/fetch ${symbol} price failed:`, error);
             prices[symbol] = 0;
           }
         })

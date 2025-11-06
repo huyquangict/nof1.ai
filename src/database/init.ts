@@ -46,11 +46,11 @@ async function initDatabase() {
 
     // Check if re-initialization is needed
     const existingHistory = await client.execute(
-      "SELECT COUNT(*) as count FROM account_history"
+      "SELECT COUNT(*) as quantity FROM account_history"
     );
-    const count = (existingHistory.rows[0] as any).count as number;
+    const quantity = (existingHistory.rows[0] as any).quantity as number;
 
-    if (count > 0) {
+    if (quantity > 0) {
       // Check if initial balance has changed
       const firstRecord = await client.execute(
         "SELECT total_value FROM account_history ORDER BY id ASC LIMIT 1"
@@ -70,7 +70,7 @@ async function initDatabase() {
 
         logger.info("✅ Old data cleared");
       } else {
-        logger.info(`Database has ${count} account history records, skipping initialization`);
+        logger.info(`Database has ${quantity} account history records, skipping initialization`);
         // Show current status and return
         const latestAccount = await client.execute(
           "SELECT * FROM account_history ORDER BY timestamp DESC LIMIT 1"
