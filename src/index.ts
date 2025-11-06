@@ -23,6 +23,7 @@ import { createApiRoutes } from "./api/routes";
 import { startTradingLoop, initTradingSystem } from "./scheduler/tradingLoop";
 import { startAccountRecorder } from "./scheduler/accountRecorder";
 import { runProfitManager } from "./scheduler/profitManager";
+import { startFeedbackScheduler } from "./scheduler/feedbackScheduler";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 
@@ -97,6 +98,10 @@ async function main() {
   logger.info("Starting account recorder...");
   startAccountRecorder();
 
+  // 7. Start feedback scheduler (AI Learning)
+  logger.info("🎯 Starting feedback scheduler (AI Learning)...");
+  startFeedbackScheduler();
+
   logger.info("\n" + "=".repeat(80));
   logger.info("System Started Successfully!");
   logger.info("=".repeat(80));
@@ -104,6 +109,7 @@ async function main() {
   logger.info(`Profit Manager Interval: ${profitManagerInterval / 1000} seconds`);
   logger.info(`Trading Interval: ${process.env.TRADING_INTERVAL_MINUTES || 5} minutes`);
   logger.info(`Account Record Interval: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} minutes`);
+  logger.info(`Feedback Scheduler Interval: 5 minutes (AI Learning)`);
   logger.info(`Trading Symbols: ${RISK_PARAMS.TRADING_SYMBOLS.join(', ')}`);
   logger.info(`Max Leverage: ${RISK_PARAMS.MAX_LEVERAGE}x`);
   logger.info(`Max Positions: ${RISK_PARAMS.MAX_POSITIONS}`);
