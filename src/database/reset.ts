@@ -43,15 +43,31 @@ async function resetDatabase() {
       url: dbUrl,
     });
 
-    // drop all tables
-    logger.info("🗑️  drop existing tables...");
-    await client.execute("DROP TABLE IF EXISTS system_config");
+    // Backup system_config and AI learning data before reset
+    logger.info("💾 Backing up system_config and AI learning data...");
+
+    const systemConfigBackup = await client.execute("SELECT * FROM system_config");
+    const reflectionsBackup = await client.execute("SELECT * FROM trading_reflections");
+    const lessonsBackup = await client.execute("SELECT * FROM learned_lessons");
+    const applicationsBackup = await client.execute("SELECT * FROM lesson_applications");
+
+    logger.info(`📦 Backed up: ${systemConfigBackup.rows.length} config entries, ${reflectionsBackup.rows.length} reflections, ${lessonsBackup.rows.length} lessons`);
+
+    // Drop ONLY trading tables (preserve system_config and AI learning tables)
+    logger.info("🗑️  Dropping trading tables only...");
     await client.execute("DROP TABLE IF EXISTS agent_decisions");
     await client.execute("DROP TABLE IF EXISTS trading_signals");
     await client.execute("DROP TABLE IF EXISTS trades");
     await client.execute("DROP TABLE IF EXISTS positions");
     await client.execute("DROP TABLE IF EXISTS account_history");
-    logger.info("✅ existing tables dropped");
+
+    // NOTE: We intentionally DO NOT drop:
+    // - system_config (custom instructions, pause state, reverse state, learning settings)
+    // - trading_reflections (AI predictions and outcomes)
+    // - learned_lessons (extracted patterns from reasoner)
+    // - lesson_applications (effectiveness tracking)
+
+    logger.info("✅ Trading tables dropped (system_config and AI learning tables preserved)");
 
     // recreate tables
     logger.info("📦 create new tables...");
@@ -82,20 +98,24 @@ async function resetDatabase() {
     if (latestAccount.rows.length > 0) {
       const account = latestAccount.rows[0] as any;
       logger.info("\n" + "=".repeat(60));
-      logger.info("✅ database reset successful！");
+      logger.info("✅ Database reset successful!");
       logger.info("=".repeat(60));
-      logger.info("\n📊 initial account status:");
-      logger.info(`  total balance: ${account.total_value} USDT`);
-      logger.info(`  available balance: ${account.available_cash} USDT`);
-      logger.info(`  unrealized PnL: ${account.unrealized_pnl} USDT`);
-      logger.info(`  realized PnL: ${account.realized_pnl} USDT`);
-      logger.info(`  total return rate: ${account.return_percent}%`);
-      logger.info("\ncurrently no positions");
+      logger.info("\n📊 Initial account status:");
+      logger.info(`  Total balance: ${account.total_value} USDT`);
+      logger.info(`  Available balance: ${account.available_cash} USDT`);
+      logger.info(`  Unrealized PnL: ${account.unrealized_pnl} USDT`);
+      logger.info(`  Realized PnL: ${account.realized_pnl} USDT`);
+      logger.info(`  Total return rate: ${account.return_percent}%`);
+      logger.info("\nCurrently no positions");
+      logger.info("\n💾 Preserved data:");
+      logger.info(`  Custom instructions: ${systemConfigBackup.rows.filter((r: any) => r.key === 'custom_instructions').length > 0 ? 'YES' : 'NO'}`);
+      logger.info(`  AI learning reflections: ${reflectionsBackup.rows.length} records`);
+      logger.info(`  AI learned lessons: ${lessonsBackup.rows.length} lessons`);
       logger.info("\n" + "=".repeat(60));
     }
 
     client.close();
-    logger.info("\n🎉 database reset to initial state, can start trading！");
+    logger.info("\n🎉 Database reset to initial state! Custom instructions and AI learning data preserved!");
     
   } catch (error) {
     logger.error("❌ database reset failed:", error as any);

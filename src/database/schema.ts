@@ -222,6 +222,76 @@ CREATE TABLE IF NOT EXISTS system_config (
   updated_at TEXT NOT NULL
 );
 
+-- AI Learning System: Trading reflections (predictions + outcomes)
+CREATE TABLE IF NOT EXISTS trading_reflections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  decision_type TEXT NOT NULL,      -- open_long, open_short, close, hold, add
+  vision TEXT NOT NULL,              -- What LLM predicted
+  confidence_score INTEGER NOT NULL CHECK(confidence_score >= 1 AND confidence_score <= 10),
+  reasoning TEXT,                    -- Why this decision
+  price_at_decision REAL NOT NULL,
+  target_price REAL,
+  prediction_timeframe TEXT,         -- 10m, 30m, 1h, 4h
+  order_id TEXT,
+
+  -- Feedback (filled 10-60 mins later)
+  actual_price REAL,
+  price_change_percent REAL,
+  prediction_accuracy INTEGER CHECK(prediction_accuracy >= 0 AND prediction_accuracy <= 10),
+  feedback_score INTEGER CHECK(feedback_score >= 1 AND feedback_score <= 10),
+  pnl_result REAL,
+  outcome_type TEXT,                 -- big_win, small_win, neutral, small_loss, big_loss
+  time_to_feedback_minutes INTEGER,
+
+  lesson_id INTEGER,
+  reviewed INTEGER DEFAULT 0,
+
+  FOREIGN KEY (lesson_id) REFERENCES learned_lessons(id)
+);
+
+-- AI Learning System: Learned lessons (extracted by reasoner)
+CREATE TABLE IF NOT EXISTS learned_lessons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  lesson_category TEXT NOT NULL CHECK(lesson_category IN (
+    'entry_timing', 'exit_strategy', 'risk_management',
+    'symbol_behavior', 'market_conditions', 'position_sizing', 'funding_rate'
+  )),
+  lesson_text TEXT NOT NULL,
+  supporting_reflections TEXT,       -- JSON array of reflection IDs
+  counter_examples TEXT,             -- JSON array of IDs where lesson failed
+
+  success_rate REAL CHECK(success_rate >= 0 AND success_rate <= 1),
+  avg_pnl REAL,
+  confidence_level TEXT CHECK(confidence_level IN ('high', 'medium', 'low')),
+
+  market_condition TEXT,             -- bull, bear, sideways, high_volatility
+  applicable_symbols TEXT,           -- "BTC,ETH" or "all"
+
+  times_applied INTEGER DEFAULT 0,
+  times_helpful INTEGER DEFAULT 0,
+  effectiveness_rate REAL,
+
+  is_active INTEGER DEFAULT 1,
+  created_by_model TEXT,
+  last_validated TEXT
+);
+
+-- AI Learning System: Lesson applications (track effectiveness)
+CREATE TABLE IF NOT EXISTS lesson_applications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lesson_id INTEGER NOT NULL,
+  applied_at TEXT NOT NULL,
+  trade_reflection_id INTEGER,
+  was_helpful INTEGER CHECK(was_helpful IN (0, 1)),
+  pnl_impact REAL,
+
+  FOREIGN KEY (lesson_id) REFERENCES learned_lessons(id),
+  FOREIGN KEY (trade_reflection_id) REFERENCES trading_reflections(id)
+);
+
 -- create indexes
 CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
@@ -229,5 +299,23 @@ CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON trading_signals(timestamp);
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON trading_signals(symbol);
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON account_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_decisions_timestamp ON agent_decisions(timestamp);
+
+-- AI Learning System indexes
+CREATE INDEX IF NOT EXISTS idx_reflections_symbol ON trading_reflections(symbol);
+CREATE INDEX IF NOT EXISTS idx_reflections_timestamp ON trading_reflections(timestamp);
+CREATE INDEX IF NOT EXISTS idx_reflections_feedback ON trading_reflections(feedback_score);
+CREATE INDEX IF NOT EXISTS idx_reflections_reviewed ON trading_reflections(reviewed);
+CREATE INDEX IF NOT EXISTS idx_reflections_lesson ON trading_reflections(lesson_id);
+
+CREATE INDEX IF NOT EXISTS idx_lessons_category ON learned_lessons(lesson_category);
+CREATE INDEX IF NOT EXISTS idx_lessons_success_rate ON learned_lessons(success_rate);
+CREATE INDEX IF NOT EXISTS idx_lessons_active ON learned_lessons(is_active);
+CREATE INDEX IF NOT EXISTS idx_lessons_effectiveness ON learned_lessons(effectiveness_rate);
+CREATE INDEX IF NOT EXISTS idx_lessons_created_at ON learned_lessons(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_applications_lesson ON lesson_applications(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_applications_helpful ON lesson_applications(was_helpful);
+CREATE INDEX IF NOT EXISTS idx_applications_reflection ON lesson_applications(trade_reflection_id);
+CREATE INDEX IF NOT EXISTS idx_applications_applied_at ON lesson_applications(applied_at);
 `;
 

@@ -59,16 +59,22 @@ async function initDatabase() {
 
       if (firstBalance !== initialBalance) {
         logger.warn(`⚠️  Initial balance changed: ${firstBalance} USDT -> ${initialBalance} USDT`);
-        logger.info("Clearing existing data, re-initializing...");
+        logger.info("Clearing trading data only (preserving config and AI learning data)...");
 
-        // Clear all trading data
+        // Clear ONLY trading data (preserve system_config and AI learning tables)
         await client.execute("DELETE FROM trades");
         await client.execute("DELETE FROM positions");
         await client.execute("DELETE FROM account_history");
         await client.execute("DELETE FROM trading_signals");
         await client.execute("DELETE FROM agent_decisions");
 
-        logger.info("✅ Old data cleared");
+        // NOTE: We intentionally DO NOT delete:
+        // - system_config (custom instructions, pause state, reverse state, learning settings)
+        // - trading_reflections (AI predictions and outcomes)
+        // - learned_lessons (extracted patterns from reasoner)
+        // - lesson_applications (effectiveness tracking)
+
+        logger.info("✅ Trading data cleared (custom instructions and AI learning data preserved)");
       } else {
         logger.info(`Database has ${quantity} account history records, skipping initialization`);
         // Show current status and return
