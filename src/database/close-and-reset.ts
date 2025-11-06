@@ -324,7 +324,7 @@ async function closeAndReset() {
     logger.info("");
     
     // 步骤3：同步持仓数据
-    logger.info("【步骤 3/3】从 Gate.io 同步持仓数据");
+    logger.info("【步骤 3/3】从交易所同步持仓数据");
     logger.info("-".repeat(80));
     await syncPositions();
     logger.info("");

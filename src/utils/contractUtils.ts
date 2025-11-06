@@ -32,11 +32,10 @@ const quantoMultiplierCache = new Map<string, number>();
 
 /**
  * 默认合约乘数映射
- * 从 Gate.io API 获取失败时使用
+ * 从交易所 API 获取失败时使用
  */
 const DEFAULT_MULTIPLIERS: Record<string, number> = {
-  // Binance USDT-margined perpetual contracts: 1 contract = 1 coin (1:1)
-  // Note: Gate.io uses fractional sizes, but this fallback is primarily for Binance
+  // USDT-margined perpetual contracts: 1 contract = 1 coin (1:1 ratio)
   'BTC': 1,       // 1 contract = 1 BTC
   'ETH': 1,       // 1 contract = 1 ETH
   'SOL': 1,       // 1 contract = 1 SOL
@@ -55,8 +54,8 @@ const DEFAULT_MULTIPLIERS: Record<string, number> = {
  * 
  * 合约乘数表示：1张合约代表多少个币
  * 例如：BTC_USDT合约，1张 = 0.0001 BTC
- * 
- * 优先从 Gate.io API 获取，失败时使用默认值
+ *
+ * 优先从交易所 API 获取，失败时使用默认值
  * 支持缓存以减少API调用次数
  * 
  * @param contract 合约名称，如 "BTC_USDT"

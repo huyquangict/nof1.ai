@@ -22,6 +22,7 @@ import { serve } from "@hono/node-server";
 import { createApiRoutes } from "./api/routes";
 import { startTradingLoop, initTradingSystem } from "./scheduler/tradingLoop";
 import { startAccountRecorder } from "./scheduler/accountRecorder";
+import { runProfitManager } from "./scheduler/profitManager";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 
@@ -75,11 +76,24 @@ async function main() {
   logger.info(`Web server started: http://localhost:${port}`);
   logger.info(`Dashboard: http://localhost:${port}/`);
 
-  // 4. Start trading loop
+  // 4. Start profit manager (fast loop - 30 seconds)
+  logger.info("💰 Starting profit manager...");
+  const profitManagerInterval = 30 * 1000; // 30 seconds
+  setInterval(() => {
+    runProfitManager(logger).catch((error) => {
+      logger.error("Profit manager error:", error);
+    });
+  }, profitManagerInterval);
+  // Run immediately once
+  runProfitManager(logger).catch((error) => {
+    logger.error("Profit manager initial run error:", error);
+  });
+
+  // 5. Start trading loop
   logger.info("Starting trading loop...");
   startTradingLoop();
 
-  // 5. Start account recorder
+  // 6. Start account recorder
   logger.info("Starting account recorder...");
   startAccountRecorder();
 
@@ -87,6 +101,7 @@ async function main() {
   logger.info("System Started Successfully!");
   logger.info("=".repeat(80));
   logger.info(`\nDashboard: http://localhost:${port}/`);
+  logger.info(`Profit Manager Interval: ${profitManagerInterval / 1000} seconds`);
   logger.info(`Trading Interval: ${process.env.TRADING_INTERVAL_MINUTES || 5} minutes`);
   logger.info(`Account Record Interval: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} minutes`);
   logger.info(`Trading Symbols: ${RISK_PARAMS.TRADING_SYMBOLS.join(', ')}`);

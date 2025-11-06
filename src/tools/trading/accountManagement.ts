@@ -36,13 +36,13 @@ const dbClient = createClient({
 /**
  * Format price with appropriate decimal places based on value
  * - For prices < $1: show 5 decimals (e.g., 0.20200 for DOGE)
- * - For prices >= $1: show 2 decimals (e.g., 95000.42 for BTC)
+ * - For prices >= $1: show 4 decimals (e.g., 88.5300 for LTC, 95000.4200 for BTC)
  */
 function formatPrice(price: number): string {
   if (price < 1) {
     return price.toFixed(5);
   }
-  return price.toFixed(2);
+  return price.toFixed(4);
 }
 
 /**
@@ -361,7 +361,7 @@ export const syncPositionsTool = createTool({
             for (const sl of slOrdersArray) {
               const slOrderId = sl.orderId || sl; // Handle both object format and string format
               try {
-                const slOrder = await client.getOrder(slOrderId);
+                const slOrder = await client.getOrder(slOrderId, symbol); // 🔧 Pass symbol for Binance STOP_MARKET orders
                 logger.info(`  🛑 SL order ${slOrderId}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
 
                 if (slOrder.status === 'filled' || slOrder.status === 'finished') {
@@ -410,7 +410,7 @@ export const syncPositionsTool = createTool({
         // Fallback: Check old single SL format (backward compatibility)
         else if (dbPos.sl_order_id && dbPos.sl_order_id !== "") {
           try {
-            const slOrder = await client.getOrder(dbPos.sl_order_id);
+            const slOrder = await client.getOrder(dbPos.sl_order_id, symbol); // 🔧 Pass symbol for Binance
             logger.info(`  🛑 Old SL order ${dbPos.sl_order_id}: ${slOrder.status} (filled: ${slOrder.filled}/${slOrder.quantity})`);
 
             if (slOrder.status === 'filled' || slOrder.status === 'finished') {
@@ -442,7 +442,7 @@ export const syncPositionsTool = createTool({
             for (const tp of tpOrdersArray) {
               const tpOrderId = tp.orderId || tp; // Handle both object format and string format
               try {
-                const tpOrder = await client.getOrder(tpOrderId);
+                const tpOrder = await client.getOrder(tpOrderId, symbol); // 🔧 Pass symbol for Binance TAKE_PROFIT_MARKET orders
                 logger.info(`  🎯 TP order ${tpOrderId}: ${tpOrder.status} (filled: ${tpOrder.filled}/${tpOrder.quantity})`);
 
                 if (tpOrder.status === 'filled' || tpOrder.status === 'finished') {

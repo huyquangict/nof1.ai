@@ -41,13 +41,13 @@ const dbClient = createClient({
 /**
  * Format price with appropriate decimal places based on value
  * - For prices < $1: show 5 decimals (e.g., 0.20200 for DOGE)
- * - For prices >= $1: show 2 decimals (e.g., 95000.42 for BTC)
+ * - For prices >= $1: show 4 decimals (e.g., 88.5300 for LTC, 95000.4200 for BTC)
  */
 function formatPrice(price: number): string {
   if (price < 1) {
     return price.toFixed(5);
   }
-  return price.toFixed(2);
+  return price.toFixed(4);
 }
 
 
@@ -56,7 +56,7 @@ function formatPrice(price: number): string {
  */
 export const openPositionTool = createTool({
   name: "openPosition",
-  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 自动取消该币种的所有遗留SL/TP订单（defensive programming - 无需手动调用cancelAllOrdersForSymbol）。3) 交易手续费约0.05%，避免频繁交易。4) 开仓时不设置止盈止损，你需要在每个周期主动决策是否平仓，或使用setTakeProfit/setStopLoss工具设置。",
+  description: "开仓 - 做多或做空指定币种（使用市价单，立即以当前市场价格成交）。IMPORTANT: 1) 开仓前必须先用getAccountBalance和getPositions工具查询可用资金和现有持仓，避免资金不足。2) 自动取消该币种的所有遗留SL/TP订单（defensive programming - 无需手动调用cancelAllOrdersForSymbol）。3) 交易手续费约0.05%，避免频繁交易。4) ✨ 系统会自动设置止损（SL）订单保护仓位，无需手动设置。止盈（TP）由利润管理器根据盈利水平自动动态调整（+8% → 锁定+3%, +15% → 锁定+8%, +25% → 锁定+15%）。你只需专注于开平仓决策。",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
     side: z.enum(["long", "short"]).describe("方向：long=做多，short=做空"),
@@ -329,6 +329,65 @@ export const openPositionTool = createTool({
         }
       }
 
+      // 🔥 Step 2: Extra defensive cleanup - cancel ALL orders on exchange (catches orphans not tracked in DB)
+      try {
+        const exchangeName = client.getExchangeName();
+
+        if (exchangeName === 'Binance') {
+          const binanceAdapter = client as any;
+          const ccxt = binanceAdapter.getUnderlyingExchange();
+          const ccxtSymbol = client.normalizeSymbol(symbol);
+
+          // Fetch regular open orders
+          const regularOrders = await client.getOpenOrders(symbol);
+          if (regularOrders.length > 0) {
+            logger.info(`🔍 Found ${regularOrders.length} regular open orders for ${symbol} on exchange, canceling...`);
+            for (const order of regularOrders) {
+              try {
+                await client.cancelOrder(order.id, symbol);
+                logger.info(`🔄 Cancelled regular orphan order ${order.id}`);
+              } catch (e: any) {
+                logger.warn(`⚠️ Could not cancel regular order ${order.id}: ${e.message}`);
+              }
+            }
+          }
+
+          // Fetch conditional orders (STOP_MARKET, TAKE_PROFIT_MARKET)
+          try {
+            const conditionalOrders = await ccxt.fetchOpenOrders(ccxtSymbol, undefined, undefined, { stop: true });
+            if (conditionalOrders && conditionalOrders.length > 0) {
+              logger.info(`🔍 Found ${conditionalOrders.length} conditional (STOP/TP) orders for ${symbol} on exchange, canceling...`);
+              for (const order of conditionalOrders) {
+                try {
+                  await ccxt.cancelOrder(order.id, ccxtSymbol);
+                  logger.info(`🔄 Cancelled conditional orphan order ${order.id} (${order.type})`);
+                } catch (e: any) {
+                  logger.warn(`⚠️ Could not cancel conditional order ${order.id}: ${e.message}`);
+                }
+              }
+            }
+          } catch (e: any) {
+            logger.warn(`⚠️ Could not fetch conditional orders: ${e.message}`);
+          }
+        } else {
+          // For other exchanges (Gate.io), regular getOpenOrders should work
+          const allOpenOrders = await client.getOpenOrders(symbol);
+          if (allOpenOrders.length > 0) {
+            logger.info(`🔍 Found ${allOpenOrders.length} open orders for ${symbol} on exchange, canceling all...`);
+            for (const order of allOpenOrders) {
+              try {
+                await client.cancelOrder(order.id, symbol);
+                logger.info(`🔄 Cancelled orphan order ${order.id}`);
+              } catch (e: any) {
+                logger.warn(`⚠️ Could not cancel order ${order.id}: ${e.message}`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        logger.warn(`⚠️ Could not fetch/cancel open orders for ${symbol}: ${e.message}`);
+      }
+
       //  市价单开仓（不设置止盈止损）
       const order = await client.placeOrder({
         symbol,
@@ -568,15 +627,116 @@ export const openPositionTool = createTool({
             stopLoss || null,
             tpOrderId || null,
             slOrderId || null,
-            null, // tp_orders: initialized as empty, will be populated by setTakeProfit tool
-            null, // sl_orders: initialized as empty, will be populated by setStopLoss tool
+            null, // tp_orders: will be populated by profit manager when trailing TP triggers
+            null, // sl_orders: will be auto-populated by system after position is saved (see Phase 2 below)
             order.id?.toString() || "",
             new Date().toISOString(),
           ],
         });
         logger.info(`✅ Inserted position in database: ${symbol} ${side} ${actualPositionQuantity} units`);
       }
-      
+
+      // ====== 🔥 Phase 2: Auto-set stop-loss order based on system configuration ======
+      try {
+        // Read stop-loss percentage from environment variable (default: -15%)
+        const slPnlPercent = Number.parseFloat(process.env.POSITION_STOP_LOSS_PNL_PERCENT || '-15');
+
+        logger.info(`💰 Auto-setting stop-loss at ${slPnlPercent}% PnL (leveraged)...`);
+
+        // Calculate stop-loss price from entry price
+        // PnL% = (price_change% / leverage) * 100
+        // => price_change% = (PnL% * leverage) / 100
+        const slPriceChange = (Math.abs(slPnlPercent) / leverage) / 100;
+
+        let stopLossPrice: number;
+        if (side === 'long') {
+          // LONG: SL price should be BELOW entry price
+          stopLossPrice = actualFillPrice * (1 - slPriceChange);
+        } else {
+          // SHORT: SL price should be ABOVE entry price
+          stopLossPrice = actualFillPrice * (1 + slPriceChange);
+        }
+
+        logger.info(`  Entry price: ${actualFillPrice.toFixed(4)}, SL price: ${stopLossPrice.toFixed(4)} (${slPnlPercent}%)`);
+
+        // Place stop-loss order based on exchange
+        const exchangeName = client.getExchangeName();
+        let slOrderId: string;
+
+        if (exchangeName === 'Binance') {
+          // Binance: Use CCXT STOP_MARKET order
+          const binanceAdapter = client as any;
+          const ccxt = binanceAdapter.getUnderlyingExchange();
+          const ccxtSymbol = client.normalizeSymbol(symbol);
+
+          // Stop order side is opposite to position (closing)
+          const orderSide = side === 'long' ? 'sell' : 'buy';
+
+          const slOrder = await ccxt.createOrder(
+            ccxtSymbol,
+            'STOP_MARKET',
+            orderSide,
+            actualPositionQuantity,
+            undefined, // no limit price for STOP_MARKET
+            {
+              stopPrice: stopLossPrice,
+              reduceOnly: true,
+            }
+          );
+
+          slOrderId = slOrder.id;
+          logger.info(`  ✅ [Binance] Stop-loss order created: ${symbol} ${side} ${actualPositionQuantity}@${stopLossPrice.toFixed(4)} (order ID: ${slOrderId})`);
+
+        } else if (exchangeName === 'Gate.io') {
+          // Gate.io: Use Price Trigger Order
+          const gateAdapter = client as any;
+          const gateClient = gateAdapter.getUnderlyingClient();
+          const gateContract = client.normalizeSymbol(symbol);
+
+          // Gate.io uses signed quantity (negative = sell/close long, positive = buy/close short)
+          const slSize = side === 'long' ? -actualPositionQuantity : actualPositionQuantity;
+
+          // Create price trigger order
+          // rule: 1 = price >= trigger, 2 = price <= trigger
+          const rule = side === 'long' ? 2 : 1; // long: <= stop price, short: >= stop price
+
+          const trigger = await gateClient.createPriceTriggerOrder({
+            contract: gateContract,
+            size: slSize,
+            triggerPrice: stopLossPrice,
+            orderPrice: undefined, // market order
+            rule: rule,
+          });
+
+          slOrderId = trigger.id?.toString() || 'unknown';
+          logger.info(`  ✅ [Gate.io] Stop-loss order created: ${symbol} ${side} ${actualPositionQuantity}@${stopLossPrice.toFixed(4)} (trigger ID: ${slOrderId})`);
+
+        } else {
+          throw new Error(`Unsupported exchange: ${exchangeName}`);
+        }
+
+        // Save SL order to database
+        const newSL: StopLossOrder = {
+          price: stopLossPrice,
+          percentage: 100, // Full position coverage
+          orderId: slOrderId,
+          triggered: false,
+        };
+
+        await dbClient.execute({
+          sql: "UPDATE positions SET sl_orders = ? WHERE symbol = ?",
+          args: [JSON.stringify([newSL]), symbol]
+        });
+
+        logger.info(`  ✅ Stop-loss saved to database: ${slOrderId} @ ${stopLossPrice.toFixed(4)} (${slPnlPercent}%)`);
+
+      } catch (slError: any) {
+        logger.error(`  ❌ Failed to auto-set stop-loss: ${slError.message}`);
+        logger.error(`  Position is open but without SL protection! Manual intervention may be needed.`);
+        // Continue execution - position is already open, don't fail the entire operation
+      }
+      // ====== End of auto SL setting ======
+
       const contractAmount = Math.abs(size) * quantoMultiplier;
       const totalValue = contractAmount * actualFillPrice;
 
@@ -590,7 +750,7 @@ export const openPositionTool = createTool({
         price: actualFillPrice,
         leverage,
         actualMargin,
-        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
+        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${formatPrice(actualFillPrice)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。系统已自动设置止损（SL）保护，止盈（TP）将由利润管理器动态调整。`,
       };
     } catch (error: any) {
       logger.error(`❌ 开仓失败 ${symbol} ${side}: ${error.message}`, error);

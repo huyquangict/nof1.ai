@@ -104,8 +104,8 @@ export function createApiRoutes() {
 
   /**
    * 获取账户总览
-   * 
-   * Gate.io 账户结构：
+   *
+   * 交易所账户结构：
    * - account.total = available + positionMargin
    * - account.total 不包含未实现盈亏
    * - 真实总资产 = account.total + unrealisedPnl
@@ -152,7 +152,7 @@ export function createApiRoutes() {
   });
 
   /**
-   * 获取当前持仓 - 从 Gate.io 获取实时数据
+   * 获取当前持仓 - 从交易所获取实时数据
    */
   app.get("/api/positions", async (c) => {
     try {

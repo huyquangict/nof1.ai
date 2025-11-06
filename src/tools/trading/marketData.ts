@@ -106,7 +106,7 @@ function calculateATR(candles: any[], period: number) {
       low = candles[i].low;
       prevClose = candles[i - 1].close;
     }
-    // 处理旧的 Gate.io 格式（FuturesCandlestick）
+    // 处理旧的交易所格式（FuturesCandlestick）
     else if (candles[i] && typeof candles[i] === 'object' && 'h' in candles[i]) {
       high = Number.parseFloat(candles[i].h);
       low = Number.parseFloat(candles[i].l);
@@ -168,7 +168,7 @@ function calculateIndicators(candles: any[]) {
       if (c && typeof c === 'object' && 'close' in c) {
         return c.close;
       }
-      // 旧的 Gate.io 格式（FuturesCandlestick）
+      // 旧的交易所格式（FuturesCandlestick）
       if (c && typeof c === 'object' && 'c' in c) {
         return Number.parseFloat(c.c);
       }
@@ -187,7 +187,7 @@ function calculateIndicators(candles: any[]) {
         const vol = c.volume;
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
       }
-      // 旧的 Gate.io 格式（FuturesCandlestick）
+      // 旧的交易所格式（FuturesCandlestick）
       if (c && typeof c === 'object' && 'v' in c) {
         const vol = Number.parseFloat(c.v);
         return Number.isFinite(vol) && vol >= 0 ? vol : 0;
@@ -353,7 +353,7 @@ export const getOpenInterestTool = createTool({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
   }),
   execute: async ({ symbol }) => {
-    // Gate API 需要通过其他方式获取持仓量数据
+    // 交易所 API 需要通过其他方式获取持仓量数据
     // 暂时返回 0，后续可以通过其他端点获取
     return {
       symbol,
