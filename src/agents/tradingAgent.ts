@@ -228,7 +228,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：标准配置
         lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：适度提高（趋势稳定）
       },
-      entryCondition: "必须1分钟、3分钟、5分钟、15分钟这4个时间框架信号全部强烈一致，且关键指标共振（MACD、RSI、EMA方向一致）",
+      entryCondition: "必须1分钟、3分钟、5分钟、15分钟这4个时间框架信号全部强烈一致，加权共振分析达到STRONG级别（总分≥70且对齐度≥75%），关键指标共振（MACD、RSI、EMA方向一致）",
       riskTolerance: "单笔交易风险控制在20-35%之间，注重趋势质量而非交易频率",
       tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
       // 自动监控止损配置（每10秒自动检查）
@@ -522,6 +522,7 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
 【数据说明】
 本提示词已预加载所有必需数据：
 • 所有币种的市场数据和技术指标（多时间框架）
+• 加权共振分析（量化多时间框架信号强度，0-100分，含对齐度和信号质量）
 • 账户信息（余额、收益率、夏普比率）
 • 当前持仓状态（盈亏、持仓时间、杠杆）
 • 历史交易记录（最近10笔）
@@ -618,6 +619,35 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
         if (tfData) {
           prompt += `${tf.name}: 价格=${tfData.currentPrice.toFixed(2)}, EMA20=${tfData.ema20.toFixed(3)}, EMA50=${tfData.ema50.toFixed(3)}, MACD=${tfData.macd.toFixed(3)}, RSI7=${tfData.rsi7.toFixed(2)}, RSI14=${tfData.rsi14.toFixed(2)}, 成交量=${tfData.volume.toFixed(2)}\n`;
         }
+      }
+      prompt += `\n`;
+    }
+
+    // 加权共振分析（Phase 1优化新增）
+    if (data.confluence) {
+      const c = data.confluence;
+
+      prompt += `【加权共振分析】\n`;
+      prompt += `总体方向: ${c.overallDirection === 'BULLISH' ? '看涨' : c.overallDirection === 'BEARISH' ? '看跌' : '中性'}\n`;
+      prompt += `信号质量: ${c.signalQuality === 'STRONG' ? '强' : c.signalQuality === 'MODERATE' ? '中' : '弱'}\n`;
+      prompt += `时间框架对齐度: ${c.alignedTimeframes}/${c.totalTimeframes} (${c.alignmentPercent.toFixed(0)}%)\n`;
+      prompt += `加权总分: ${c.totalScore.toFixed(1)}/100\n`;
+      prompt += `平均分数: ${c.averageScore.toFixed(1)}/50\n\n`;
+
+      prompt += `各时间框架详情:\n`;
+      for (const score of c.scores) {
+        const direction = score.direction === 'BULLISH' ? '↗看涨' : score.direction === 'BEARISH' ? '↘看跌' : '→中性';
+        prompt += `  ${score.interval} ${direction} (总分: ${score.totalScore.toFixed(1)}, 加权: ${score.weightedScore.toFixed(1)}, 权重: ${score.weight.toFixed(1)}x)\n`;
+        prompt += `    价格-EMA20: ${score.priceVsEma20.toFixed(1)}, 价格-EMA50: ${score.priceVsEma50.toFixed(1)}, MACD: ${score.macdStrength.toFixed(1)}, RSI: ${score.rsiPosition.toFixed(1)}, 成交量: ${score.volumeConfirmation.toFixed(1)}\n`;
+      }
+
+      prompt += `\n关键提示：\n`;
+      if (c.signalQuality === 'STRONG' && c.alignmentPercent >= 75) {
+        prompt += `  ✓ 强信号确认：${c.alignmentPercent.toFixed(0)}%时间框架共振${c.overallDirection === 'BULLISH' ? '看涨' : c.overallDirection === 'BEARISH' ? '看跌' : ''}，加权总分${c.totalScore.toFixed(0)}，建议优先考虑此方向\n`;
+      } else if (c.signalQuality === 'MODERATE' && c.alignmentPercent >= 60) {
+        prompt += `  ~ 中等信号：${c.alignmentPercent.toFixed(0)}%时间框架共振，加权总分${c.totalScore.toFixed(0)}，建议结合其他因素判断\n`;
+      } else {
+        prompt += `  ! 弱信号/混合信号：对齐度仅${c.alignmentPercent.toFixed(0)}%，总分${c.totalScore.toFixed(0)}，谨慎交易或观望\n`;
       }
       prompt += `\n`;
     }
@@ -817,7 +847,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - **加仓机制（风险倍增，谨慎执行）**：对于已有持仓的币种，如果趋势强化且局势有利，**允许加仓**：
      * **加仓条件**（全部满足才可加仓）：
        - 持仓方向正确且已盈利（pnl_percent > 5%，必须有足够利润缓冲）
-       - 趋势强化：至少3个时间框架继续共振，信号强度增强
+       - 趋势强化：至少3个时间框架继续共振（参考加权共振分析），信号强度增强，对齐度提升
        - 账户可用余额充足，加仓后总持仓不超过风控限制
        - 加仓后该币种的总名义敞口不超过账户净值的${params.leverageMax}倍
      * **加仓策略（专业风控要求）**：
@@ -1068,7 +1098,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    a) 加仓评估（对已有盈利持仓）：
       - 该币种已有持仓且方向正确
       - 持仓当前盈利（pnl_percent > 5%，必须有足够利润缓冲）
-      - 趋势继续强化：至少3个时间框架共振，技术指标增强
+      - 趋势继续强化：至少3个时间框架共振（参考加权共振分析），技术指标增强，总分提升
       - 可用余额充足，加仓金额≤原仓位的50%
       - 该币种加仓次数 < 2次
       - 加仓后总敞口不超过账户净值的${params.leverageMax}倍
@@ -1080,8 +1110,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - ${params.entryCondition}
       - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
       - 做多和做空机会的识别：
-        * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
-        * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
+        * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上（参考加权共振分析，建议MODERATE以上）
+        * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下（参考加权共振分析，建议MODERATE以上）
         * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
