@@ -105,6 +105,8 @@ npm run docker:build
 3. **DO NOT add commented-out old code** - remove it completely
 4. **Follow existing patterns**: Look at how modules like `marketDataCollector`, `accountManager`, `positionSync`, `configManager`, `riskChecker` are structured
 5. **Use dependency injection** - pass required clients and services as parameters
+6. **Follow KISS principle** - Keep It Simple, Stupid
+7. **Write clean code** - Remove unnecessary checks, dead code paths, and complexity
 
 **Key Architectural Principles:**
 - **Separation of Concerns**: Each module handles ONE responsibility
@@ -112,6 +114,27 @@ npm run docker:build
 - **Service Layer**: Business logic in services (`src/application/services/`)
 - **Dependency Injection**: Use container pattern (`src/di/container.ts`)
 - **Standardized Exchange Interface**: Use `IExchangeClient` for all exchange operations
+- **KISS (Keep It Simple, Stupid)**: Prefer simple, straightforward solutions over complex ones
+- **Clean Code**: Remove dead code, unnecessary validations, and redundant logic
+
+**Code Quality Guidelines:**
+
+✅ **DO:**
+- Write code that is easy to read and understand
+- Remove code that will never execute (dead code paths)
+- Use required parameters instead of optional when they're always provided
+- Make function contracts clear through type signatures
+- Remove fallback logic when there's only one code path in production
+- Delete commented-out code instead of keeping it
+- Trust the type system and documented contracts
+
+❌ **DON'T:**
+- Add validation checks for conditions that cannot occur
+- Keep backward compatibility code when there are no backward compatibility needs
+- Use optional parameters when the parameter is always provided
+- Add environment variable fallbacks when database is the single source of truth
+- Keep "just in case" code that adds complexity without benefit
+- Write defensive code for impossible scenarios
 
 **Module Structure Example:**
 ```typescript
