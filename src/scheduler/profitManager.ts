@@ -20,12 +20,14 @@
  * Profit Manager - Automated profit protection and SL/TP management
  *
  * Runs every 30 seconds to:
+ * - Detect closed positions and record SL/TP triggers to trade history
  * - Auto-adjust trailing take-profit orders (single TP for 100% position)
  * - Enforce 36-hour maximum holding time
  * - Peak drawdown protection (30% retracement from peak)
  * - Monitor and maintain SL orders
  *
  * Fully automated - no AI intervention needed for SL/TP management.
+ * Consolidates monitoring that was previously split between profit manager and position sync.
  */
 
 import type { Logger } from "pino";
@@ -33,10 +35,11 @@ import { createContainer } from "../container";
 import { createServices } from "../application/services";
 import { createRepositories } from "../infrastructure/database/repositories";
 import type { TakeProfitOrder } from "../database/schema";
+import { getQuantoMultiplier } from "../utils/contractUtils";
 
 // Initialize container and services
 const container = createContainer();
-const { exchangeClient, logger: tradingLogger } = container;
+const { exchangeClient, database: dbClient, logger: tradingLogger } = container;
 const services = createServices(
   container.exchangeClient,
   container.database,
@@ -49,7 +52,10 @@ export async function runProfitManager(logger: Logger): Promise<void> {
   try {
     logger.info("💰 Profit manager check started");
 
-    // Get all active positions using repository
+    // Step 1: Detect closed positions and check for SL/TP triggers
+    await detectClosedPositions(logger);
+
+    // Step 2: Get all active positions using repository
     const positions = await repos.position.findAllPositions();
 
     if (positions.length === 0) {
@@ -230,5 +236,314 @@ export async function runProfitManager(logger: Logger): Promise<void> {
 
   } catch (error) {
     logger.error(`Profit manager error: ${error}`);
+  }
+}
+
+/**
+ * Detect positions that were closed (in DB but not on exchange)
+ * Check if they were closed by stop-loss or take-profit orders
+ */
+async function detectClosedPositions(logger: Logger): Promise<void> {
+  try {
+    // Fetch positions from exchange and database
+    const exchangePositions = await exchangeClient.getPositions();
+    const dbPositions = await repos.position.findAllPositions();
+
+    const exchangeSymbols = new Set(exchangePositions.map(p => p.symbol));
+
+    for (const dbPos of dbPositions) {
+      const symbol = dbPos.symbol;
+
+      // Position exists in DB but not on exchange - it was closed
+      if (!exchangeSymbols.has(symbol)) {
+        const slOrderId = dbPos.sl_order_id;
+        const tpOrderId = dbPos.tp_order_id;
+        const entryOrderId = dbPos.entry_order_id;
+
+        // Get entry trade data for PnL calculation
+        const entryData = await getEntryTradeData(entryOrderId, symbol);
+
+        // Check stop-loss trigger
+        if (slOrderId) {
+          await checkStopLossTrigger(slOrderId, symbol, entryData, entryOrderId, logger);
+        }
+
+        // Check take-profit trigger
+        await checkTakeProfitTrigger(
+          symbol,
+          tpOrderId || null,
+          dbPos.tp_orders,
+          entryData,
+          entryOrderId,
+          logger
+        );
+
+        // Remove closed position from database
+        await dbClient.execute({
+          sql: 'DELETE FROM positions WHERE symbol = ?',
+          args: [symbol]
+        });
+      }
+    }
+  } catch (error) {
+    logger.error("Failed to detect closed positions:", error as any);
+  }
+}
+
+/**
+ * Get entry trade data for PnL calculations
+ */
+async function getEntryTradeData(entryOrderId: string, symbol: string): Promise<{
+  entryPrice: number;
+  quantity: number;
+  leverage: number;
+  side: 'long' | 'short';
+}> {
+  const defaultData = {
+    entryPrice: 0,
+    quantity: 0,
+    leverage: 1,
+    side: 'long' as const,
+  };
+
+  if (!entryOrderId) {
+    return defaultData;
+  }
+
+  try {
+    const entryTradeResult = await dbClient.execute({
+      sql: "SELECT price, quantity, leverage, side FROM trades WHERE order_id = ? AND type = 'open'",
+      args: [entryOrderId]
+    });
+
+    if (entryTradeResult.rows.length > 0) {
+      const entryTrade = entryTradeResult.rows[0] as any;
+      return {
+        entryPrice: parseFloat(entryTrade.price),
+        quantity: parseFloat(entryTrade.quantity),
+        leverage: parseInt(entryTrade.leverage),
+        side: entryTrade.side,
+      };
+    }
+  } catch (err) {
+    tradingLogger.warn(`Could not fetch entry trade for ${symbol}: ${(err as any).message}`);
+  }
+
+  return defaultData;
+}
+
+/**
+ * Check if stop-loss order was triggered
+ */
+async function checkStopLossTrigger(
+  slOrderId: string,
+  symbol: string,
+  entryData: { entryPrice: number; quantity: number; leverage: number; side: 'long' | 'short' },
+  entryOrderId: string,
+  logger: Logger
+): Promise<void> {
+  try {
+    const order = await exchangeClient.getOrder(slOrderId, symbol);
+
+    // Check if order was filled
+    if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+      // Check if already recorded (prevent duplicates)
+      const existingTrade = await dbClient.execute({
+        sql: 'SELECT order_id FROM trades WHERE order_id = ?',
+        args: [slOrderId]
+      });
+
+      if (existingTrade.rows.length > 0) {
+        tradingLogger.debug(`SL ${slOrderId} already recorded, skipping`);
+        return;
+      }
+
+      logger.info(
+        `🛑 Stop-loss TRIGGERED for ${symbol} (order ${slOrderId}) - Position closed automatically by exchange`
+      );
+
+      // Calculate PnL
+      const quantoMultiplier = await getQuantoMultiplier(symbol);
+      const exitNotional = order.price * entryData.quantity * quantoMultiplier;
+      const exitFee = exitNotional * 0.0005;
+
+      let pnl = 0;
+      if (entryData.entryPrice > 0 && order.price > 0) {
+        const priceChange = entryData.side === 'long'
+          ? (order.price - entryData.entryPrice)
+          : (entryData.entryPrice - order.price);
+        pnl = priceChange * entryData.quantity * quantoMultiplier;
+
+        const entryNotional = entryData.entryPrice * entryData.quantity * quantoMultiplier;
+        const entryFee = entryNotional * 0.0005;
+        pnl = pnl - entryFee - exitFee;
+      }
+
+      // Record close trade
+      await dbClient.execute({
+        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason, entry_order_id)
+              VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?, ?)`,
+        args: [
+          slOrderId,
+          symbol,
+          entryData.side,
+          order.price,
+          entryData.quantity,
+          entryData.leverage,
+          pnl,
+          exitFee,
+          new Date().toISOString(),
+          'stop_loss',
+          entryOrderId
+        ]
+      });
+
+      // Record in agent decisions
+      await dbClient.execute({
+        sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
+              VALUES (?, 0, 'Stop-loss triggered', 'Stop-loss executed', ?, 0, 0)`,
+        args: [
+          new Date().toISOString(),
+          `Stop-loss TRIGGERED: ${symbol} at ${order.price} (PnL: ${pnl.toFixed(2)} USDT, order ${slOrderId})`
+        ]
+      });
+    }
+  } catch (orderError) {
+    tradingLogger.debug(`Could not fetch stop-loss order ${slOrderId} for ${symbol}: ${(orderError as any).message}`);
+  }
+}
+
+/**
+ * Check take-profit trigger - supports both old and new formats
+ */
+async function checkTakeProfitTrigger(
+  symbol: string,
+  tpOrderId: string | null,
+  tpOrdersData: any,
+  entryData: { entryPrice: number; quantity: number; leverage: number; side: 'long' | 'short' },
+  entryOrderId: string,
+  logger: Logger
+): Promise<void> {
+  // Parse TP orders
+  let tpOrders: any[] = [];
+  if (tpOrdersData) {
+    try {
+      tpOrders = Array.isArray(tpOrdersData) ? tpOrdersData : JSON.parse(tpOrdersData);
+    } catch (parseError) {
+      tradingLogger.warn(`Failed to parse tp_orders for ${symbol}`);
+      if (tpOrderId) {
+        // Fallback to old format
+        tpOrders = [{ orderId: tpOrderId, percentage: 100, triggered: false }];
+      }
+    }
+  } else if (tpOrderId) {
+    // Old format: single TP in tp_order_id field
+    tpOrders = [{ orderId: tpOrderId, percentage: 100, triggered: false }];
+  }
+
+  // Check each TP order
+  for (const tp of tpOrders) {
+    if (!tp.triggered) {
+      await checkSingleTakeProfitOrder(
+        symbol,
+        tp.orderId,
+        entryData,
+        entryOrderId,
+        tp.percentage,
+        tp.price,
+        logger
+      );
+    }
+  }
+}
+
+/**
+ * Check a single take-profit order
+ */
+async function checkSingleTakeProfitOrder(
+  symbol: string,
+  orderId: string,
+  entryData: { entryPrice: number; quantity: number; leverage: number; side: 'long' | 'short' },
+  entryOrderId: string,
+  percentage?: number,
+  targetPrice?: number,
+  logger?: Logger
+): Promise<void> {
+  try {
+    const order = await exchangeClient.getOrder(orderId, symbol);
+
+    if (order.status === 'finished' || order.status === 'closed' || order.status === 'filled') {
+      // Check if already recorded
+      const existingTrade = await dbClient.execute({
+        sql: 'SELECT order_id FROM trades WHERE order_id = ?',
+        args: [orderId]
+      });
+
+      if (existingTrade.rows.length > 0) {
+        tradingLogger.debug(`TP ${orderId} already recorded, skipping`);
+        return;
+      }
+
+      const tpInfo = percentage
+        ? `(${percentage}% @ ${targetPrice})`
+        : '';
+      tradingLogger.info(`🎯 Take-profit TRIGGERED for ${symbol} ${tpInfo} (order ${orderId})`);
+
+      // Calculate PnL
+      const quantoMultiplier = await getQuantoMultiplier(symbol);
+      const actualQuantity = percentage
+        ? entryData.quantity * (percentage / 100)
+        : entryData.quantity;
+
+      const exitNotional = order.price * actualQuantity * quantoMultiplier;
+      const exitFee = exitNotional * 0.0005;
+
+      let pnl = 0;
+      if (entryData.entryPrice > 0 && order.price > 0) {
+        const priceChange = entryData.side === 'long'
+          ? (order.price - entryData.entryPrice)
+          : (entryData.entryPrice - order.price);
+        pnl = priceChange * actualQuantity * quantoMultiplier;
+
+        const entryNotional = entryData.entryPrice * actualQuantity * quantoMultiplier;
+        const entryFee = entryNotional * 0.0005;
+        pnl = pnl - entryFee - exitFee;
+      }
+
+      // Record close trade
+      const closeReason = percentage ? 'take_profit_partial' : 'take_profit';
+      await dbClient.execute({
+        sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status, close_reason, entry_order_id)
+              VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, 'closed', ?, ?)`,
+        args: [
+          orderId,
+          symbol,
+          entryData.side,
+          order.price,
+          actualQuantity,
+          entryData.leverage,
+          pnl,
+          exitFee,
+          new Date().toISOString(),
+          closeReason,
+          entryOrderId
+        ]
+      });
+
+      // Record in agent decisions
+      const tpDescription = percentage
+        ? `${symbol} ${percentage}% @ ${order.price}`
+        : `${symbol} at ${order.price}`;
+      await dbClient.execute({
+        sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
+              VALUES (?, 0, 'Take-profit triggered', 'Take-profit executed', ?, 0, 0)`,
+        args: [
+          new Date().toISOString(),
+          `Take-profit TRIGGERED: ${tpDescription} (PnL: ${pnl.toFixed(2)} USDT, order ${orderId})`
+        ]
+      });
+    }
+  } catch (orderError) {
+    tradingLogger.debug(`Could not fetch TP order ${orderId} for ${symbol}: ${(orderError as any).message}`);
   }
 }
