@@ -29,6 +29,10 @@
     "lint": "biome check ./src",
     "lint:fix": "biome check --write ./src",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "volt": "volt",
     "setup": "bash scripts/setup.sh",
     "trading:start": "tsx --env-file=.env ./src",
@@ -91,9 +95,11 @@
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.10.5",
     "@types/node-cron": "^3.0.11",
+    "@vitest/ui": "^4.0.7",
     "tsdown": "^0.15.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.7"
   },
   "engines": {
     "node": ">=20.19.0"
