@@ -34,7 +34,7 @@ export class PositionSynchronizer {
 
       // Get existing DB positions
       const dbResult = await this.database.execute(
-        "SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions"
+        "SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at, peak_pnl_percent FROM positions"
       );
       const dbPositionsMap = new Map(
         dbResult.rows.map((row: any) => [row.symbol, row])
@@ -56,7 +56,7 @@ export class PositionSynchronizer {
 
       // Re-query to get updated tp_orders with triggered status
       const updatedDbResult = await this.database.execute(
-        "SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at FROM positions"
+        "SELECT symbol, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, stop_loss, profit_target, entry_order_id, opened_at, peak_pnl_percent FROM positions"
       );
       const updatedDbPositionsMap = new Map(
         updatedDbResult.rows.map((row: any) => [row.symbol, row])
@@ -527,8 +527,8 @@ export class PositionSynchronizer {
     await this.database.execute({
       sql: `INSERT INTO positions
             (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
-             leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, entry_order_id, opened_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, entry_order_id, opened_at, peak_pnl_percent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         symbol,
         quantity,
@@ -548,6 +548,7 @@ export class PositionSynchronizer {
         dbPos?.sl_orders || null,
         entryOrderId,
         dbPos?.opened_at || new Date().toISOString(),
+        dbPos?.peak_pnl_percent || 0,
       ],
     });
   }
