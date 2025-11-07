@@ -801,6 +801,7 @@ export function createApiRoutes() {
         id: row.id,
         timestamp: row.timestamp,
         symbol: row.symbol,
+        decisionType: row.decision_type,
         vision: row.vision,
         confidenceScore: row.confidence_score,
         reasoning: row.reasoning,

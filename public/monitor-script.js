@@ -644,26 +644,26 @@ class TradingMonitor {
                     'position_sizing': '#EAB308',
                 };
 
-                const categoryColor = categoryColors[lesson.lesson_category] || '#6B7280';
-                const successRate = (lesson.success_rate * 100).toFixed(0);
-                const effectivenessRate = lesson.effectiveness_rate
-                    ? (lesson.effectiveness_rate * 100).toFixed(0)
+                const categoryColor = categoryColors[lesson.category] || '#6B7280';
+                const successRate = (lesson.successRate * 100).toFixed(0);
+                const effectivenessRate = lesson.effectivenessRate
+                    ? (lesson.effectivenessRate * 100).toFixed(0)
                     : 'N/A';
 
-                const confidenceEmoji = lesson.confidence_level === 'high' ? '🔥' :
-                                       lesson.confidence_level === 'medium' ? '⭐' : '💡';
+                const confidenceEmoji = lesson.confidenceLevel === 'high' ? '🔥' :
+                                       lesson.confidenceLevel === 'medium' ? '⭐' : '💡';
 
                 return `
                     <div class="lesson-card" style="border-left-color: ${categoryColor}">
                         <div class="lesson-header">
-                            <span class="lesson-category" style="background: ${categoryColor}">${lesson.lesson_category.replace('_', ' ').toUpperCase()}</span>
-                            <span class="lesson-confidence">${confidenceEmoji} ${lesson.confidence_level}</span>
+                            <span class="lesson-category" style="background: ${categoryColor}">${lesson.category.replace('_', ' ').toUpperCase()}</span>
+                            <span class="lesson-confidence">${confidenceEmoji} ${lesson.confidenceLevel}</span>
                         </div>
-                        <div class="lesson-text">${lesson.lesson_text}</div>
+                        <div class="lesson-text">${lesson.text}</div>
                         <div class="lesson-footer">
                             <span class="lesson-stat">✅ Success: ${successRate}%</span>
                             <span class="lesson-stat">📊 Effectiveness: ${effectivenessRate}%</span>
-                            <span class="lesson-stat">🔢 Applied: ${lesson.times_applied || 0}x</span>
+                            <span class="lesson-stat">🔢 Applied: ${lesson.timesApplied || 0}x</span>
                         </div>
                     </div>
                 `;
@@ -696,16 +696,16 @@ class TradingMonitor {
                     minute: '2-digit',
                 });
 
-                const hasFeedback = refl.feedback_score !== null;
+                const hasFeedback = refl.feedbackScore !== null;
                 const feedbackClass = hasFeedback
-                    ? (refl.feedback_score >= 8 ? 'accurate' : refl.feedback_score <= 4 ? 'inaccurate' : 'neutral')
+                    ? (refl.feedbackScore >= 8 ? 'accurate' : refl.feedbackScore <= 4 ? 'inaccurate' : 'neutral')
                     : 'pending';
 
-                const decisionIcon = refl.decision_type.includes('long') ? '📈' :
-                                    refl.decision_type.includes('short') ? '📉' : '⏸️';
+                const decisionIcon = refl.decisionType.includes('long') ? '📈' :
+                                    refl.decisionType.includes('short') ? '📉' : '⏸️';
 
                 const feedbackText = hasFeedback
-                    ? `Score: ${refl.feedback_score}/10 | PnL: ${refl.pnl_result >= 0 ? '+' : ''}${refl.pnl_result?.toFixed(2) || 'N/A'}`
+                    ? `Score: ${refl.feedbackScore}/10 | PnL: ${refl.pnlResult >= 0 ? '+' : ''}${refl.pnlResult?.toFixed(2) || 'N/A'}`
                     : 'Pending feedback...';
 
                 return `
@@ -713,11 +713,11 @@ class TradingMonitor {
                         <div class="reflection-header">
                             <span class="reflection-symbol">${decisionIcon} ${refl.symbol}</span>
                             <span class="reflection-time">${timestamp}</span>
-                            <span class="reflection-confidence">Confidence: ${refl.confidence_score}/10</span>
+                            <span class="reflection-confidence">Confidence: ${refl.confidenceScore}/10</span>
                         </div>
                         <div class="reflection-vision">"${refl.vision}"</div>
                         <div class="reflection-footer">
-                            <span class="reflection-decision">${refl.decision_type.toUpperCase()}</span>
+                            <span class="reflection-decision">${refl.decisionType.toUpperCase()}</span>
                             <span class="reflection-feedback ${feedbackClass}">${feedbackText}</span>
                         </div>
                     </div>
