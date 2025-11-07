@@ -459,6 +459,11 @@ class TradingMonitor {
             return;
         }
 
+        // Initialize pagination state
+        this.currentReflectionFilter = 'all';
+        this.currentReflectionPage = 0;
+        this.reflectionsPerPage = 5;
+
         // Load initial status
         this.loadLearningStatus();
 
@@ -482,18 +487,35 @@ class TradingMonitor {
                 // Update active state
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
-                // Apply filter
+                // Apply filter and reset to page 1
                 this.currentReflectionFilter = e.target.dataset.filter;
-                this.loadReflections(e.target.dataset.filter);
+                this.currentReflectionPage = 0;
+                this.loadReflections();
             });
         });
+
+        // Add pagination handlers
+        const prevBtn = document.getElementById('prev-page');
+        const nextBtn = document.getElementById('next-page');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (this.currentReflectionPage > 0) {
+                    this.currentReflectionPage--;
+                    this.loadReflections();
+                }
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                this.currentReflectionPage++;
+                this.loadReflections();
+            });
+        }
 
         // Auto-refresh every 30 seconds
         setInterval(() => {
             this.loadLearningStatus();
-            if (this.currentReflectionFilter) {
-                this.loadReflections(this.currentReflectionFilter);
-            }
+            this.loadReflections();
         }, 30000);
     }
 
@@ -536,7 +558,7 @@ class TradingMonitor {
 
             // Load lessons and reflections
             await this.loadLessons();
-            await this.loadReflections(this.currentReflectionFilter || 'all');
+            await this.loadReflections();
 
         } catch (error) {
             console.error('Failed to load learning status:', error);
@@ -675,19 +697,51 @@ class TradingMonitor {
     }
 
     // Load reflections (predictions with outcomes)
-    async loadReflections(filter = 'all') {
+    async loadReflections() {
         try {
-            const response = await fetch(`/api/learning/reflections?filter=${filter}&limit=10`);
+            const offset = this.currentReflectionPage * this.reflectionsPerPage;
+            const response = await fetch(`/api/learning/reflections?filter=${this.currentReflectionFilter}&limit=${this.reflectionsPerPage}&offset=${offset}`);
             const data = await response.json();
 
             const reflectionsList = document.getElementById('reflections-list');
+            const paginationInfo = document.getElementById('pagination-info');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+
             if (!reflectionsList) return;
 
             if (!data.reflections || data.reflections.length === 0) {
                 reflectionsList.innerHTML = '<div class="reflections-empty">No reflections yet. Enable learning and start trading.</div>';
+                // Hide pagination
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = 'none';
+                if (paginationInfo) paginationInfo.textContent = '';
                 return;
             }
 
+            // Show pagination controls
+            if (prevBtn) prevBtn.style.display = 'inline-block';
+            if (nextBtn) nextBtn.style.display = 'inline-block';
+
+            // Update pagination info
+            const currentPage = this.currentReflectionPage + 1;
+            const totalPages = Math.ceil(data.pagination.total / this.reflectionsPerPage);
+            const startItem = offset + 1;
+            const endItem = Math.min(offset + data.reflections.length, data.pagination.total);
+
+            if (paginationInfo) {
+                paginationInfo.textContent = `${startItem}-${endItem} of ${data.pagination.total}`;
+            }
+
+            // Update button states
+            if (prevBtn) {
+                prevBtn.disabled = this.currentReflectionPage === 0;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = !data.pagination.hasMore;
+            }
+
+            // Render reflections
             reflectionsList.innerHTML = data.reflections.map(refl => {
                 const timestamp = new Date(refl.timestamp).toLocaleString('en-US', {
                     month: '2-digit',

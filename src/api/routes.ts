@@ -781,19 +781,28 @@ export function createApiRoutes() {
    */
   app.get("/api/learning/reflections", async (c) => {
     try {
-      const limit = parseInt(c.req.query("limit") || "20");
+      const limit = parseInt(c.req.query("limit") || "5");
+      const offset = parseInt(c.req.query("offset") || "0");
       const filter = c.req.query("filter") || "all"; // all, accurate, inaccurate, pending
 
-      let sql = "SELECT * FROM trading_reflections ORDER BY timestamp DESC LIMIT ?";
-      const args: any[] = [limit];
-
+      // Build WHERE clause based on filter
+      let whereClause = "";
       if (filter === "accurate") {
-        sql = "SELECT * FROM trading_reflections WHERE feedback_score >= 8 ORDER BY timestamp DESC LIMIT ?";
+        whereClause = "WHERE feedback_score >= 8";
       } else if (filter === "inaccurate") {
-        sql = "SELECT * FROM trading_reflections WHERE feedback_score <= 4 ORDER BY timestamp DESC LIMIT ?";
+        whereClause = "WHERE feedback_score <= 4";
       } else if (filter === "pending") {
-        sql = "SELECT * FROM trading_reflections WHERE feedback_score IS NULL ORDER BY timestamp DESC LIMIT ?";
+        whereClause = "WHERE feedback_score IS NULL";
       }
+
+      // Get total count for pagination
+      const countSql = `SELECT COUNT(*) as total FROM trading_reflections ${whereClause}`;
+      const countResult = await dbClient.execute({ sql: countSql, args: [] });
+      const totalCount = (countResult.rows[0] as any).total;
+
+      // Get paginated reflections
+      const sql = `SELECT * FROM trading_reflections ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
+      const args: any[] = [limit, offset];
 
       const result = await dbClient.execute({ sql, args });
 
@@ -815,7 +824,15 @@ export function createApiRoutes() {
         pnlResult: row.pnl_result,
       }));
 
-      return c.json({ reflections });
+      return c.json({
+        reflections,
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
+        },
+      });
     } catch (error: any) {
       return c.json({ error: error.message }, 500);
     }
