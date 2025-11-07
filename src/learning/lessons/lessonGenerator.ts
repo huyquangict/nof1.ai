@@ -47,6 +47,17 @@ export interface ParsedLesson {
  * Creates a comprehensive analysis prompt with winning and losing reflections
  */
 function generateLessonPrompt(winners: any[], losers: any[]): string {
+  // Helper to format indicators for readability
+  const formatIndicators = (indicatorsJson: string | null): string => {
+    if (!indicatorsJson) return 'N/A';
+    try {
+      const ind = JSON.parse(indicatorsJson);
+      return `EMA(20)=${ind.ema_20?.toFixed(2) || 'N/A'}, EMA(50)=${ind.ema_50?.toFixed(2) || 'N/A'}, MACD=${ind.macd?.toFixed(4) || 'N/A'}, RSI(7)=${ind.rsi_7?.toFixed(1) || 'N/A'}, RSI(14)=${ind.rsi_14?.toFixed(1) || 'N/A'}, ATR=${ind.atr_14?.toFixed(2) || 'N/A'}`;
+    } catch {
+      return 'N/A';
+    }
+  };
+
   return `You are an expert trading analyst. Analyze these recent trading predictions and outcomes to extract actionable lessons.
 
 📊 WINNING PREDICTIONS (Feedback Score ≥ 7):
@@ -60,6 +71,10 @@ Price Change: ${w.price_change_percent?.toFixed(2)}%
 Feedback Score: ${w.feedback_score}/10
 PnL: ${w.pnl_result ? `$${w.pnl_result.toFixed(2)}` : 'N/A'}
 Outcome: ${w.outcome_type}
+Close Price: ${w.close_price ? `$${w.close_price.toFixed(2)}` : 'N/A'}
+Close Reason: ${w.close_reason || 'N/A'}
+Decision Indicators: ${formatIndicators(w.decision_indicators)}
+Close Indicators: ${formatIndicators(w.close_indicators)}
 Reflection ID: ${w.id}
 `).join('\n---\n')}
 
@@ -74,6 +89,10 @@ Price Change: ${l.price_change_percent?.toFixed(2)}%
 Feedback Score: ${l.feedback_score}/10
 PnL: ${l.pnl_result ? `$${l.pnl_result.toFixed(2)}` : 'N/A'}
 Outcome: ${l.outcome_type}
+Close Price: ${l.close_price ? `$${l.close_price.toFixed(2)}` : 'N/A'}
+Close Reason: ${l.close_reason || 'N/A'}
+Decision Indicators: ${formatIndicators(l.decision_indicators)}
+Close Indicators: ${formatIndicators(l.close_indicators)}
 Reflection ID: ${l.id}
 `).join('\n---\n')}
 
@@ -82,6 +101,12 @@ Extract 3-5 **specific, actionable lessons** that explain:
 1. What patterns/signals led to winning predictions?
 2. What patterns/signals led to losing predictions?
 3. What should the AI do differently?
+
+**Pay special attention to:**
+- Technical indicator values at decision time vs close time
+- Close reasons (manual, stop_loss, take_profit, etc.) and their correlation with outcomes
+- Indicator divergences or confirmations between decision and close
+- Patterns in how indicators changed for winners vs losers
 
 FORMAT EACH LESSON AS:
 [CATEGORY: entry_timing|exit_timing|risk_management|symbol_behavior|market_conditions|time_of_day|funding_rate]
