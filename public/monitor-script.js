@@ -689,9 +689,9 @@ class TradingMonitor {
                 };
 
                 const categoryColor = categoryColors[lesson.category] || '#6B7280';
-                const successRate = (lesson.successRate * 100).toFixed(0);
+                const successRate = lesson.successRate.toFixed(0);
                 const effectivenessRate = lesson.effectivenessRate
-                    ? (lesson.effectivenessRate * 100).toFixed(0)
+                    ? lesson.effectivenessRate.toFixed(0)
                     : 'N/A';
 
                 const confidenceEmoji = lesson.confidenceLevel === 'high' ? '🔥' :
