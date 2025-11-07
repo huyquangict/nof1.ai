@@ -13,6 +13,48 @@ open-nof1.ai is an AI-powered cryptocurrency automated trading system built on t
 - Database: LibSQL/SQLite for local persistence
 - Runtime: Node.js 20+ with TypeScript
 
+## ⚠️ CRITICAL: Tool Definition Standard
+
+**ALL tools in this codebase MUST use VoltAgent's `createTool()` API, NOT Vercel AI SDK's `tool()` function.**
+
+```typescript
+// ✅ CORRECT - Use this for ALL tools
+import { createTool } from "@voltagent/core";
+import { z } from "zod";
+
+export const myToolName = createTool({
+  name: "myToolName",  // ← REQUIRED: Explicit name property
+  description: "Tool description here",
+  parameters: z.object({
+    param1: z.string().describe("Parameter description"),
+  }),
+  execute: async ({ param1 }) => {
+    // Implementation
+    return { success: true, message: "Done" };
+  },
+});
+
+// ❌ WRONG - Do NOT use Vercel AI SDK's tool()
+import { tool } from "ai";  // ← NEVER USE THIS
+export const myToolName = tool({ ... });
+```
+
+**Why this matters:**
+- VoltAgent's `createTool()` ensures proper tool registration with the agent
+- Using `tool()` from Vercel AI SDK causes tools to be invisible to the LLM
+- All existing tools use `createTool()` - new tools must follow this pattern
+- The `name` property is REQUIRED and must match the exported constant name
+
+**Locations of tool definitions:**
+- `src/tools/trading/` - Trading execution, market data, account management
+- `src/tools/learning/` - AI learning system tools
+
+**When adding new tools:**
+1. Always use `createTool` from `@voltagent/core`
+2. Add explicit `name` property matching the exported constant
+3. Register the tool in `src/agents/tradingAgent.ts` tools array
+4. Test that the LLM can actually call the tool
+
 ## Essential Commands
 
 ### Development and Testing
