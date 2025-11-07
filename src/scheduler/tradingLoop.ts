@@ -33,6 +33,14 @@ import {
   type TimeframeIndicators,
 } from "../utils/confluenceScoring";
 import { getIndicatorCache, type CachedIndicators } from "../utils/indicatorCache";
+import {
+  calculateBollingerBands,
+  calculateVWAP,
+  calculateOBV,
+  detectDivergence,
+  detectSupportResistance,
+  findNearestLevels,
+} from "../utils/phase2Indicators";
 
 const logger = createPinoLogger({
   name: "trading-loop",
@@ -208,6 +216,61 @@ async function collectMarketData() {
       // Log confluence analysis results
       logger.info(`\n${symbol} Confluence Analysis:\n${formatConfluenceResult(confluenceResult)}`);
 
+      // Phase 2: Divergence Detection (using 5m timeframe for reliability)
+      const closes5m = candles5m.map((c: any) => Number.parseFloat(c.c || "0")).filter((n: number) => Number.isFinite(n));
+
+      // Calculate MACD series for divergence detection
+      const macdSeries: number[] = [];
+      for (let i = 0; i < closes5m.length; i++) {
+        const historicalPrices = closes5m.slice(0, i + 1);
+        macdSeries.push(historicalPrices.length >= 26 ? calcMACD(historicalPrices) : 0);
+      }
+
+      // Calculate RSI14 series for divergence detection
+      const rsiSeries: number[] = [];
+      for (let i = 0; i < closes5m.length; i++) {
+        const historicalPrices = closes5m.slice(0, i + 1);
+        rsiSeries.push(historicalPrices.length >= 15 ? calcRSI(historicalPrices, 14) : 50);
+      }
+
+      // Detect MACD divergence
+      const macdDivergence = detectDivergence(closes5m, macdSeries, 5, 10);
+
+      // Detect RSI divergence
+      const rsiDivergence = detectDivergence(closes5m, rsiSeries, 5, 10);
+
+      // Phase 2: Support/Resistance Detection (using 1h timeframe for reliability)
+      const srLevels = detectSupportResistance(candles1h, 100, 0.005);
+      const nearestLevels = findNearestLevels(currentPrice, srLevels);
+
+      // Log Phase 2 indicators
+      if (macdDivergence.type || rsiDivergence.type) {
+        logger.info(`${symbol} Divergence Signals:`);
+        if (macdDivergence.type) {
+          logger.info(`  MACD: ${macdDivergence.type} divergence (strength: ${macdDivergence.strength.toFixed(1)}/10)`);
+        }
+        if (rsiDivergence.type) {
+          logger.info(`  RSI: ${rsiDivergence.type} divergence (strength: ${rsiDivergence.strength.toFixed(1)}/10)`);
+        }
+      }
+
+      if (srLevels.length > 0) {
+        logger.info(`${symbol} Support/Resistance Levels:`);
+        const supports = srLevels.filter(l => l.type === 'support').slice(0, 3);
+        const resistances = srLevels.filter(l => l.type === 'resistance').slice(0, 3);
+
+        if (supports.length > 0) {
+          logger.info(`  Support: ${supports.map(s => `${s.price.toFixed(2)} (${s.touches} touches)`).join(', ')}`);
+        }
+        if (resistances.length > 0) {
+          logger.info(`  Resistance: ${resistances.map(r => `${r.price.toFixed(2)} (${r.touches} touches)`).join(', ')}`);
+        }
+
+        if (nearestLevels.nearestSupport || nearestLevels.nearestResistance) {
+          logger.info(`  Nearest: ${nearestLevels.nearestSupport ? `Support at ${nearestLevels.nearestSupport.price.toFixed(2)} (-${nearestLevels.distanceToSupport.toFixed(2)}%)` : ''} ${nearestLevels.nearestResistance ? `Resistance at ${nearestLevels.nearestResistance.price.toFixed(2)} (+${nearestLevels.distanceToResistance.toFixed(2)}%)` : ''}`);
+        }
+      }
+
       // 将各时间框架指标添加到市场数据
       marketData[symbol] = {
         price: currentPrice,
@@ -230,6 +293,31 @@ async function collectMarketData() {
         },
         // Phase 1优化：添加加权共振评分
         confluence: confluenceResult,
+        // Phase 2: Divergence Signals
+        divergence: {
+          macd: {
+            type: macdDivergence.type,
+            strength: macdDivergence.strength,
+            pricePoints: macdDivergence.pricePoints,
+            indicatorPoints: macdDivergence.indicatorPoints,
+          },
+          rsi: {
+            type: rsiDivergence.type,
+            strength: rsiDivergence.strength,
+            pricePoints: rsiDivergence.pricePoints,
+            indicatorPoints: rsiDivergence.indicatorPoints,
+          },
+        },
+        // Phase 2: Support/Resistance Levels
+        supportResistance: {
+          levels: srLevels,
+          support: srLevels.filter(l => l.type === 'support'),
+          resistance: srLevels.filter(l => l.type === 'resistance'),
+          nearestSupport: nearestLevels.nearestSupport,
+          nearestResistance: nearestLevels.nearestResistance,
+          distanceToSupport: nearestLevels.distanceToSupport,
+          distanceToResistance: nearestLevels.distanceToResistance,
+        },
       };
       
       // 保存技术指标到数据库（确保所有数值都是有效的）
@@ -479,6 +567,16 @@ function calculateIndicators(candles: any[]) {
       rsi14: 50,
       volume: 0,
       avgVolume: 0,
+      // Phase 2 indicators
+      bbUpper: 0,
+      bbMiddle: 0,
+      bbLower: 0,
+      bbPercent: 0.5,
+      bbBandwidth: 0,
+      vwap: 0,
+      vwapDeviation: 0,
+      obv: 0,
+      obvEma20: 0,
     };
   }
 
@@ -524,18 +622,58 @@ function calculateIndicators(candles: any[]) {
       rsi14: 50,
       volume: 0,
       avgVolume: 0,
+      // Phase 2 indicators
+      bbUpper: 0,
+      bbMiddle: 0,
+      bbLower: 0,
+      bbPercent: 0.5,
+      bbBandwidth: 0,
+      vwap: 0,
+      vwapDeviation: 0,
+      obv: 0,
+      obvEma20: 0,
     };
   }
 
+  // Phase 1 indicators
+  const currentPrice = ensureFinite(closes.at(-1) || 0);
+  const ema20 = ensureFinite(calcEMA(closes, 20));
+  const ema50 = ensureFinite(calcEMA(closes, 50));
+  const macd = ensureFinite(calcMACD(closes));
+  const rsi7 = ensureRange(calcRSI(closes, 7), 0, 100, 50);
+  const rsi14 = ensureRange(calcRSI(closes, 14), 0, 100, 50);
+  const volume = ensureFinite(volumes.at(-1) || 0);
+  const avgVolume = ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0);
+
+  // Phase 2: Bollinger Bands
+  const bb = calculateBollingerBands(closes, 20, 2);
+
+  // Phase 2: VWAP
+  const vwapResult = calculateVWAP(candles);
+
+  // Phase 2: OBV
+  const obvResult = calculateOBV(candles);
+
   return {
-    currentPrice: ensureFinite(closes.at(-1) || 0),
-    ema20: ensureFinite(calcEMA(closes, 20)),
-    ema50: ensureFinite(calcEMA(closes, 50)),
-    macd: ensureFinite(calcMACD(closes)),
-    rsi7: ensureRange(calcRSI(closes, 7), 0, 100, 50),
-    rsi14: ensureRange(calcRSI(closes, 14), 0, 100, 50),
-    volume: ensureFinite(volumes.at(-1) || 0),
-    avgVolume: ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0),
+    // Phase 1
+    currentPrice,
+    ema20,
+    ema50,
+    macd,
+    rsi7,
+    rsi14,
+    volume,
+    avgVolume,
+    // Phase 2
+    bbUpper: ensureFinite(bb.upper),
+    bbMiddle: ensureFinite(bb.middle),
+    bbLower: ensureFinite(bb.lower),
+    bbPercent: ensureFinite(bb.percentB),
+    bbBandwidth: ensureFinite(bb.bandwidth),
+    vwap: ensureFinite(vwapResult.vwap),
+    vwapDeviation: ensureFinite(vwapResult.deviation),
+    obv: ensureFinite(obvResult.obv),
+    obvEma20: ensureFinite(obvResult.obvEma20),
   };
 }
 

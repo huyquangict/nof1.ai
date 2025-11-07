@@ -36,15 +36,26 @@ export interface TimeframeIndicators {
   rsi14: number;
   volume: number;
   avgVolume?: number;
+  // Phase 2: Advanced indicators
+  bbPercent?: number;        // Bollinger %B
+  bbBandwidth?: number;      // Bollinger Bandwidth
+  vwapDeviation?: number;    // VWAP deviation percentage
+  obv?: number;              // On Balance Volume
+  obvEma20?: number;         // OBV EMA20
 }
 
 export interface SignalScore {
+  // Phase 1: Basic indicators (5 × 10 = 50 points)
   priceVsEma20: number;     // 0-10分：价格相对EMA20的距离
   priceVsEma50: number;     // 0-10分：价格相对EMA50的距离
   macdStrength: number;     // 0-10分：MACD强度
   rsiPosition: number;      // 0-10分：RSI偏离中性位置的程度
   volumeConfirmation: number; // 0-10分：成交量确认
-  totalScore: number;       // 总分（0-50）
+  // Phase 2: Advanced indicators (3 × 10 = 30 points)
+  bollingerPosition: number;  // 0-10分：Bollinger %B位置
+  vwapAlignment: number;      // 0-10分：VWAP偏离度
+  obvConfirmation: number;    // 0-10分：OBV趋势确认
+  totalScore: number;       // 总分（0-80, Phase1: 50 + Phase2: 30）
   direction: "BULLISH" | "BEARISH" | "NEUTRAL"; // 方向
 }
 
@@ -166,6 +177,73 @@ function calculateVolumeScore(volume: number, avgVolume: number = 0): number {
 }
 
 /**
+ * Phase 2: 计算Bollinger Bands位置评分
+ *
+ * @param bbPercent Bollinger %B值 (0 = lower band, 0.5 = middle, 1 = upper band)
+ * @returns 0-10分，越偏离中线分数越高
+ */
+function calculateBollingerScore(bbPercent: number = 0.5): number {
+  if (!Number.isFinite(bbPercent)) return 0;
+
+  // %B=0.5 (middle) → 0 points (neutral)
+  // %B=0.0 or 1.0 (bands) → 5 points (moderate)
+  // %B<0 or >1 (outside) → 10 points (extreme)
+  const deviation = Math.abs(bbPercent - 0.5);
+
+  if (bbPercent < 0 || bbPercent > 1) {
+    // Outside bands - extreme condition
+    return 10;
+  } else {
+    // Inside bands - scale linearly
+    // deviation 0-0.5 maps to score 0-10
+    return Math.min(deviation * 20, 10);
+  }
+}
+
+/**
+ * Phase 2: 计算VWAP偏离度评分
+ *
+ * @param vwapDeviation VWAP偏离百分比
+ * @returns 0-10分，偏离度越大分数越高
+ */
+function calculateVwapScore(vwapDeviation: number = 0): number {
+  if (!Number.isFinite(vwapDeviation)) return 0;
+
+  // Deviation < 0.5% → 2 points
+  // Deviation 1% → 5 points
+  // Deviation > 2% → 10 points
+  const absDeviation = Math.abs(vwapDeviation);
+  const score = Math.min(absDeviation * 5, 10);
+
+  return score;
+}
+
+/**
+ * Phase 2: 计算OBV趋势确认评分
+ *
+ * @param obv OBV当前值
+ * @param obvEma20 OBV的EMA20
+ * @returns 0-10分，OBV与EMA对齐程度越高分数越高
+ */
+function calculateObvScore(obv: number = 0, obvEma20: number = 0): number {
+  if (!Number.isFinite(obv) || !Number.isFinite(obvEma20)) return 0;
+  if (obvEma20 === 0) return 5; // 默认中等分数
+
+  // OBV aligned with EMA → higher score
+  // Calculate percentage difference
+  const diff = Math.abs(obv - obvEma20);
+  const deviation = diff / Math.abs(obvEma20);
+
+  // deviation 0% → 10 points (perfect alignment)
+  // deviation 10% → 8 points
+  // deviation 50% → 5 points
+  // deviation 100%+ → 0 points
+  const score = Math.max(10 - deviation * 20, 0);
+
+  return Math.min(score, 10);
+}
+
+/**
  * 判断信号方向
  *
  * @param price 当前价格
@@ -214,13 +292,21 @@ function determineDirection(
  * @returns 信号评分
  */
 export function calculateTimeframeSignalScore(indicators: TimeframeIndicators): SignalScore {
+  // Phase 1: Basic indicators (5 components × 10 points = 50)
   const priceVsEma20 = calculatePriceEmaScore(indicators.currentPrice, indicators.ema20);
   const priceVsEma50 = calculatePriceEmaScore(indicators.currentPrice, indicators.ema50);
   const macdStrength = calculateMacdScore(indicators.macd);
   const rsiPosition = calculateRsiScore(indicators.rsi14);
   const volumeConfirmation = calculateVolumeScore(indicators.volume, indicators.avgVolume);
 
-  const totalScore = priceVsEma20 + priceVsEma50 + macdStrength + rsiPosition + volumeConfirmation;
+  // Phase 2: Advanced indicators (3 components × 10 points = 30)
+  const bollingerPosition = calculateBollingerScore(indicators.bbPercent);
+  const vwapAlignment = calculateVwapScore(indicators.vwapDeviation);
+  const obvConfirmation = calculateObvScore(indicators.obv, indicators.obvEma20);
+
+  // Total score: Phase 1 (50) + Phase 2 (30) = 80 points
+  const totalScore = priceVsEma20 + priceVsEma50 + macdStrength + rsiPosition + volumeConfirmation
+                   + bollingerPosition + vwapAlignment + obvConfirmation;
 
   const direction = determineDirection(
     indicators.currentPrice,
@@ -236,6 +322,9 @@ export function calculateTimeframeSignalScore(indicators: TimeframeIndicators): 
     macdStrength,
     rsiPosition,
     volumeConfirmation,
+    bollingerPosition,
+    vwapAlignment,
+    obvConfirmation,
     totalScore,
     direction,
   };
@@ -282,9 +371,11 @@ export function calculateWeightedConfluence(timeframes: TimeframeIndicators[]): 
   const alignmentPercent = totalTimeframes > 0 ? (alignedTimeframes / totalTimeframes) * 100 : 0;
 
   // 归一化总分到0-100
-  // 最大可能分数：每个指标10分 × 5个指标 = 50分/时间框架
-  // 最大加权分数：50 × 最大权重和
-  const maxPossibleScore = 50 * totalWeight;
+  // Phase 1: 5个指标 × 10分 = 50分/时间框架
+  // Phase 2: 3个指标 × 10分 = 30分/时间框架
+  // 最大可能分数：80分/时间框架
+  // 最大加权分数：80 × 最大权重和
+  const maxPossibleScore = 80 * totalWeight;
   const totalScore = maxPossibleScore > 0 ? (totalWeightedScore / maxPossibleScore) * 100 : 0;
 
   // 判断整体方向
@@ -326,7 +417,7 @@ export function formatConfluenceResult(result: ConfluenceResult): string {
 
   lines.push(`【加权共振分析】`);
   lines.push(`总分: ${result.totalScore.toFixed(1)}/100`);
-  lines.push(`平均分: ${result.averageScore.toFixed(1)}/50`);
+  lines.push(`平均分: ${result.averageScore.toFixed(1)}/80`);
   lines.push(`对齐度: ${result.alignedTimeframes}/${result.totalTimeframes} (${result.alignmentPercent.toFixed(1)}%)`);
   lines.push(`整体方向: ${result.overallDirection}`);
   lines.push(`信号质量: ${result.signalQuality}`);
@@ -336,12 +427,10 @@ export function formatConfluenceResult(result: ConfluenceResult): string {
   for (const score of result.scores) {
     lines.push(`${score.interval} (权重${score.weight}x):`);
     lines.push(`  方向: ${score.signals.direction}`);
-    lines.push(`  价格-EMA20: ${score.signals.priceVsEma20.toFixed(1)}/10`);
-    lines.push(`  价格-EMA50: ${score.signals.priceVsEma50.toFixed(1)}/10`);
-    lines.push(`  MACD强度: ${score.signals.macdStrength.toFixed(1)}/10`);
-    lines.push(`  RSI位置: ${score.signals.rsiPosition.toFixed(1)}/10`);
-    lines.push(`  成交量: ${score.signals.volumeConfirmation.toFixed(1)}/10`);
-    lines.push(`  小计: ${score.signals.totalScore.toFixed(1)}/50 → 加权: ${score.weightedScore.toFixed(1)}`);
+    lines.push(`  [Phase 1] 价格-EMA20: ${score.signals.priceVsEma20.toFixed(1)}/10, 价格-EMA50: ${score.signals.priceVsEma50.toFixed(1)}/10`);
+    lines.push(`  [Phase 1] MACD强度: ${score.signals.macdStrength.toFixed(1)}/10, RSI位置: ${score.signals.rsiPosition.toFixed(1)}/10, 成交量: ${score.signals.volumeConfirmation.toFixed(1)}/10`);
+    lines.push(`  [Phase 2] Bollinger: ${score.signals.bollingerPosition.toFixed(1)}/10, VWAP: ${score.signals.vwapAlignment.toFixed(1)}/10, OBV: ${score.signals.obvConfirmation.toFixed(1)}/10`);
+    lines.push(`  小计: ${score.signals.totalScore.toFixed(1)}/80 → 加权: ${score.weightedScore.toFixed(1)}`);
     lines.push(``);
   }
 

@@ -35,6 +35,7 @@
  */
 
 export interface CachedIndicators {
+  // Phase 1: Basic indicators
   ema20: number;
   ema50: number;
   macd: number;
@@ -45,6 +46,17 @@ export interface CachedIndicators {
   atr3?: number;
   atr14?: number;
   priceChange20?: number;
+
+  // Phase 2: Advanced indicators
+  bbUpper: number;
+  bbMiddle: number;
+  bbLower: number;
+  bbPercent: number;
+  bbBandwidth: number;
+  vwap: number;
+  vwapDeviation: number;
+  obv: number;
+  obvEma20: number;
 }
 
 interface CacheEntry {

@@ -13,6 +13,19 @@ import {
 describe('Indicator Cache System', () => {
   let cache: IndicatorCache;
 
+  // Helper: Default Phase 2 indicator values for tests
+  const defaultPhase2Values = {
+    bbUpper: 0,
+    bbMiddle: 0,
+    bbLower: 0,
+    bbPercent: 0.5,
+    bbBandwidth: 0,
+    vwap: 0,
+    vwapDeviation: 0,
+    obv: 0,
+    obvEma20: 0,
+  };
+
   beforeEach(() => {
     cache = new IndicatorCache(60000, 100); // 60s TTL, 100 max size
   });
@@ -32,6 +45,7 @@ describe('Indicator Cache System', () => {
         rsi14: 60,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1234567890, indicators);
@@ -54,6 +68,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -72,6 +87,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       const ethIndicators: CachedIndicators = {
@@ -82,6 +98,7 @@ describe('Indicator Cache System', () => {
         rsi14: 65,
         volume: 2000,
         avgVolume: 1800,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, btcIndicators);
@@ -106,6 +123,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -131,6 +149,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -155,6 +174,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -185,6 +205,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -240,6 +261,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -269,6 +291,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -294,6 +317,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -323,6 +347,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -360,6 +385,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache1.set('BTC', '1h', 1000, indicators);
@@ -379,6 +405,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache1.set('BTC', '1h', 1000, indicators);
@@ -403,6 +430,7 @@ describe('Indicator Cache System', () => {
         rsi14: 99.888,
         volume: 1e12,
         avgVolume: 9e11,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1234567890000, indicators);
@@ -420,6 +448,7 @@ describe('Indicator Cache System', () => {
         rsi14: 0,
         volume: 0,
         avgVolume: 0,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC', '1h', 1000, indicators);
@@ -437,6 +466,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
         atr3: 2.5,
         atr14: 3.2,
         priceChange20: 5.5,
@@ -460,6 +490,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       cache.set('BTC-USD', '1h', 1000, indicators);
@@ -484,6 +515,7 @@ describe('Indicator Cache System', () => {
         rsi14: 55,
         volume: 1000,
         avgVolume: 900,
+        ...defaultPhase2Values,
       };
 
       // Perform 1000 set operations

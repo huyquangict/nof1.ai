@@ -651,6 +651,137 @@ Current market status for all symbols
       }
       prompt += `\n`;
     }
+
+    // Phase 2: Advanced Technical Indicators
+    prompt += `[Phase 2: Advanced Technical Indicators]\n`;
+
+    // Bollinger Bands
+    if (data.bbUpper !== undefined && data.bbMiddle !== undefined && data.bbLower !== undefined) {
+      prompt += `Bollinger Bands (20, 2):\n`;
+      prompt += `  Upper: ${data.bbUpper.toFixed(2)}, Middle: ${data.bbMiddle.toFixed(2)}, Lower: ${data.bbLower.toFixed(2)}\n`;
+      prompt += `  %B: ${data.bbPercent.toFixed(3)} (0=lower band, 0.5=middle, 1=upper band)\n`;
+      prompt += `  Bandwidth: ${(data.bbBandwidth * 100).toFixed(2)}% (${data.bbBandwidth < 0.02 ? 'SQUEEZE - low volatility' : data.bbBandwidth > 0.08 ? 'EXPANSION - high volatility' : 'NORMAL'})\n`;
+
+      // Interpretation
+      if (data.bbPercent > 1.0) {
+        prompt += `  → Price ABOVE upper band (overbought, possible pullback)\n`;
+      } else if (data.bbPercent < 0.0) {
+        prompt += `  → Price BELOW lower band (oversold, possible bounce)\n`;
+      } else if (data.bbPercent > 0.7) {
+        prompt += `  → Price approaching upper band (bullish momentum)\n`;
+      } else if (data.bbPercent < 0.3) {
+        prompt += `  → Price approaching lower band (bearish momentum)\n`;
+      } else {
+        prompt += `  → Price near middle band (neutral zone)\n`;
+      }
+      prompt += `\n`;
+    }
+
+    // VWAP
+    if (data.vwap !== undefined) {
+      prompt += `VWAP (Volume Weighted Average Price):\n`;
+      prompt += `  VWAP: ${data.vwap.toFixed(2)}, Current: ${data.price.toFixed(2)}, Deviation: ${data.vwapDeviation >= 0 ? '+' : ''}${data.vwapDeviation.toFixed(2)}%\n`;
+
+      // Interpretation
+      if (data.vwapDeviation > 2) {
+        prompt += `  → Price significantly ABOVE VWAP (+${data.vwapDeviation.toFixed(2)}%) - strong bullish, watch for mean reversion\n`;
+      } else if (data.vwapDeviation < -2) {
+        prompt += `  → Price significantly BELOW VWAP (${data.vwapDeviation.toFixed(2)}%) - strong bearish, watch for mean reversion\n`;
+      } else if (data.vwapDeviation > 0) {
+        prompt += `  → Price above VWAP (buyers in control)\n`;
+      } else {
+        prompt += `  → Price below VWAP (sellers in control)\n`;
+      }
+      prompt += `\n`;
+    }
+
+    // OBV
+    if (data.obv !== undefined && data.obvEma20 !== undefined) {
+      prompt += `OBV (On Balance Volume):\n`;
+      prompt += `  OBV: ${data.obv.toFixed(0)}, EMA20: ${data.obvEma20.toFixed(0)}\n`;
+
+      // Interpretation
+      const obvTrend = data.obv > data.obvEma20 ? 'rising (accumulation)' : 'falling (distribution)';
+      prompt += `  → OBV ${obvTrend}\n`;
+      prompt += `\n`;
+    }
+
+    // Divergence Signals
+    if (data.divergence) {
+      const hasDivergence = data.divergence.macd?.type || data.divergence.rsi?.type;
+
+      if (hasDivergence) {
+        prompt += `[⚠️ Divergence Signals - Potential Reversal]\n`;
+
+        if (data.divergence.macd?.type) {
+          const macd = data.divergence.macd;
+          prompt += `MACD Divergence: ${macd.type.toUpperCase()} (strength: ${macd.strength.toFixed(1)}/10)\n`;
+          if (macd.pricePoints && macd.indicatorPoints) {
+            prompt += `  Price: ${macd.pricePoints[0].toFixed(2)} → ${macd.pricePoints[1].toFixed(2)}\n`;
+            prompt += `  MACD: ${macd.indicatorPoints[0].toFixed(3)} → ${macd.indicatorPoints[1].toFixed(3)}\n`;
+          }
+          if (macd.type === 'bullish') {
+            prompt += `  → Price making lower lows but MACD making higher lows (bullish reversal signal)\n`;
+          } else {
+            prompt += `  → Price making higher highs but MACD making lower highs (bearish reversal signal)\n`;
+          }
+        }
+
+        if (data.divergence.rsi?.type) {
+          const rsi = data.divergence.rsi;
+          prompt += `RSI Divergence: ${rsi.type.toUpperCase()} (strength: ${rsi.strength.toFixed(1)}/10)\n`;
+          if (rsi.pricePoints && rsi.indicatorPoints) {
+            prompt += `  Price: ${rsi.pricePoints[0].toFixed(2)} → ${rsi.pricePoints[1].toFixed(2)}\n`;
+            prompt += `  RSI: ${rsi.indicatorPoints[0].toFixed(2)} → ${rsi.indicatorPoints[1].toFixed(2)}\n`;
+          }
+          if (rsi.type === 'bullish') {
+            prompt += `  → Price making lower lows but RSI making higher lows (bullish reversal signal)\n`;
+          } else {
+            prompt += `  → Price making higher highs but RSI making lower highs (bearish reversal signal)\n`;
+          }
+        }
+        prompt += `\n`;
+      }
+    }
+
+    // Support/Resistance Levels
+    if (data.supportResistance && (data.supportResistance.support.length > 0 || data.supportResistance.resistance.length > 0)) {
+      prompt += `[Support/Resistance Levels]\n`;
+
+      // Display nearest levels first
+      if (data.supportResistance.nearestSupport || data.supportResistance.nearestResistance) {
+        prompt += `Nearest Levels:\n`;
+        if (data.supportResistance.nearestSupport) {
+          const s = data.supportResistance.nearestSupport;
+          prompt += `  Support: ${s.price.toFixed(2)} (-${data.supportResistance.distanceToSupport.toFixed(2)}%, ${s.touches} touches, strength: ${s.strength.toFixed(1)})\n`;
+        }
+        if (data.supportResistance.nearestResistance) {
+          const r = data.supportResistance.nearestResistance;
+          prompt += `  Resistance: ${r.price.toFixed(2)} (+${data.supportResistance.distanceToResistance.toFixed(2)}%, ${r.touches} touches, strength: ${r.strength.toFixed(1)})\n`;
+        }
+        prompt += `\n`;
+      }
+
+      // Display top support levels
+      if (data.supportResistance.support.length > 0) {
+        const topSupports = data.supportResistance.support.slice(0, 3);
+        prompt += `Key Support Levels:\n`;
+        for (const s of topSupports) {
+          prompt += `  ${s.price.toFixed(2)} (${s.touches} touches, strength: ${s.strength.toFixed(1)})\n`;
+        }
+        prompt += `\n`;
+      }
+
+      // Display top resistance levels
+      if (data.supportResistance.resistance.length > 0) {
+        const topResistances = data.supportResistance.resistance.slice(0, 3);
+        prompt += `Key Resistance Levels:\n`;
+        for (const r of topResistances) {
+          prompt += `  ${r.price.toFixed(2)} (${r.touches} touches, strength: ${r.strength.toFixed(1)})\n`;
+        }
+        prompt += `\n`;
+      }
+    }
   }
 
   // Account info and performance (following 1.md format)
