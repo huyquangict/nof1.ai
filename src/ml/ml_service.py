@@ -10,12 +10,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from contextlib import asynccontextmanager
 
 import numpy as np
 import pandas as pd
 import xgboost as xgb
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import joblib
 
 # Configure logging
@@ -24,13 +25,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Initialize FastAPI
-app = FastAPI(
-    title="nof1.ai ML Service",
-    description="XGBoost-powered trading signal prediction service",
-    version="1.0.0"
-)
 
 # Paths
 BASE_DIR = Path(__file__).parent
@@ -42,6 +36,37 @@ DATA_DIR.mkdir(exist_ok=True)
 # Global model cache
 current_model: Optional[xgb.Booster] = None
 model_metadata: Dict[str, Any] = {}
+
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events for startup and shutdown"""
+    # Startup
+    logger.info("=" * 60)
+    logger.info("Starting nof1.ai ML Service")
+    logger.info("=" * 60)
+    logger.info(f"Feature count: {NUM_FEATURES}")
+    logger.info(f"Model directory: {MODEL_DIR}")
+    logger.info(f"Data directory: {DATA_DIR}")
+
+    # Try to load existing model
+    if load_latest_model():
+        logger.info("✓ Service ready with trained model")
+    else:
+        logger.warning("⚠ Service started without trained model - predictions will fail until training")
+
+    yield
+
+    # Shutdown (if needed)
+    logger.info("Shutting down ML service...")
+
+# Initialize FastAPI with lifespan
+app = FastAPI(
+    title="nof1.ai ML Service",
+    description="XGBoost-powered trading signal prediction service",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Feature configuration (60+ features as designed in Phase 3)
 FEATURE_NAMES = [
@@ -80,13 +105,14 @@ class PredictionRequest(BaseModel):
     features: List[float] = Field(..., min_length=NUM_FEATURES, max_length=NUM_FEATURES)
     symbol: str = Field(..., description="Trading symbol (e.g., BTC_USDT)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "features": [0.0] * NUM_FEATURES,
                 "symbol": "BTC_USDT"
             }
         }
+    )
 
 class PredictionResponse(BaseModel):
     """Response model for prediction endpoint"""
@@ -160,23 +186,7 @@ def load_latest_model() -> bool:
         logger.error(f"Failed to load model: {e}")
         return False
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize service on startup"""
-    logger.info("=" * 60)
-    logger.info("Starting nof1.ai ML Service")
-    logger.info("=" * 60)
-    logger.info(f"Feature count: {NUM_FEATURES}")
-    logger.info(f"Model directory: {MODEL_DIR}")
-    logger.info(f"Data directory: {DATA_DIR}")
-
-    # Try to load existing model
-    if load_latest_model():
-        logger.info("✓ Service ready with trained model")
-    else:
-        logger.warning("⚠ Service started without trained model - predictions will fail until training")
-
-@app.get("/", response_model=Dict[str, str])
+@app.get("/")
 async def root():
     """Root endpoint with service info"""
     return {
