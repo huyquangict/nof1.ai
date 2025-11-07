@@ -28,6 +28,7 @@ import { getChinaTimeISO } from "../../utils/timeUtils";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
 import type { TakeProfitOrder, StopLossOrder } from "../../database/schema";
+import { updateReflectionOnClose } from "../../learning/reflections/updateOnClose";
 
 const logger = createPinoLogger({
   name: "trade-execution",
@@ -1081,6 +1082,17 @@ export const closePositionTool = createTool({
           entryOrderId,     // 🔥 Link to entry order
         ],
       });
+
+      // Update AI learning reflection with close data
+      if (entryOrderId) {
+        await updateReflectionOnClose({
+          entryOrderId,
+          closePrice: actualExitPrice,
+          pnl,
+          closeReason: 'manual',
+          symbol,
+        });
+      }
 
       // if all closed positions, delete from position table；otherwise no operation (leave to sync task to update)
       if (percentage === 100) {

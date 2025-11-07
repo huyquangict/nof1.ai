@@ -36,6 +36,7 @@ import { createServices } from "../application/services";
 import { createRepositories } from "../infrastructure/database/repositories";
 import type { TakeProfitOrder } from "../database/schema";
 import { getQuantoMultiplier } from "../utils/contractUtils";
+import { updateReflectionOnClose } from "../learning/reflections/updateOnClose";
 
 // Initialize container and services
 const container = createContainer();
@@ -398,6 +399,15 @@ async function checkStopLossTrigger(
         ]
       });
 
+      // Update reflection with close data (for AI learning)
+      await updateReflectionOnClose({
+        entryOrderId,
+        closePrice: order.price,
+        pnl,
+        closeReason: 'stop_loss',
+        symbol,
+      });
+
       // Record in agent decisions
       await dbClient.execute({
         sql: `INSERT INTO agent_decisions (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_quantity)
@@ -528,6 +538,15 @@ async function checkSingleTakeProfitOrder(
           closeReason,
           entryOrderId
         ]
+      });
+
+      // Update reflection with close data (for AI learning)
+      await updateReflectionOnClose({
+        entryOrderId,
+        closePrice: order.price,
+        pnl,
+        closeReason,
+        symbol,
       });
 
       // Record in agent decisions

@@ -235,8 +235,9 @@ CREATE TABLE IF NOT EXISTS trading_reflections (
   target_price REAL,
   prediction_timeframe TEXT,         -- 10m, 30m, 1h, 4h
   order_id TEXT,
+  decision_indicators TEXT,          -- JSON snapshot of technical indicators at decision time
 
-  -- Feedback (filled 10-60 mins later)
+  -- Feedback (filled when position closes)
   actual_price REAL,
   price_change_percent REAL,
   prediction_accuracy INTEGER CHECK(prediction_accuracy >= 0 AND prediction_accuracy <= 10),
@@ -244,6 +245,9 @@ CREATE TABLE IF NOT EXISTS trading_reflections (
   pnl_result REAL,
   outcome_type TEXT,                 -- big_win, small_win, neutral, small_loss, big_loss
   time_to_feedback_minutes INTEGER,
+  close_price REAL,                  -- Exact price at position close
+  close_reason TEXT,                 -- manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown
+  close_indicators TEXT,             -- JSON snapshot of technical indicators at close time
 
   lesson_id INTEGER,
   reviewed INTEGER DEFAULT 0,

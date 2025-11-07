@@ -122,13 +122,38 @@ The system will automatically score your prediction accuracy 10-60 minutes later
       const ticker = await exchangeClient.getFuturesTicker(symbol);
       const currentPrice = ticker.lastPrice;
 
+      // Get latest technical indicators for this symbol
+      const indicatorsResult = await dbClient.execute({
+        sql: `SELECT ema_20, ema_50, macd, rsi_7, rsi_14, volume, atr_14, funding_rate
+              FROM trading_signals
+              WHERE symbol = ?
+              ORDER BY timestamp DESC
+              LIMIT 1`,
+        args: [symbol],
+      });
+
+      let decisionIndicators: string | null = null;
+      if (indicatorsResult.rows.length > 0) {
+        const indicators = indicatorsResult.rows[0] as any;
+        decisionIndicators = JSON.stringify({
+          ema_20: indicators.ema_20,
+          ema_50: indicators.ema_50,
+          macd: indicators.macd,
+          rsi_7: indicators.rsi_7,
+          rsi_14: indicators.rsi_14,
+          volume: indicators.volume,
+          atr_14: indicators.atr_14,
+          funding_rate: indicators.funding_rate,
+        });
+      }
+
       // Insert reflection into database
       const result = await dbClient.execute({
         sql: `INSERT INTO trading_reflections (
           timestamp, symbol, decision_type, vision, confidence_score,
           reasoning, price_at_decision, target_price, prediction_timeframe,
-          order_id, reviewed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+          order_id, decision_indicators, reviewed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         args: [
           new Date().toISOString(),
           symbol,
@@ -140,6 +165,7 @@ The system will automatically score your prediction accuracy 10-60 minutes later
           targetPrice || null,
           predictionTimeframe,
           orderId || null,
+          decisionIndicators,
         ],
       });
 
