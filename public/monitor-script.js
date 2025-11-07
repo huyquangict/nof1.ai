@@ -459,10 +459,14 @@ class TradingMonitor {
             return;
         }
 
-        // Initialize pagination state
+        // Initialize pagination state for reflections
         this.currentReflectionFilter = 'all';
         this.currentReflectionPage = 0;
         this.reflectionsPerPage = 5;
+
+        // Initialize pagination state for trades
+        this.currentTradePage = 0;
+        this.tradesPerPage = 5;
 
         // Load initial status
         this.loadLearningStatus();
@@ -517,6 +521,24 @@ class TradingMonitor {
             this.loadLearningStatus();
             this.loadReflections();
         }, 30000);
+
+        // Add trade history pagination handlers
+        const tradesPrevBtn = document.getElementById('trades-prev-page');
+        const tradesNextBtn = document.getElementById('trades-next-page');
+        if (tradesPrevBtn) {
+            tradesPrevBtn.addEventListener('click', () => {
+                if (this.currentTradePage > 0) {
+                    this.currentTradePage--;
+                    this.loadTradesData();
+                }
+            });
+        }
+        if (tradesNextBtn) {
+            tradesNextBtn.addEventListener('click', () => {
+                this.currentTradePage++;
+                this.loadTradesData();
+            });
+        }
     }
 
     // Load learning system status
@@ -1301,7 +1323,8 @@ class TradingMonitor {
     // Load trades data - using the same layout as index.html
     async loadTradesData() {
         try {
-            const response = await this.authenticatedFetch('/api/trades?limit=100');
+            const offset = this.currentTradePage * this.tradesPerPage;
+            const response = await this.authenticatedFetch(`/api/trades?limit=${this.tradesPerPage}&offset=${offset}`);
             const data = await response.json();
 
             if (data.error) {
@@ -1311,6 +1334,9 @@ class TradingMonitor {
 
             const tradesBody = document.getElementById('trades-body');
             const countEl = document.getElementById('tradesCount');
+            const paginationInfo = document.getElementById('trades-pagination-info');
+            const prevBtn = document.getElementById('trades-prev-page');
+            const nextBtn = document.getElementById('trades-next-page');
 
             if (!data.trades || data.trades.length === 0) {
                 if (tradesBody) {
@@ -1319,11 +1345,34 @@ class TradingMonitor {
                 if (countEl) {
                     countEl.textContent = '';
                 }
+                // Hide pagination
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = 'none';
+                if (paginationInfo) paginationInfo.textContent = '';
                 return;
             }
 
+            // Show pagination controls
+            if (prevBtn) prevBtn.style.display = 'inline-block';
+            if (nextBtn) nextBtn.style.display = 'inline-block';
+
+            // Update pagination info
+            const startItem = offset + 1;
+            const endItem = Math.min(offset + data.trades.length, data.pagination.total);
+            if (paginationInfo) {
+                paginationInfo.textContent = `${startItem}-${endItem} of ${data.pagination.total}`;
+            }
+
+            // Update button states
+            if (prevBtn) {
+                prevBtn.disabled = this.currentTradePage === 0;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = !data.pagination.hasMore;
+            }
+
             if (countEl) {
-                countEl.textContent = `(${data.trades.length})`;
+                countEl.textContent = `(${data.pagination.total} total)`;
             }
 
             if (tradesBody) {

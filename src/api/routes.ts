@@ -306,27 +306,30 @@ export function createApiRoutes() {
    */
   app.get("/api/trades", async (c) => {
     try {
-      const limit = Number.parseInt(c.req.query("limit") || "10");
+      const limit = Number.parseInt(c.req.query("limit") || "5");
+      const offset = Number.parseInt(c.req.query("offset") || "0");
       const symbol = c.req.query("symbol"); // optional, filter specific symbol
-      
-      // fetch historical trade records from database
-      let sql = `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`;
-      let args: any[] = [limit];
-      
+
+      // Build WHERE clause
+      let whereClause = "";
       if (symbol) {
-        sql = `SELECT * FROM trades WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?`;
-        args = [symbol, limit];
+        whereClause = `WHERE symbol = '${symbol}'`;
       }
-      
+
+      // Get total count for pagination
+      const countSql = `SELECT COUNT(*) as total FROM trades ${whereClause}`;
+      const countResult = await dbClient.execute({ sql: countSql, args: [] });
+      const totalCount = (countResult.rows[0] as any).total;
+
+      // fetch historical trade records from database with pagination
+      const sql = `SELECT * FROM trades ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
+      const args: any[] = [limit, offset];
+
       const result = await dbClient.execute({
         sql,
         args,
       });
-      
-      if (!result.rows || result.rows.length === 0) {
-        return c.json({ trades: [] });
-      }
-      
+
       // convert database format to frontend needs format
       const trades = result.rows.map((row: any) => {
         return {
@@ -346,8 +349,16 @@ export function createApiRoutes() {
           closeReason: row.close_reason, // How position was closed (manual, stop_loss, take_profit, take_profit_partial, time_limit, drawdown)
         };
       });
-      
-      return c.json({ trades });
+
+      return c.json({
+        trades,
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
+        },
+      });
     } catch (error: any) {
       logger.error("Failed to fetch historical trades:", error);
       return c.json({ error: error.message }, 500);
