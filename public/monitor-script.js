@@ -904,13 +904,19 @@ class TradingMonitor {
     // Load initial data
     async loadInitialData() {
         try {
+            // Load critical data first (account, positions, prices)
             await Promise.all([
                 this.loadAccountData(),
                 this.loadPositionsData(),
-                this.loadTradesData(),
-                this.loadLogsData(),
                 this.loadTickerPrices()
             ]);
+
+            // Load secondary data after (trades and logs - less critical)
+            // These don't block the initial render
+            Promise.all([
+                this.loadTradesData(),
+                this.loadLogsData()
+            ]).catch(err => console.error('Failed to load secondary data:', err));
         } catch (error) {
             console.error('Failed to load initial data:', error);
         }
@@ -1323,13 +1329,18 @@ class TradingMonitor {
     // Load trades data - using the same layout as index.html
     async loadTradesData() {
         try {
-            const offset = this.currentTradePage * this.tradesPerPage;
-            const response = await this.authenticatedFetch(`/api/trades?limit=${this.tradesPerPage}&offset=${offset}`);
-            const data = await response.json();
+            // Only fetch from API if we don't have cached trades or it's been >30s
+            if (!this.cachedTrades || Date.now() - this.lastTradesLoad > 30000) {
+                const response = await this.authenticatedFetch('/api/trades?limit=100');
+                const data = await response.json();
 
-            if (data.error) {
-                console.error('API error:', data.error);
-                return;
+                if (data.error) {
+                    console.error('API error:', data.error);
+                    return;
+                }
+
+                this.cachedTrades = data.trades || [];
+                this.lastTradesLoad = Date.now();
             }
 
             const tradesBody = document.getElementById('trades-body');
@@ -1338,7 +1349,7 @@ class TradingMonitor {
             const prevBtn = document.getElementById('trades-prev-page');
             const nextBtn = document.getElementById('trades-next-page');
 
-            if (!data.trades || data.trades.length === 0) {
+            if (!this.cachedTrades || this.cachedTrades.length === 0) {
                 if (tradesBody) {
                     tradesBody.innerHTML = '<tr><td colspan="12" class="empty-state">No trade history</td></tr>';
                 }
@@ -1352,15 +1363,20 @@ class TradingMonitor {
                 return;
             }
 
+            // Client-side pagination
+            const totalTrades = this.cachedTrades.length;
+            const offset = this.currentTradePage * this.tradesPerPage;
+            const paginatedTrades = this.cachedTrades.slice(offset, offset + this.tradesPerPage);
+
             // Show pagination controls
             if (prevBtn) prevBtn.style.display = 'inline-block';
             if (nextBtn) nextBtn.style.display = 'inline-block';
 
             // Update pagination info
             const startItem = offset + 1;
-            const endItem = Math.min(offset + data.trades.length, data.pagination.total);
+            const endItem = Math.min(offset + paginatedTrades.length, totalTrades);
             if (paginationInfo) {
-                paginationInfo.textContent = `${startItem}-${endItem} of ${data.pagination.total}`;
+                paginationInfo.textContent = `${startItem}-${endItem} of ${totalTrades}`;
             }
 
             // Update button states
@@ -1368,15 +1384,15 @@ class TradingMonitor {
                 prevBtn.disabled = this.currentTradePage === 0;
             }
             if (nextBtn) {
-                nextBtn.disabled = !data.pagination.hasMore;
+                nextBtn.disabled = offset + this.tradesPerPage >= totalTrades;
             }
 
             if (countEl) {
-                countEl.textContent = `(${data.pagination.total} total)`;
+                countEl.textContent = `(${totalTrades} total)`;
             }
 
             if (tradesBody) {
-                tradesBody.innerHTML = data.trades.map(trade => {
+                tradesBody.innerHTML = paginatedTrades.map(trade => {
                     const date = new Date(trade.timestamp);
                     const timeStr = date.toLocaleString('en-US', {
                         month: '2-digit',

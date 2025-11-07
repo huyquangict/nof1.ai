@@ -306,8 +306,7 @@ export function createApiRoutes() {
    */
   app.get("/api/trades", async (c) => {
     try {
-      const limit = Number.parseInt(c.req.query("limit") || "5");
-      const offset = Number.parseInt(c.req.query("offset") || "0");
+      const limit = Number.parseInt(c.req.query("limit") || "100");
       const symbol = c.req.query("symbol"); // optional, filter specific symbol
 
       // Build WHERE clause
@@ -316,14 +315,9 @@ export function createApiRoutes() {
         whereClause = `WHERE symbol = '${symbol}'`;
       }
 
-      // Get total count for pagination
-      const countSql = `SELECT COUNT(*) as total FROM trades ${whereClause}`;
-      const countResult = await dbClient.execute({ sql: countSql, args: [] });
-      const totalCount = (countResult.rows[0] as any).total;
-
-      // fetch historical trade records from database with pagination
-      const sql = `SELECT * FROM trades ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
-      const args: any[] = [limit, offset];
+      // Simple fast query - no pagination overhead
+      const sql = `SELECT * FROM trades ${whereClause} ORDER BY timestamp DESC LIMIT ?`;
+      const args: any[] = [limit];
 
       const result = await dbClient.execute({
         sql,
@@ -350,15 +344,7 @@ export function createApiRoutes() {
         };
       });
 
-      return c.json({
-        trades,
-        pagination: {
-          total: totalCount,
-          limit,
-          offset,
-          hasMore: offset + limit < totalCount,
-        },
-      });
+      return c.json({ trades });
     } catch (error: any) {
       logger.error("Failed to fetch historical trades:", error);
       return c.json({ error: error.message }, 500);
