@@ -1,16 +1,17 @@
 # FastAPI and server
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-pydantic==2.9.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.9.0
 
 # Machine Learning
-xgboost==2.1.1
-scikit-learn==1.5.2
-numpy==1.26.4
-pandas==2.2.3
+# Using >= to get latest compatible versions for newer Python
+xgboost>=2.1.1
+scikit-learn>=1.6.0  # 1.6.0+ has Python 3.14 support
+numpy>=1.26.4,<3.0.0
+pandas>=2.2.3
 
 # Model persistence
-joblib==1.4.2
+joblib>=1.4.2
 
 # Logging
-python-json-logger==2.0.7
+python-json-logger>=2.0.7
