@@ -357,6 +357,17 @@ ACCOUNT_TAKE_PROFIT_USDT=10000            # Account-level take profit
 
 # Supported Trading Symbols (comma-separated)
 TRADING_SYMBOLS=BTC,ETH,SOL,XRP,BNB,BCH
+
+# AI Learning System (uses VoltAgent's Agent API)
+REASONER_MODEL=deepseek/deepseek-reasoner # Model for lesson generation
+REASONER_TEMPERATURE=0.3                  # LLM temperature (0.0-1.0)
+REASONER_MAX_TOKENS=2000                  # Max output tokens (documentation only, VoltAgent handles this)
+LESSON_MIN_REFLECTIONS=10                 # Min reflections before generating lessons
+LESSON_WINNER_SCORE=7                     # Feedback score threshold for "winners" (1-10)
+LESSON_LOSER_SCORE=4                      # Feedback score threshold for "losers" (1-10)
+LESSON_MIN_EXAMPLES=3                     # Min examples required per group
+LESSON_HIGH_CONFIDENCE_MIN=20             # Min reflections for "high" confidence
+LESSON_MEDIUM_CONFIDENCE_MIN=10           # Min reflections for "medium" confidence
 ```
 
 ### Strategy Configuration
