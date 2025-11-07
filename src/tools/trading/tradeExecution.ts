@@ -417,7 +417,7 @@ export const openPositionTool = createTool({
                   symbol,
                   side: side === 'long' ? 'short' : 'long', // Opposite side
                   quantity: Math.abs(size),
-                  reduceOnly: true,
+                  // Don't use reduceOnly - Binance may reject if position is in profit
                 });
                 logger.info(`rolled back trade`);
               } catch (rollbackError: any) {
@@ -901,11 +901,13 @@ export const closePositionTool = createTool({
       }
 
       //  market orderclose position
+      // NOTE: Do NOT use reduceOnly on Binance - it rejects profitable closes
+      // The opposite side + matching quantity is sufficient to close the position
       const order = await client.placeOrder({
         symbol,
         side: side === 'long' ? 'short' : 'long', // Opposite side to close
         quantity: closeSize,
-        reduceOnly: true, // reduce only, don't open new position
+        // reduceOnly: true removed - Binance rejects profitable closes with this flag
       });
       
       //  wait and verify order status (with retry)
