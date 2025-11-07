@@ -59,10 +59,27 @@ Phase 3B adds **XGBoost-powered machine learning predictions** to the nof1.ai tr
 
 ### 1. Install Python Dependencies
 
+**Linux/macOS:**
 ```bash
 cd src/ml
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Windows (Command Prompt):**
+```cmd
+cd src\ml
+python -m venv venv
+venv\Scripts\activate.bat
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell):**
+```powershell
+cd src\ml
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
@@ -98,12 +115,30 @@ ML_MIN_TRAINING_SAMPLES=10000
 
 **Option A: Manual Start (Development)**
 
+**Linux/macOS:**
 ```bash
 cd src/ml
 ./start_ml_service.sh
 ```
 
-**Option B: PM2 (Production)**
+**Windows (Command Prompt):**
+```cmd
+cd src\ml
+start_ml_service.bat
+```
+
+**Windows (PowerShell):**
+```powershell
+cd src\ml
+.\start_ml_service.ps1
+```
+
+> **Note for PowerShell**: If you get an execution policy error, run:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+
+**Option B: PM2 (Production - Linux/macOS only)**
 
 ```bash
 pm2 start src/ml/ecosystem.ml.config.js
@@ -126,7 +161,20 @@ services:
 
 ### 4. Verify Service is Running
 
+**Linux/macOS:**
 ```bash
+curl http://127.0.0.1:8001/health
+```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8001/health
+# Or if curl is available:
+curl http://127.0.0.1:8001/health
+```
+
+**Windows (Command Prompt with curl):**
+```cmd
 curl http://127.0.0.1:8001/health
 ```
 
@@ -197,19 +245,46 @@ await exportTrainingDataToCSV("src/ml/data/training_data.csv");
 
 **Step 5: Train Model**
 
+**Option A: Via Python script**
+
+Linux/macOS:
 ```bash
-# Option A: Via Python script
 cd src/ml
 python train.py
+```
 
-# Option B: Via HTTP API
+Windows:
+```cmd
+cd src\ml
+python train.py
+```
+
+**Option B: Via HTTP API**
+
+Linux/macOS:
+```bash
 curl -X POST http://127.0.0.1:8001/train \
   -H "Content-Type: application/json" \
   -d '{
     "min_samples": 10000
   }'
+```
 
-# Option C: Via TypeScript
+Windows (PowerShell):
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/train" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"min_samples": 10000}'
+```
+
+Windows (Command Prompt with curl):
+```cmd
+curl -X POST http://127.0.0.1:8001/train -H "Content-Type: application/json" -d "{\"min_samples\": 10000}"
+```
+
+**Option C: Via TypeScript**
+```typescript
 import { trainMlModel } from "./src/ml/mlClient";
 await trainMlModel();
 ```
