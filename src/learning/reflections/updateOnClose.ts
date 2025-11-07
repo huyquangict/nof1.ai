@@ -51,9 +51,9 @@ export async function updateReflectionOnClose(
       return { success: false, message: "Learning disabled" };
     }
 
-    // Find the reflection for this order
+    // Find the reflection for this order (regardless of reviewed status)
     const reflectionResult = await dbClient.execute({
-      sql: "SELECT id, symbol FROM trading_reflections WHERE order_id = ? AND reviewed = 0 LIMIT 1",
+      sql: "SELECT id, symbol FROM trading_reflections WHERE order_id = ? LIMIT 1",
       args: [closeData.entryOrderId],
     });
 
