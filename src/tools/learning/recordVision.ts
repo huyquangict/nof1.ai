@@ -24,7 +24,7 @@
  * and extracting lessons from outcomes.
  */
 
-import { tool } from "ai";
+import { createTool } from "@voltagent/core";
 import { z } from "zod";
 import { createClient } from "@libsql/client";
 import { createPinoLogger } from "@voltagent/logger";
@@ -45,7 +45,8 @@ const dbClient = createClient({
  * Records the LLM's prediction before executing a trade decision.
  * This creates a "reflection" that will be scored later based on actual outcomes.
  */
-export const recordTradingVisionTool = tool({
+export const recordTradingVisionTool = createTool({
+  name: "recordTradingVision",
   description: `Record your trading prediction and confidence BEFORE executing the trade.
 This allows the system to learn from your predictions by comparing them to actual outcomes.
 

@@ -120,7 +120,15 @@ export class PositionSynchronizer {
       sql: `INSERT INTO positions
             (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
              leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, sl_percentage, tp_percentage, tp_orders, sl_orders, entry_order_id, opened_at, peak_pnl_percent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(symbol) DO UPDATE SET
+              quantity = excluded.quantity,
+              entry_price = excluded.entry_price,
+              current_price = excluded.current_price,
+              liquidation_price = excluded.liquidation_price,
+              unrealized_pnl = excluded.unrealized_pnl,
+              leverage = excluded.leverage,
+              side = excluded.side`,
       args: [
         symbol,
         quantity,
