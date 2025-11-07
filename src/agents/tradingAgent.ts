@@ -782,6 +782,71 @@ Current market status for all symbols
         prompt += `\n`;
       }
     }
+
+    // Phase 3A: Market Regime and Adaptive Parameters
+    if (data.regime) {
+      prompt += `[Phase 3A: Market Regime & Adaptive Parameters]\n`;
+      prompt += `Market Regime: ${data.regime.classification} (confidence: ${(data.regime.confidence * 100).toFixed(1)}%)\n`;
+
+      // Regime description
+      const regimeDescriptions: Record<string, string> = {
+        'TRENDING_BULL': '📈 Strong uptrend - Follow momentum, wider targets',
+        'TRENDING_BEAR': '📉 Strong downtrend - Follow momentum, wider targets',
+        'RANGING_VOLATILE': '⚡ Choppy consolidation - Tighter stops, quick profits',
+        'RANGING_CALM': '😴 Calm sideways - Standard parameters, wait for setup',
+        'BREAKOUT': '🚀 Breakout in progress - Fast response, tight stops',
+      };
+
+      prompt += `  → ${regimeDescriptions[data.regime.classification] || 'Market analysis'}\n`;
+      prompt += `  Trend Strength (ADX): ${data.regime.trendStrength.toFixed(1)} (${data.regime.trendStrength > 40 ? 'STRONG' : data.regime.trendStrength > 25 ? 'MODERATE' : 'WEAK'})\n`;
+      prompt += `  Volatility: ${data.regime.volatilityLevel} (ATR ratio: ${data.regime.atrRatio.toFixed(2)}x)\n`;
+      prompt += `  Volume Activity: ${data.regime.volumeSurge.toFixed(2)}x average${data.regime.volumeSurge > 2 ? ' (HIGH surge!)' : ''}\n`;
+      prompt += `\n`;
+
+      if (data.adaptiveParams) {
+        prompt += `Active Parameters (adapted for ${data.regime.classification}):\n`;
+        prompt += `  EMA: ${data.adaptiveParams.emaFast}/${data.adaptiveParams.emaSlow} (vs base 20/50)\n`;
+        prompt += `  MACD: ${data.adaptiveParams.macdFast}/${data.adaptiveParams.macdSlow}/${data.adaptiveParams.macdSignal} (vs base 12/26/9)\n`;
+        prompt += `  RSI: ${data.adaptiveParams.rsiPeriod}-period (vs base 14)\n`;
+        prompt += `  Bollinger: ${data.adaptiveParams.bbPeriod}-period, ${data.adaptiveParams.bbStdDev}σ (vs base 20, 2σ)\n`;
+        prompt += `\n`;
+      }
+
+      if (data.adaptiveRisk) {
+        prompt += `ATR-Based Risk Management:\n`;
+        prompt += `  Stop-Loss: ${data.adaptiveRisk.stopLossATRMultiple}× ATR${data.regime.classification.includes('RANGING') ? ' (wider for noise)' : ' (tighter for trends)'}\n`;
+        prompt += `  Take-Profit: ${data.adaptiveRisk.takeProfitATRMultiple}× ATR${data.regime.classification.includes('TRENDING') ? ' (wider targets)' : ' (tighter targets)'}\n`;
+        prompt += `  Trailing Stop: ${data.adaptiveRisk.trailingStopATRMultiple}× ATR\n`;
+        prompt += `  Current ATR: ${data.atr3 || data.longerTermContext?.atr3 || 0}${data.longerTermContext?.atr3 ? ' (3-period), ' + data.longerTermContext.atr14.toFixed(2) + ' (14-period)' : ''}\n`;
+        prompt += `\n`;
+      }
+
+      // Strategic recommendations based on regime
+      prompt += `Strategic Guidance for ${data.regime.classification}:\n`;
+      if (data.regime.classification === 'TRENDING_BULL' || data.regime.classification === 'TRENDING_BEAR') {
+        prompt += `  ✓ Favor trend-following entries\n`;
+        prompt += `  ✓ Use wider stop-losses (${data.adaptiveRisk.stopLossATRMultiple}× ATR)\n`;
+        prompt += `  ✓ Let winners run with trailing stops\n`;
+        prompt += `  ✓ Add to winning positions if trend strengthens\n`;
+        prompt += `  ✗ Avoid counter-trend trades\n`;
+      } else if (data.regime.classification === 'RANGING_VOLATILE') {
+        prompt += `  ✓ Trade reversals at support/resistance\n`;
+        prompt += `  ✓ Take quick profits (${data.adaptiveRisk.takeProfitATRMultiple}× ATR)\n`;
+        prompt += `  ✓ Use wider stops to avoid noise\n`;
+        prompt += `  ✗ Avoid holding positions too long\n`;
+        prompt += `  ✗ Avoid breakout trades (likely false)\n`;
+      } else if (data.regime.classification === 'RANGING_CALM') {
+        prompt += `  ✓ Wait for clear setups at extremes\n`;
+        prompt += `  ✓ Use standard risk parameters\n`;
+        prompt += `  ✗ Avoid overtrading (low volatility = small moves)\n`;
+      } else if (data.regime.classification === 'BREAKOUT') {
+        prompt += `  ✓ Act fast on momentum signals\n`;
+        prompt += `  ✓ Use very tight stops (${data.adaptiveRisk.stopLossATRMultiple}× ATR)\n`;
+        prompt += `  ✓ Scale in as breakout confirms\n`;
+        prompt += `  ⚠️ High risk - breakouts can fail quickly\n`;
+      }
+      prompt += `\n`;
+    }
   }
 
   // Account info and performance (following 1.md format)

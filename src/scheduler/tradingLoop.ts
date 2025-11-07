@@ -41,6 +41,14 @@ import {
   detectSupportResistance,
   findNearestLevels,
 } from "../utils/phase2Indicators";
+import {
+  calculateADX,
+  detectMarketRegime,
+  getAdaptiveParameters,
+  getAdaptiveRiskConfig,
+  type RegimeClassification,
+  type AdaptiveIndicatorParams,
+} from "../utils/adaptiveParameters";
 
 const logger = createPinoLogger({
   name: "trading-loop",
@@ -271,6 +279,52 @@ async function collectMarketData() {
         }
       }
 
+      // Phase 3A: Market Regime Detection and Adaptive Parameters
+      // Extract data for regime detection
+      const highs1h = candles1h.map((c: any) => Number.parseFloat(c.h || "0")).filter((n: number) => Number.isFinite(n));
+      const lows1h = candles1h.map((c: any) => Number.parseFloat(c.l || "0")).filter((n: number) => Number.isFinite(n));
+      const closes1h = candles1h.map((c: any) => Number.parseFloat(c.c || "0")).filter((n: number) => Number.isFinite(n));
+
+      // Calculate ADX (using 1h timeframe for more stable regime detection)
+      const adx = calculateADX(highs1h, lows1h, closes1h, 14);
+
+      // Calculate 20-period ATR average for regime detection
+      const atr20Avg = longerTermContext.atr14; // Use existing ATR14 as approximation
+
+      // Calculate 20-period price change
+      const priceChange20 = closes1h.length >= 20
+        ? ((closes1h[closes1h.length - 1] - closes1h[closes1h.length - 20]) / closes1h[closes1h.length - 20]) * 100
+        : 0;
+
+      // Detect market regime
+      const regimeClassification = detectMarketRegime({
+        currentPrice,
+        ema20: indicators.ema20,
+        ema50: indicators.ema50,
+        adx,
+        atr: longerTermContext.atr14,
+        atr20Avg,
+        bbBandwidth: indicators.bbBandwidth,
+        volume: indicators.volume,
+        avgVolume: indicators.avgVolume,
+        priceChange20,
+      });
+
+      // Get adaptive parameters for this regime
+      const adaptiveParams = getAdaptiveParameters(regimeClassification);
+
+      // Get adaptive risk configuration
+      const adaptiveRisk = getAdaptiveRiskConfig(regimeClassification.regime);
+
+      // Log regime detection results
+      logger.info(`\n${symbol} Market Regime Analysis:`);
+      logger.info(`  Regime: ${regimeClassification.regime} (confidence: ${(regimeClassification.confidence * 100).toFixed(1)}%)`);
+      logger.info(`  Trend Strength (ADX): ${regimeClassification.trendStrength.toFixed(1)}`);
+      logger.info(`  Volatility Level: ${regimeClassification.volatilityLevel} (ATR ratio: ${regimeClassification.atrRatio.toFixed(2)}x)`);
+      logger.info(`  Volume Surge: ${regimeClassification.volumeSurge.toFixed(2)}x`);
+      logger.info(`  Adaptive Parameters: EMA(${adaptiveParams.emaFast}/${adaptiveParams.emaSlow}), RSI(${adaptiveParams.rsiPeriod}), BB(${adaptiveParams.bbPeriod}, ${adaptiveParams.bbStdDev})`);
+      logger.info(`  Risk Management: SL=${adaptiveRisk.stopLossATRMultiple}×ATR, TP=${adaptiveRisk.takeProfitATRMultiple}×ATR, Trail=${adaptiveRisk.trailingStopATRMultiple}×ATR`);
+
       // 将各时间框架指标添加到市场数据
       marketData[symbol] = {
         price: currentPrice,
@@ -317,6 +371,32 @@ async function collectMarketData() {
           nearestResistance: nearestLevels.nearestResistance,
           distanceToSupport: nearestLevels.distanceToSupport,
           distanceToResistance: nearestLevels.distanceToResistance,
+        },
+        // Phase 3A: Market Regime and Adaptive Parameters
+        regime: {
+          classification: regimeClassification.regime,
+          confidence: regimeClassification.confidence,
+          volatilityLevel: regimeClassification.volatilityLevel,
+          trendStrength: regimeClassification.trendStrength,
+          atrRatio: regimeClassification.atrRatio,
+          volumeSurge: regimeClassification.volumeSurge,
+          adx,
+        },
+        adaptiveParams: {
+          emaFast: adaptiveParams.emaFast,
+          emaSlow: adaptiveParams.emaSlow,
+          macdFast: adaptiveParams.macdFast,
+          macdSlow: adaptiveParams.macdSlow,
+          macdSignal: adaptiveParams.macdSignal,
+          rsiPeriod: adaptiveParams.rsiPeriod,
+          bbPeriod: adaptiveParams.bbPeriod,
+          bbStdDev: adaptiveParams.bbStdDev,
+          atrPeriod: adaptiveParams.atrPeriod,
+        },
+        adaptiveRisk: {
+          stopLossATRMultiple: adaptiveRisk.stopLossATRMultiple,
+          takeProfitATRMultiple: adaptiveRisk.takeProfitATRMultiple,
+          trailingStopATRMultiple: adaptiveRisk.trailingStopATRMultiple,
         },
       };
       
