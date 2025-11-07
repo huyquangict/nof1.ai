@@ -21,10 +21,12 @@
  *
  * Uses a reasoner LLM (e.g., DeepSeek Reasoner) to analyze trading reflections
  * and extract actionable lessons from patterns in winning vs losing predictions.
+ *
+ * Refactored to use VoltAgent's Agent system for consistency with trading agent.
  */
 
+import { Agent } from "@voltagent/core";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText } from "ai";
 import type { Logger } from "@voltagent/logger";
 import { createClient } from "@libsql/client";
 
@@ -172,7 +174,8 @@ async function storeLessonInDB(
     }
 
     // Calculate success rate
-    const successCount = supportingReflections.filter(r => r.feedback_score >= 7).length;
+    const winnerThreshold = parseInt(process.env.LESSON_WINNER_SCORE || "7", 10);
+    const successCount = supportingReflections.filter(r => r.feedback_score >= winnerThreshold).length;
     const successRate = (successCount / supportingReflections.length) * 100;
 
     // Calculate average PnL
@@ -184,9 +187,11 @@ async function storeLessonInDB(
       : 0;
 
     // Determine confidence level
+    const highConfidenceMin = parseInt(process.env.LESSON_HIGH_CONFIDENCE_MIN || "20", 10);
+    const mediumConfidenceMin = parseInt(process.env.LESSON_MEDIUM_CONFIDENCE_MIN || "10", 10);
     const confidenceLevel =
-      supportingReflections.length >= 20 ? 'high' :
-      supportingReflections.length >= 10 ? 'medium' : 'low';
+      supportingReflections.length >= highConfidenceMin ? 'high' :
+      supportingReflections.length >= mediumConfidenceMin ? 'medium' : 'low';
 
     // Determine market condition (from most recent reflection)
     const recentReflection = supportingReflections[supportingReflections.length - 1];
@@ -270,46 +275,59 @@ export async function generateLessons(logger: Logger): Promise<number> {
 
     const allReflections = reflectionsResult.rows;
 
-    if (allReflections.length < 10) {
-      logger.info(`Not enough reflections yet (need 10+, have ${allReflections.length}), skipping...`);
+    // Configurable thresholds
+    const minReflections = parseInt(process.env.LESSON_MIN_REFLECTIONS || "10", 10);
+    const winnerThreshold = parseInt(process.env.LESSON_WINNER_SCORE || "7", 10);
+    const loserThreshold = parseInt(process.env.LESSON_LOSER_SCORE || "4", 10);
+    const minExamplesPerGroup = parseInt(process.env.LESSON_MIN_EXAMPLES || "3", 10);
+
+    if (allReflections.length < minReflections) {
+      logger.info(`Not enough reflections yet (need ${minReflections}+, have ${allReflections.length}), skipping...`);
       return 0;
     }
 
     // Group by outcome
-    const winners = allReflections.filter((r: any) => r.feedback_score >= 7);
-    const losers = allReflections.filter((r: any) => r.feedback_score <= 4);
+    const winners = allReflections.filter((r: any) => r.feedback_score >= winnerThreshold);
+    const losers = allReflections.filter((r: any) => r.feedback_score <= loserThreshold);
 
     logger.info(`📊 Analyzing ${allReflections.length} reflections (${winners.length} winners, ${losers.length} losers)`);
 
-    if (winners.length < 3 && losers.length < 3) {
-      logger.info("Not enough clear winners or losers for pattern extraction, skipping...");
+    if (winners.length < minExamplesPerGroup && losers.length < minExamplesPerGroup) {
+      logger.info(`Not enough clear winners or losers for pattern extraction (need ${minExamplesPerGroup}+ in at least one group), skipping...`);
       return 0;
     }
 
     // Generate prompt
     const prompt = generateLessonPrompt(winners, losers);
 
-    // Call reasoner LLM
+    // Call reasoner LLM using VoltAgent's Agent (same as trading agent)
     logger.info("🤖 Calling reasoner LLM for pattern analysis...");
 
-    const reasoner = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+    const openai = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY || "",
       baseURL: process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1",
     });
 
     const modelName = process.env.REASONER_MODEL || "deepseek/deepseek-reasoner";
 
-    const response = await generateText({
-      model: reasoner(modelName),
-      prompt,
-      temperature: 0.3,
-      maxTokens: 2000,
+    // Create agent for lesson generation
+    const lessonAgent = new Agent({
+      name: "lesson-generator",
+      instructions: "You are an expert trading analyst. Analyze the trading reflections and extract actionable lessons following the format specified in the prompt.",
+      model: openai.chat(modelName),
+      tools: [], // No tools needed for lesson generation
     });
 
-    logger.info(`✅ Reasoner response received (${response.text.length} characters)`);
+    // Run the agent with the prompt
+    const response = await lessonAgent.generateText(prompt);
+
+    // Extract text from response (VoltAgent returns an object with text property)
+    const responseText = typeof response === 'string' ? response : (response as any).text || '';
+
+    logger.info(`✅ Reasoner response received (${responseText.length} characters)`);
 
     // Parse lessons from response
-    const lessons = parseLessonsFromResponse(response.text, logger);
+    const lessons = parseLessonsFromResponse(responseText, logger);
 
     if (lessons.length === 0) {
       logger.warn("No valid lessons extracted from reasoner response");
