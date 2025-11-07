@@ -847,6 +847,55 @@ Current market status for all symbols
       }
       prompt += `\n`;
     }
+
+    // Phase 3B: ML Prediction (if available)
+    if (data.mlPrediction) {
+      prompt += `[Phase 3B: ML Prediction from XGBoost Model]\n`;
+      prompt += `ML Signal: ${data.mlPrediction.signal} (confidence: ${(data.mlPrediction.confidence * 100).toFixed(1)}%)\n`;
+      prompt += `  Probabilities:\n`;
+      prompt += `    HOLD: ${(data.mlPrediction.probabilities.HOLD * 100).toFixed(1)}%\n`;
+      prompt += `    BUY:  ${(data.mlPrediction.probabilities.BUY * 100).toFixed(1)}%\n`;
+      prompt += `    SELL: ${(data.mlPrediction.probabilities.SELL * 100).toFixed(1)}%\n`;
+      prompt += `  Model: ${data.mlPrediction.modelVersion}\n`;
+      prompt += `\n`;
+
+      // Interpretation guidance
+      prompt += `ML Interpretation:\n`;
+      if (data.mlPrediction.confidence >= 0.7) {
+        prompt += `  ✓ HIGH confidence (≥70%) - Strong ML signal, consider heavily in decision\n`;
+      } else if (data.mlPrediction.confidence >= 0.5) {
+        prompt += `  ⚠️ MEDIUM confidence (50-70%) - Moderate ML signal, use as supporting evidence\n`;
+      } else {
+        prompt += `  ⚠️ LOW confidence (<50%) - Weak ML signal, prioritize technical analysis\n`;
+      }
+
+      // Cross-validation with technical indicators
+      if (data.mlPrediction.signal === 'BUY') {
+        prompt += `  → ML suggests bullish opportunity. Check:\n`;
+        prompt += `    • Does price action confirm? (above EMA, positive MACD)\n`;
+        prompt += `    • Is momentum aligned? (RSI trending up)\n`;
+        prompt += `    • Volume supporting? (increasing volume)\n`;
+      } else if (data.mlPrediction.signal === 'SELL') {
+        prompt += `  → ML suggests bearish opportunity. Check:\n`;
+        prompt += `    • Does price action confirm? (below EMA, negative MACD)\n`;
+        prompt += `    • Is momentum aligned? (RSI trending down)\n`;
+        prompt += `    • Volume supporting? (increasing volume)\n`;
+      } else {
+        prompt += `  → ML suggests waiting. Consider:\n`;
+        prompt += `    • Market may be unclear or transitioning\n`;
+        prompt += `    • Wait for stronger confluence of signals\n`;
+        prompt += `    • Focus on risk management of existing positions\n`;
+      }
+
+      prompt += `\n`;
+      prompt += `Important: ML is a supporting tool, NOT the sole decision maker.\n`;
+      prompt += `Always combine with:\n`;
+      prompt += `  1. Technical indicator confluence\n`;
+      prompt += `  2. Market regime analysis\n`;
+      prompt += `  3. Support/resistance levels\n`;
+      prompt += `  4. Risk management rules\n`;
+      prompt += `\n`;
+    }
   }
 
   // Account info and performance (following 1.md format)

@@ -1412,6 +1412,89 @@ async function executeTradingDecision() {
       return;
     }
 
+    // 1.5. Phase 3B: Get ML predictions for each symbol
+    try {
+      const { getMlPrediction } = await import("../ml/mlClient");
+      const { extractFeatures } = await import("../ml/featureExtraction");
+      const { collectTrainingSample } = await import("../ml/dataCollector");
+      type MarketDataForML = import("../ml/featureExtraction").MarketDataForML;
+
+      for (const symbol of SYMBOLS) {
+        const data = marketData[symbol];
+        if (!data || !data.price) continue;
+
+        try {
+          // Prepare market data for feature extraction
+          const mlMarketData: MarketDataForML = {
+            currentPrice: data.price,
+            price1m: data.timeframes?.["1m"]?.closes || [],
+            price3m: data.timeframes?.["3m"]?.closes || [],
+            price5m: data.timeframes?.["5m"]?.closes || [],
+            price15m: data.timeframes?.["15m"]?.closes || [],
+            price30m: data.timeframes?.["30m"]?.closes || [],
+            ema20: data.ema20,
+            ema50: data.ema50,
+            macd: data.macd,
+            macdSignal: data.macdSignal,
+            macdHistogram: data.macdHistogram,
+            rsi7: data.rsi7,
+            rsi14: data.rsi14,
+            volume: data.volume,
+            volumeSma20: data.volumeSma20 || data.volume,
+            volumeRatio: data.volumeRatio || 1.0,
+            atr14: data.longerTermContext?.atr14 || 0,
+            bbUpper: data.bbUpper || 0,
+            bbMiddle: data.bbMiddle || 0,
+            bbLower: data.bbLower || 0,
+            bbBandwidth: data.bbBandwidth || 0,
+            vwap: data.vwap || data.price,
+            obv: data.obv || 0,
+            obvEma20: data.obvEma20 || 0,
+            srsiK: data.srsiK || 50,
+            srsiD: data.srsiD || 50,
+            kcUpper: data.kcUpper || 0,
+            kcLower: data.kcLower || 0,
+            support: data.supportResistance?.nearestSupport?.price || 0,
+            resistance: data.supportResistance?.nearestResistance?.price || 0,
+            regime: data.regime,
+          };
+
+          // Extract features
+          const features = extractFeatures(mlMarketData);
+
+          // Get ML prediction
+          const mlPrediction = await getMlPrediction(features, symbol);
+
+          if (mlPrediction) {
+            // Add ML prediction to market data
+            marketData[symbol].mlPrediction = {
+              signal: mlPrediction.prediction === 0 ? "HOLD" : mlPrediction.prediction === 1 ? "BUY" : "SELL",
+              confidence: mlPrediction.confidence,
+              probabilities: mlPrediction.probabilities,
+              modelVersion: mlPrediction.modelVersion,
+            };
+
+            logger.info(`[ML] ${symbol}: ${marketData[symbol].mlPrediction.signal} (confidence: ${(mlPrediction.confidence * 100).toFixed(1)}%)`);
+          } else {
+            // ML service not available - continue without ML
+            marketData[symbol].mlPrediction = null;
+          }
+
+          // Collect training sample (will be labeled later based on outcome)
+          if (process.env.ML_COLLECT_TRAINING_DATA === "true") {
+            await collectTrainingSample(symbol, mlMarketData);
+          }
+
+        } catch (error) {
+          logger.debug(`ML prediction failed for ${symbol}:`, error as any);
+          marketData[symbol].mlPrediction = null;
+        }
+      }
+    } catch (error) {
+      logger.debug("ML predictions unavailable:", error as any);
+      // Continue without ML predictions
+    }
+
     // 2. Get account information
     try {
       accountInfo = await getAccountInfo();

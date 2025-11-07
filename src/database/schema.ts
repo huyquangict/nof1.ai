@@ -196,6 +196,18 @@ CREATE TABLE IF NOT EXISTS system_config (
   updated_at TEXT NOT NULL
 );
 
+-- ML训练数据表 (Phase 3B)
+CREATE TABLE IF NOT EXISTS ml_training_data (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  features TEXT NOT NULL,
+  label INTEGER,
+  actual_pnl REAL,
+  labeled_at TEXT,
+  created_at TEXT NOT NULL
+);
+
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
@@ -203,5 +215,8 @@ CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON trading_signals(timestamp);
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON trading_signals(symbol);
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON account_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_decisions_timestamp ON agent_decisions(timestamp);
+CREATE INDEX IF NOT EXISTS idx_ml_training_timestamp ON ml_training_data(timestamp);
+CREATE INDEX IF NOT EXISTS idx_ml_training_symbol ON ml_training_data(symbol);
+CREATE INDEX IF NOT EXISTS idx_ml_training_label ON ml_training_data(label);
 `;
 
