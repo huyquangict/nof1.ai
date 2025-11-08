@@ -325,6 +325,20 @@ async function collectMarketData() {
       logger.info(`  Adaptive Parameters: EMA(${adaptiveParams.emaFast}/${adaptiveParams.emaSlow}), RSI(${adaptiveParams.rsiPeriod}), BB(${adaptiveParams.bbPeriod}, ${adaptiveParams.bbStdDev})`);
       logger.info(`  Risk Management: SL=${adaptiveRisk.stopLossATRMultiple}×ATR, TP=${adaptiveRisk.takeProfitATRMultiple}×ATR, Trail=${adaptiveRisk.trailingStopATRMultiple}×ATR`);
 
+      // Calculate adaptive indicators for 5m timeframe (primary trading timeframe)
+      // These use regime-adjusted parameters for more accurate signals
+      const adaptiveIndicators5m = calculateIndicators(candles5m, {
+        emaFast: adaptiveParams.emaFast,
+        emaSlow: adaptiveParams.emaSlow,
+        macdFast: adaptiveParams.macdFast,
+        macdSlow: adaptiveParams.macdSlow,
+        rsiPeriod: adaptiveParams.rsiPeriod,
+        bbPeriod: adaptiveParams.bbPeriod,
+        bbStdDev: adaptiveParams.bbStdDev,
+      });
+
+      logger.info(`  Adaptive Indicators (5m): EMA(${adaptiveIndicators5m.ema20.toFixed(2)}/${adaptiveIndicators5m.ema50.toFixed(2)}), MACD(${adaptiveIndicators5m.macd.toFixed(3)}), RSI(${adaptiveIndicators5m.rsi14.toFixed(1)})`);
+
       // 将各时间框架指标添加到市场数据
       marketData[symbol] = {
         price: currentPrice,
@@ -392,6 +406,18 @@ async function collectMarketData() {
           bbPeriod: adaptiveParams.bbPeriod,
           bbStdDev: adaptiveParams.bbStdDev,
           atrPeriod: adaptiveParams.atrPeriod,
+        },
+        // Phase 3A: Adaptive Indicators (calculated with regime-adjusted parameters)
+        adaptiveIndicators: {
+          ema20: adaptiveIndicators5m.ema20,  // Using adaptive emaFast period
+          ema50: adaptiveIndicators5m.ema50,  // Using adaptive emaSlow period
+          macd: adaptiveIndicators5m.macd,    // Using adaptive MACD periods
+          rsi14: adaptiveIndicators5m.rsi14,  // Using adaptive RSI period
+          bbUpper: adaptiveIndicators5m.bbUpper,
+          bbMiddle: adaptiveIndicators5m.bbMiddle,
+          bbLower: adaptiveIndicators5m.bbLower,
+          bbPercent: adaptiveIndicators5m.bbPercent,
+          bbBandwidth: adaptiveIndicators5m.bbBandwidth,
         },
         adaptiveRisk: {
           stopLossATRMultiple: adaptiveRisk.stopLossATRMultiple,
@@ -614,17 +640,17 @@ function calcRSI(prices: number[], period: number) {
 }
 
 // 计算 MACD
-function calcMACD(prices: number[]) {
-  if (prices.length < 26) return 0; // 数据不足
-  const ema12 = calcEMA(prices, 12);
-  const ema26 = calcEMA(prices, 26);
-  const macd = ema12 - ema26;
+function calcMACD(prices: number[], fastPeriod: number = 12, slowPeriod: number = 26) {
+  if (prices.length < slowPeriod) return 0; // Insufficient data
+  const emaFast = calcEMA(prices, fastPeriod);
+  const emaSlow = calcEMA(prices, slowPeriod);
+  const macd = emaFast - emaSlow;
   return Number.isFinite(macd) ? macd : 0;
 }
 
 /**
- * 计算技术指标
- * 
+ * Calculate technical indicators with optional adaptive parameters
+ *
  * K线数据格式：FuturesCandlestick 对象
  * {
  *   t: number,    // 时间戳
@@ -635,8 +661,20 @@ function calcMACD(prices: number[]) {
  *   o: string,    // 开盘价
  *   sum: string   // 总成交额
  * }
+ *
+ * @param candles K线数据数组
+ * @param adaptiveParams Optional adaptive parameters from Phase 3A regime detection
+ * @returns Technical indicator object with baseline or adaptive values
  */
-function calculateIndicators(candles: any[]) {
+function calculateIndicators(candles: any[], adaptiveParams?: {
+  emaFast: number;
+  emaSlow: number;
+  macdFast: number;
+  macdSlow: number;
+  rsiPeriod: number;
+  bbPeriod: number;
+  bbStdDev: number;
+}) {
   if (!candles || candles.length === 0) {
     return {
       currentPrice: 0,
@@ -715,18 +753,27 @@ function calculateIndicators(candles: any[]) {
     };
   }
 
-  // Phase 1 indicators
+  // Use adaptive parameters if provided, otherwise use baseline (Phase 2) parameters
+  const emaFastPeriod = adaptiveParams?.emaFast ?? 20;
+  const emaSlowPeriod = adaptiveParams?.emaSlow ?? 50;
+  const macdFastPeriod = adaptiveParams?.macdFast ?? 12;
+  const macdSlowPeriod = adaptiveParams?.macdSlow ?? 26;
+  const rsiPeriod = adaptiveParams?.rsiPeriod ?? 14;
+  const bbPeriod = adaptiveParams?.bbPeriod ?? 20;
+  const bbStdDev = adaptiveParams?.bbStdDev ?? 2.0;
+
+  // Phase 1 indicators (with adaptive or baseline parameters)
   const currentPrice = ensureFinite(closes.at(-1) || 0);
-  const ema20 = ensureFinite(calcEMA(closes, 20));
-  const ema50 = ensureFinite(calcEMA(closes, 50));
-  const macd = ensureFinite(calcMACD(closes));
-  const rsi7 = ensureRange(calcRSI(closes, 7), 0, 100, 50);
-  const rsi14 = ensureRange(calcRSI(closes, 14), 0, 100, 50);
+  const ema20 = ensureFinite(calcEMA(closes, emaFastPeriod)); // Adaptive EMA fast
+  const ema50 = ensureFinite(calcEMA(closes, emaSlowPeriod)); // Adaptive EMA slow
+  const macd = ensureFinite(calcMACD(closes, macdFastPeriod, macdSlowPeriod)); // Adaptive MACD
+  const rsi7 = ensureRange(calcRSI(closes, 7), 0, 100, 50); // Keep RSI7 for reference
+  const rsi14 = ensureRange(calcRSI(closes, rsiPeriod), 0, 100, 50); // Adaptive RSI
   const volume = ensureFinite(volumes.at(-1) || 0);
   const avgVolume = ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0);
 
-  // Phase 2: Bollinger Bands
-  const bb = calculateBollingerBands(closes, 20, 2);
+  // Phase 2: Bollinger Bands (with adaptive parameters)
+  const bb = calculateBollingerBands(closes, bbPeriod, bbStdDev);
 
   // Phase 2: VWAP
   const vwapResult = calculateVWAP(candles);

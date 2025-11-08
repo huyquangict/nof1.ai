@@ -846,6 +846,29 @@ Current market status for all symbols
         prompt += `  ⚠️ High risk - breakouts can fail quickly\n`;
       }
       prompt += `\n`;
+
+      // Show adaptive indicators calculated with regime-adjusted parameters
+      if (data.adaptiveIndicators) {
+        prompt += `[Regime-Adaptive Indicators - USE THESE for ${data.regime.classification}]\n`;
+        prompt += `These indicators are calculated using adaptive parameters tuned for current market regime:\n`;
+        prompt += `\n`;
+        prompt += `  Adaptive EMA(${data.adaptiveParams.emaFast}): ${data.adaptiveIndicators.ema20.toFixed(2)}\n`;
+        prompt += `  Adaptive EMA(${data.adaptiveParams.emaSlow}): ${data.adaptiveIndicators.ema50.toFixed(2)}\n`;
+        prompt += `  Price vs Adaptive EMA: ${data.price > data.adaptiveIndicators.ema20 ? '↗️ ABOVE fast EMA' : '↘️ BELOW fast EMA'}\n`;
+        prompt += `  Adaptive MACD(${data.adaptiveParams.macdFast}/${data.adaptiveParams.macdSlow}): ${data.adaptiveIndicators.macd.toFixed(3)}\n`;
+        prompt += `  Adaptive RSI(${data.adaptiveParams.rsiPeriod}): ${data.adaptiveIndicators.rsi14.toFixed(1)}\n`;
+        prompt += `  Adaptive BB(${data.adaptiveParams.bbPeriod}, ${data.adaptiveParams.bbStdDev}σ): ${data.adaptiveIndicators.bbUpper.toFixed(2)} / ${data.adaptiveIndicators.bbMiddle.toFixed(2)} / ${data.adaptiveIndicators.bbLower.toFixed(2)}\n`;
+        prompt += `  BB Position: ${data.adaptiveIndicators.bbPercent.toFixed(3)} (${data.adaptiveIndicators.bbPercent > 0.8 ? 'Near upper band - overbought' : data.adaptiveIndicators.bbPercent < 0.2 ? 'Near lower band - oversold' : 'Mid-range'})\n`;
+        prompt += `\n`;
+        prompt += `  📊 Comparison with Baseline (Phase 2):\n`;
+        prompt += `     Baseline EMA20: ${data.ema20.toFixed(2)} → Adaptive: ${data.adaptiveIndicators.ema20.toFixed(2)} (${(data.adaptiveIndicators.ema20 - data.ema20) >= 0 ? '+' : ''}${(data.adaptiveIndicators.ema20 - data.ema20).toFixed(2)})\n`;
+        prompt += `     Baseline MACD: ${data.macd.toFixed(3)} → Adaptive: ${data.adaptiveIndicators.macd.toFixed(3)} (${(data.adaptiveIndicators.macd - data.macd) >= 0 ? '+' : ''}${(data.adaptiveIndicators.macd - data.macd).toFixed(3)})\n`;
+        prompt += `     Baseline RSI14: ${data.rsi14.toFixed(1)} → Adaptive: ${data.adaptiveIndicators.rsi14.toFixed(1)} (${(data.adaptiveIndicators.rsi14 - data.rsi14) >= 0 ? '+' : ''}${(data.adaptiveIndicators.rsi14 - data.rsi14).toFixed(1)})\n`;
+        prompt += `\n`;
+        prompt += `  ⚠️ IMPORTANT: For trading decisions in ${data.regime.classification} regime, prioritize ADAPTIVE indicators over baseline.\n`;
+        prompt += `     Adaptive indicators are tuned to current market conditions and will give more accurate signals.\n`;
+        prompt += `\n`;
+      }
     }
 
     // Phase 3B: ML Prediction (if available)
