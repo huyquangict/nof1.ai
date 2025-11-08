@@ -532,6 +532,7 @@ body {
 .detail-label {
     color: var(--text-dim);
     font-size: 0.95rem;
+    font-weight: bold;
 }
 
 .detail-value {
@@ -827,7 +828,7 @@ body {
 }
 
 .trades-table .side {
-    font-weight: 500;
+    font-weight: bold;
 }
 
 .trades-table .side.long {
