@@ -466,6 +466,42 @@ class TradingMonitor {
         });
     }
 
+    // Initialize tabbed interface
+    initializeTabbedInterface() {
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+        // Add click handlers to all tab buttons
+        tabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const targetTab = e.currentTarget.getAttribute('data-tab');
+                this.switchTab(targetTab);
+            });
+        });
+    }
+
+    // Switch to a specific tab
+    switchTab(tabName) {
+        // Update button states
+        const tabButtons = document.querySelectorAll('.tab-button');
+        tabButtons.forEach(button => {
+            if (button.getAttribute('data-tab') === tabName) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        });
+
+        // Update content visibility
+        const tabPanes = document.querySelectorAll('.tab-pane');
+        tabPanes.forEach(pane => {
+            if (pane.id === `${tabName}-tab`) {
+                pane.classList.add('active');
+            } else {
+                pane.classList.remove('active');
+            }
+        });
+    }
+
     // Load trading settings from API
     async loadTradingSettings() {
         try {

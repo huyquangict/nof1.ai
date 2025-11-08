@@ -2840,3 +2840,177 @@ tr.highlighted {
     gap: var(--space-xs);
   }
 }
+
+/* === TABBED INTERFACE === */
+.settings-tabs-section {
+  margin-bottom: var(--space-3xl);
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 2px solid var(--color-gray-200);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--color-gray-600);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  top: 2px;
+}
+
+.tab-button:hover {
+  color: var(--color-black);
+  background: var(--color-gray-50);
+}
+
+.tab-button.active {
+  color: var(--color-black);
+  border-bottom-color: var(--color-blue);
+  background: var(--color-white);
+}
+
+.tab-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Tab Content */
+.tab-content {
+  background: var(--color-white);
+  min-height: 400px;
+}
+
+.tab-pane {
+  display: none;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tab Headers */
+.tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 2px solid var(--color-gray-200);
+}
+
+.tab-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-black);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* Tab-specific adjustments */
+.tab-content .custom-instructions-container,
+.tab-content .trading-settings,
+.tab-content .learning-config {
+  background-color: var(--color-gray-50);
+  border: 2px solid var(--color-gray-200);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+/* Mobile adjustments for Tabbed Interface */
+@media (max-width: 768px) {
+  .tab-navigation {
+    gap: 2px;
+    margin-bottom: var(--space-md);
+  }
+
+  .tab-button {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.75rem;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .tab-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .tab-button span {
+    display: none;
+  }
+
+  .tab-header {
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: stretch;
+  }
+
+  .tab-title {
+    font-size: 1rem;
+    text-align: center;
+  }
+
+  .save-instructions-button,
+  .save-settings-button,
+  .toggle-learning-button {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .save-instructions-button svg,
+  .save-settings-button svg,
+  .toggle-learning-button svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Extra small mobile adjustments */
+@media (max-width: 480px) {
+  .tab-button {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.625rem;
+  }
+
+  .tab-button svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .tab-title {
+    font-size: 0.875rem;
+  }
+}

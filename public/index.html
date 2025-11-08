@@ -97,7 +97,7 @@
   }
   </script>
   
-  <link rel="stylesheet" href="monitor-styles.css?v=20251104c">
+  <link rel="stylesheet" href="monitor-styles.css?v=20251108a">
 </head>
 
 <body>
@@ -192,24 +192,59 @@
       </div>
     </section>
 
-    <!-- Custom Instructions Section -->
-    <section class="chart-section custom-instructions-section">
+    <!-- Settings & AI Tabbed Interface -->
+    <section class="chart-section settings-tabs-section">
       <div class="chart-header">
-        <h3 class="chart-title">Custom LLM Instructions</h3>
-        <button class="save-instructions-button" id="save-instructions-button" title="Save custom instructions">
+        <h3 class="chart-title">⚙️ Settings & AI Configuration</h3>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button class="tab-button active" data-tab="custom-instructions">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
-          <span>SAVE</span>
+          Custom Instructions
+        </button>
+        <button class="tab-button" data-tab="trading-settings">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Trading Settings
+        </button>
+        <button class="tab-button" data-tab="ai-learning">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+          </svg>
+          AI Learning
         </button>
       </div>
-      <div class="custom-instructions-container">
-        <textarea
-          id="custom-instructions"
-          class="custom-instructions-textarea"
-          placeholder="Add custom instructions or guidelines for the AI trading agent here...
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Custom Instructions Tab -->
+        <div class="tab-pane active" id="custom-instructions-tab">
+          <div class="tab-header">
+            <h4 class="tab-title">Custom LLM Instructions</h4>
+            <button class="save-instructions-button" id="save-instructions-button" title="Save custom instructions">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>SAVE</span>
+            </button>
+          </div>
+          <div class="custom-instructions-container">
+            <textarea
+              id="custom-instructions"
+              class="custom-instructions-textarea"
+              placeholder="Add custom instructions or guidelines for the AI trading agent here...
 
 Examples:
 - Focus only on BTC and ETH trades
@@ -217,186 +252,184 @@ Examples:
 - Increase position size when RSI > 70
 - Be more conservative with leverage on weekends
 
-Your custom instructions will be added to every AI prompt."
-        ></textarea>
-        <div class="custom-instructions-info">
-          <span class="info-text">Custom instructions are appended to every AI trading prompt. Use this to add specific trading rules, preferences, or risk management guidelines.</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Trading Settings Section -->
-    <section class="chart-section trading-settings-section">
-      <div class="chart-header">
-        <h3 class="chart-title">
-          ⚙️ Trading Settings
-          <span class="settings-badge" id="settings-status-badge">CONFIGURED</span>
-        </h3>
-        <button class="save-settings-button" id="save-settings-button" title="Save trading settings">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
-          </svg>
-          <span>SAVE SETTINGS</span>
-        </button>
-      </div>
-
-      <!-- Trading Settings Configuration -->
-      <div class="trading-settings">
-        <div class="settings-row">
-          <label>Enabled Trading Coins:</label>
-          <div class="coins-selector" id="coins-selector">
-            <div class="coin-option">
-              <input type="checkbox" id="coin-BTC" value="BTC" checked>
-              <label for="coin-BTC">BTC</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-ETH" value="ETH" checked>
-              <label for="coin-ETH">ETH</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-SOL" value="SOL" checked>
-              <label for="coin-SOL">SOL</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-XRP" value="XRP" checked>
-              <label for="coin-XRP">XRP</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-BNB" value="BNB" checked>
-              <label for="coin-BNB">BNB</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-BCH" value="BCH">
-              <label for="coin-BCH">BCH</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-DOGE" value="DOGE">
-              <label for="coin-DOGE">DOGE</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-LTC" value="LTC">
-              <label for="coin-LTC">LTC</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-HBAR" value="HBAR">
-              <label for="coin-HBAR">HBAR</label>
-            </div>
-            <div class="coin-option">
-              <input type="checkbox" id="coin-ASTER" value="ASTER">
-              <label for="coin-ASTER">ASTER</label>
+Your custom instructions will be added to every AI trading prompt."
+            ></textarea>
+            <div class="custom-instructions-info">
+              <span class="info-text">Custom instructions are appended to every AI trading prompt. Use this to add specific trading rules, preferences, or risk management guidelines.</span>
             </div>
           </div>
         </div>
-        <div class="settings-row">
-          <label for="max-positions">Maximum Simultaneous Positions:</label>
-          <select id="max-positions" class="settings-select">
-            <option value="1">1 position (Very Conservative)</option>
-            <option value="2">2 positions (Conservative)</option>
-            <option value="3">3 positions (Moderate)</option>
-            <option value="4" selected>4 positions (Balanced)</option>
-            <option value="5">5 positions (Moderate)</option>
-            <option value="8">8 positions (Aggressive)</option>
-            <option value="10">10 positions (Very Aggressive)</option>
-            <option value="15">15 positions (Maximum)</option>
-            <option value="20">20 positions (Expert)</option>
-          </select>
-        </div>
-      </div>
 
-      <!-- Settings Info -->
-      <div class="settings-info">
-        <span class="info-text">Configure which cryptocurrencies to trade and maximum position limits. Changes take effect on the next trading cycle.</span>
-      </div>
-    </section>
+        <!-- Trading Settings Tab -->
+        <div class="tab-pane" id="trading-settings-tab">
+          <div class="tab-header">
+            <h4 class="tab-title">
+              ⚙️ Trading Configuration
+              <span class="settings-badge" id="settings-status-badge">CONFIGURED</span>
+            </h4>
+            <button class="save-settings-button" id="save-settings-button" title="Save trading settings">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>SAVE SETTINGS</span>
+            </button>
+          </div>
+          <div class="trading-settings">
+            <div class="settings-row">
+              <label>Enabled Trading Coins:</label>
+              <div class="coins-selector" id="coins-selector">
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-BTC" value="BTC" checked>
+                  <label for="coin-BTC">BTC</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-ETH" value="ETH" checked>
+                  <label for="coin-ETH">ETH</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-SOL" value="SOL" checked>
+                  <label for="coin-SOL">SOL</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-XRP" value="XRP" checked>
+                  <label for="coin-XRP">XRP</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-BNB" value="BNB" checked>
+                  <label for="coin-BNB">BNB</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-BCH" value="BCH">
+                  <label for="coin-BCH">BCH</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-DOGE" value="DOGE">
+                  <label for="coin-DOGE">DOGE</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-LTC" value="LTC">
+                  <label for="coin-LTC">LTC</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-HBAR" value="HBAR">
+                  <label for="coin-HBAR">HBAR</label>
+                </div>
+                <div class="coin-option">
+                  <input type="checkbox" id="coin-ASTER" value="ASTER">
+                  <label for="coin-ASTER">ASTER</label>
+                </div>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label for="max-positions">Maximum Simultaneous Positions:</label>
+              <select id="max-positions" class="settings-select">
+                <option value="1">1 position (Very Conservative)</option>
+                <option value="2">2 positions (Conservative)</option>
+                <option value="3">3 positions (Moderate)</option>
+                <option value="4" selected>4 positions (Balanced)</option>
+                <option value="5">5 positions (Moderate)</option>
+                <option value="8">8 positions (Aggressive)</option>
+                <option value="10">10 positions (Very Aggressive)</option>
+                <option value="15">15 positions (Maximum)</option>
+                <option value="20">20 positions (Expert)</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-info">
+            <span class="info-text">Configure which cryptocurrencies to trade and maximum position limits. Changes take effect on the next trading cycle.</span>
+          </div>
+        </div>
 
-    <!-- AI Learning System Section -->
-    <section class="chart-section ai-learning-section">
-      <div class="chart-header">
-        <h3 class="chart-title">
-          🧠 AI Learning System
-          <span class="learning-badge" id="learning-status-badge">DISABLED</span>
-        </h3>
-        <button class="toggle-learning-button" id="toggle-learning-button" title="Enable/Disable AI Learning">
-          <span id="learning-button-text">ENABLE LEARNING</span>
-        </button>
-      </div>
+        <!-- AI Learning Tab -->
+        <div class="tab-pane" id="ai-learning-tab">
+          <div class="tab-header">
+            <h4 class="tab-title">
+              🧠 AI Learning System
+              <span class="learning-badge" id="learning-status-badge">DISABLED</span>
+            </h4>
+            <button class="toggle-learning-button" id="toggle-learning-button" title="Enable/Disable AI Learning">
+              <span id="learning-button-text">ENABLE LEARNING</span>
+            </button>
+          </div>
 
-      <!-- Learning Configuration -->
-      <div class="learning-config">
-        <div class="config-row">
-          <label>Lessons per decision:</label>
-          <select id="lesson-count" class="config-select">
-            <option value="5">5 lessons</option>
-            <option value="10" selected>10 lessons (Recommended)</option>
-            <option value="15">15 lessons</option>
-            <option value="20">20 lessons (Max context)</option>
-          </select>
-        </div>
-        <div class="config-row">
-          <label>Minimum success rate:</label>
-          <select id="min-success-rate" class="config-select">
-            <option value="60">60% (Include experimental)</option>
-            <option value="70" selected>70% (Balanced)</option>
-            <option value="80">80% (High confidence only)</option>
-          </select>
-        </div>
-        <div class="config-row">
-          <label>Lesson freshness:</label>
-          <select id="lesson-age" class="config-select">
-            <option value="7">Last 7 days only</option>
-            <option value="30" selected>Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="0">All time</option>
-          </select>
-        </div>
-      </div>
+          <!-- Learning Configuration -->
+          <div class="learning-config">
+            <div class="config-row">
+              <label>Lessons per decision:</label>
+              <select id="lesson-count" class="config-select">
+                <option value="5">5 lessons</option>
+                <option value="10" selected>10 lessons (Recommended)</option>
+                <option value="15">15 lessons</option>
+                <option value="20">20 lessons (Max context)</option>
+              </select>
+            </div>
+            <div class="config-row">
+              <label>Minimum success rate:</label>
+              <select id="min-success-rate" class="config-select">
+                <option value="60">60% (Include experimental)</option>
+                <option value="70" selected>70% (Balanced)</option>
+                <option value="80">80% (High confidence only)</option>
+              </select>
+            </div>
+            <div class="config-row">
+              <label>Lesson freshness:</label>
+              <select id="lesson-age" class="config-select">
+                <option value="7">Last 7 days only</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="0">All time</option>
+              </select>
+            </div>
+          </div>
 
-      <!-- Learning Statistics -->
-      <div class="learning-stats">
-        <div class="stat-card">
-          <div class="stat-label">Total Reflections</div>
-          <div class="stat-value" id="total-reflections">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Active Lessons</div>
-          <div class="stat-value" id="active-lessons">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg Effectiveness</div>
-          <div class="stat-value" id="lesson-effectiveness">0%</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Pending Reviews</div>
-          <div class="stat-value" id="pending-reviews">0</div>
-        </div>
-      </div>
+          <!-- Learning Statistics -->
+          <div class="learning-stats">
+            <div class="stat-card">
+              <div class="stat-label">Total Reflections</div>
+              <div class="stat-value" id="total-reflections">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Active Lessons</div>
+              <div class="stat-value" id="active-lessons">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg Effectiveness</div>
+              <div class="stat-value" id="lesson-effectiveness">0%</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Pending Reviews</div>
+              <div class="stat-value" id="pending-reviews">0</div>
+            </div>
+          </div>
 
-      <!-- Top Lessons Display -->
-      <div class="top-lessons">
-        <h4>🏆 Most Effective Lessons</h4>
-        <div id="lessons-list" class="lessons-container">
-          <div class="lessons-empty">No lessons yet. Enable learning and start trading to generate lessons.</div>
-        </div>
-      </div>
+          <!-- Top Lessons Display -->
+          <div class="top-lessons">
+            <h4>🏆 Most Effective Lessons</h4>
+            <div id="lessons-list" class="lessons-container">
+              <div class="lessons-empty">No lessons yet. Enable learning and start trading to generate lessons.</div>
+            </div>
+          </div>
 
-      <!-- Recent Reflections -->
-      <div class="recent-reflections">
-        <h4>📝 Recent Predictions & Outcomes</h4>
-        <div class="reflection-filters">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="accurate">Accurate (8+)</button>
-          <button class="filter-btn" data-filter="inaccurate">Inaccurate (≤4)</button>
-          <button class="filter-btn" data-filter="pending">Pending Feedback</button>
-        </div>
-        <div id="reflections-list" class="reflections-container">
-          <div class="reflections-empty">No reflections yet. Enable learning and AI will record its predictions.</div>
-        </div>
-        <div class="pagination-controls" id="reflections-pagination">
-          <button class="pagination-btn" id="prev-page" disabled>← Previous</button>
-          <span class="pagination-info" id="pagination-info">Page 1</span>
-          <button class="pagination-btn" id="next-page" disabled>Next →</button>
+          <!-- Recent Reflections -->
+          <div class="recent-reflections">
+            <h4>📝 Recent Predictions & Outcomes</h4>
+            <div class="reflection-filters">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="accurate">Accurate (8+)</button>
+              <button class="filter-btn" data-filter="inaccurate">Inaccurate (≤4)</button>
+              <button class="filter-btn" data-filter="pending">Pending Feedback</button>
+            </div>
+            <div id="reflections-list" class="reflections-container">
+              <div class="reflections-empty">No reflections yet. Enable learning and AI will record its predictions.</div>
+            </div>
+            <div class="pagination-controls" id="reflections-pagination">
+              <button class="pagination-btn" id="prev-page" disabled>← Previous</button>
+              <span class="pagination-info" id="pagination-info">Page 1</span>
+              <button class="pagination-btn" id="next-page" disabled>Next →</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -574,7 +607,7 @@ Your custom instructions will be added to every AI prompt."
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-  <script src="monitor-script.js?v=20251107a"></script>
+  <script src="monitor-script.js?v=20251108a"></script>
 </body>
 
 </html>
