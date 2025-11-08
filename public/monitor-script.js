@@ -396,9 +396,9 @@ class TradingMonitor {
 
             const trades = tradesData.trades;
 
-            // Total Orders (Long and Short)
-            const longOrders = trades.filter(t => t.side === 'long').length;
-            const shortOrders = trades.filter(t => t.side === 'short').length;
+            // Total Orders (Long and Short) - only count open type orders
+            const longOrders = trades.filter(t => t.type === 'open' && t.side === 'long').length;
+            const shortOrders = trades.filter(t => t.type === 'open' && t.side === 'short').length;
             const totalOrders = longOrders + shortOrders;
             document.getElementById('stat-total-orders').textContent = totalOrders;
             document.getElementById('stat-total-long').textContent = `${longOrders}L`;
