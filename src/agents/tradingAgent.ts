@@ -228,7 +228,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // normal volatility：standard configuration
         lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // lowvolatility：moderately increase（trend stable）
       },
-      entryCondition: "must1minutes、3minutes、5minutes、15minutesthese4all timeframe signals strongly aligned，weighted confluence analysis reachesSTRONGlevel（total score≥70and alignment≥75%），key indicator confluence（MACD、RSI、EMAdirection aligned）",
+      entryCondition: "Must have strong confluence across medium timeframes (15-minute, 30-minute, 1-hour) - at least 3 timeframes aligned. Weighted confluence analysis should reach MODERATE-STRONG level (total score ≥60 and alignment ≥65%). Key indicators (MACD, RSI, EMA) should show directional agreement. NOTE: Avoid using 1m/3m timeframes for swing decisions - they create noise for multi-day holds.",
       riskTolerance: "Single trade risk controlled at 20-35%, focus on trend quality rather than trading frequency",
       tradingStyle: "Swing Trendtrading，20-minute execution cycle, patiently wait for high-quality trend signals, holding time can reach several days, let profits run fully",
       // Auto-monitor stop-loss configuration (auto-check every 10 seconds)
@@ -1360,8 +1360,8 @@ Do not just say "I will close position", "Should open position", but immediately
 
 3. Analyze Market Data (Must actually call tools):
    - Call getTechnicalIndicators to get technical indicator data
-   - ⭐ Analyze multiple timeframes (1-minute, 3-minute, 5-minute, 15-minute) - Key for swing strategy!
-   - Focus on: price, EMA, MACD, RSI
+   - ⭐ Analyze multiple timeframes - ${strategy === 'swing-trend' ? 'Focus on 15-minute, 30-minute, 1-hour (avoid 1m/3m noise for swing trades)' : strategy === 'ultra-short' ? 'Use 1-minute, 3-minute, 5-minute, 15-minute' : 'Use 5-minute, 15-minute, 30-minute, 1-hour'}
+   - Focus on: price, EMA, MACD, RSI, adaptive indicators
    - Must satisfy: ${params.entryCondition}
 
 4. Evaluate New Trading Opportunities (If decide to open, must execute immediately):
