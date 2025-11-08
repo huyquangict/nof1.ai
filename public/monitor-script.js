@@ -411,12 +411,12 @@ class TradingMonitor {
             if (totalClosedTrades > 0) {
                 const winRate = ((winTrades.length / totalClosedTrades) * 100).toFixed(1);
                 document.getElementById('stat-win-rate-percent').textContent = `${winRate}%`;
-                document.getElementById('stat-win-count').textContent = `${winTrades.length} Win`;
-                document.getElementById('stat-loss-count').textContent = `${lossTrades.length} Loss`;
+                document.getElementById('stat-win-count').textContent = `${winTrades.length}W`;
+                document.getElementById('stat-loss-count').textContent = `${lossTrades.length}L`;
             } else {
                 document.getElementById('stat-win-rate-percent').textContent = '0%';
-                document.getElementById('stat-win-count').textContent = '0 Win';
-                document.getElementById('stat-loss-count').textContent = '0 Loss';
+                document.getElementById('stat-win-count').textContent = '0W';
+                document.getElementById('stat-loss-count').textContent = '0L';
             }
 
             // Total P&L
