@@ -2069,10 +2069,314 @@ function highlightTrade(orderId) {
     }
 }
 
+// ==================== ALL LESSONS SECTION ====================
+
+let lessonsData = [];
+let filteredLessons = [];
+let currentPage = 1;
+let lessonsPerPage = 5;
+let currentFilter = 'all';
+
+function initLessonsSection() {
+    loadLessons();
+    setupLessonsEventListeners();
+}
+
+async function loadLessons() {
+    try {
+        showLoading('lessons-section');
+
+        const response = await fetch('/api/learning/lessons');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Lessons API response:', data); // Debug log
+
+        lessonsData = data.lessons || [];
+        filteredLessons = [...lessonsData];
+
+        console.log('Loaded lessons:', lessonsData.length, 'items'); // Debug log
+
+        updateLessonsStats();
+        renderLessons();
+        updateLessonsPagination();
+
+    } catch (error) {
+        console.error('Error loading lessons:', error);
+        showError('lessons-section', 'Failed to load lessons: ' + error.message);
+    }
+}
+
+function updateLessonsStats() {
+    const statsContainer = document.querySelector('.lessons-stats');
+    if (!statsContainer) return;
+
+    const totalLessons = lessonsData.length;
+    const activeLessons = lessonsData.filter(l => l.isActive === 1).length;
+    const avgSuccessRate = totalLessons > 0 ?
+        (lessonsData.reduce((sum, l) => sum + (l.successRate || 0), 0) / totalLessons).toFixed(1) : 0;
+    const avgConfidence = totalLessons > 0 ?
+        (lessonsData.filter(l => l.confidenceLevel === 'high').length / totalLessons * 100).toFixed(0) : 0;
+
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <h3>${totalLessons}</h3>
+            <p>Total Lessons</p>
+        </div>
+        <div class="stat-card">
+            <h3>${activeLessons}</h3>
+            <p>Active Lessons</p>
+        </div>
+        <div class="stat-card">
+            <h3>${avgSuccessRate}%</h3>
+            <p>Avg Success Rate</p>
+        </div>
+        <div class="stat-card">
+            <h3>${avgConfidence}%</h3>
+            <p>High Confidence</p>
+        </div>
+    `;
+}
+
+function setupLessonsEventListeners() {
+    // Filter buttons
+    document.querySelectorAll('.lessons-filters button').forEach(button => {
+        button.addEventListener('click', function() {
+            document.querySelectorAll('.lessons-filters button').forEach(btn =>
+                btn.classList.remove('active'));
+            this.classList.add('active');
+
+            currentFilter = this.dataset.filter;
+            filterLessons();
+        });
+    });
+
+    // Search input
+    const searchInput = document.querySelector('.lessons-search input');
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(function() {
+            filterLessons();
+        }, 300));
+    }
+
+    // Sort dropdown
+    const sortSelect = document.querySelector('.lessons-sort select');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            sortLessons(this.value);
+        });
+    }
+
+    // Pagination controls - match Recent Predictions pattern
+    const prevButton = document.getElementById('lessons-prev-page');
+    const nextButton = document.getElementById('lessons-next-page');
+
+    if (prevButton) {
+        prevButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderLessons();
+                updateLessonsPagination();
+            }
+        });
+    }
+
+    if (nextButton) {
+        nextButton.addEventListener('click', () => {
+            const maxPage = Math.ceil(filteredLessons.length / lessonsPerPage);
+            if (currentPage < maxPage) {
+                currentPage++;
+                renderLessons();
+                updateLessonsPagination();
+            }
+        });
+    }
+}
+
+function filterLessons() {
+    const searchTerm = document.querySelector('.lessons-search input')?.value.toLowerCase() || '';
+
+    filteredLessons = lessonsData.filter(lesson => {
+        // Filter by category
+        if (currentFilter !== 'all' && lesson.category !== currentFilter) {
+            return false;
+        }
+
+        // Filter by search term
+        if (searchTerm && !lesson.text.toLowerCase().includes(searchTerm)) {
+            return false;
+        }
+
+        return true;
+    });
+
+    currentPage = 1;
+    renderLessons();
+    updateLessonsPagination();
+}
+
+function sortLessons(sortBy) {
+    switch (sortBy) {
+        case 'success_rate':
+            filteredLessons.sort((a, b) => (b.successRate || 0) - (a.successRate || 0));
+            break;
+        case 'created_at':
+            filteredLessons.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            break;
+        case 'confidence_level':
+            const confidenceOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+            filteredLessons.sort((a, b) => confidenceOrder[b.confidenceLevel] - confidenceOrder[a.confidenceLevel]);
+            break;
+        case 'effectiveness_rate':
+            filteredLessons.sort((a, b) => (b.effectivenessRate || 0) - (a.effectivenessRate || 0));
+            break;
+    }
+
+    currentPage = 1;
+    renderLessons();
+    updateLessonsPagination();
+}
+
+function renderLessons() {
+    const lessonsGrid = document.querySelector('.lessons-grid');
+    if (!lessonsGrid) return;
+
+    const startIndex = (currentPage - 1) * lessonsPerPage;
+    const endIndex = startIndex + lessonsPerPage;
+    const lessonsToShow = filteredLessons.slice(startIndex, endIndex);
+
+    if (lessonsToShow.length === 0) {
+        lessonsGrid.innerHTML = `
+            <div class="no-lessons" style="grid-column: 1 / -1; text-align: center; padding: var(--space-xl); color: var(--color-gray-600);">
+                <h3 style="margin-bottom: var(--space-md);">📚 No Lessons Yet</h3>
+                <p>The AI learning system hasn't generated any lessons yet.</p>
+                <p style="margin-top: var(--space-sm); font-size: 0.875rem;">
+                    Lessons are created when the system analyzes trading patterns and learns from outcomes.
+                </p>
+                <p style="margin-top: var(--space-sm); font-size: 0.875rem;">
+                    Start trading and enable AI learning to begin generating lessons.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    lessonsGrid.innerHTML = lessonsToShow.map(lesson => {
+        const categoryColors = {
+            'risk_management': '#F97316',
+            'entry_timing': '#3B82F6',
+            'exit_strategy': '#10B981',
+            'market_conditions': '#A855F7',
+            'position_sizing': '#EAB308',
+        };
+
+        const categoryColor = categoryColors[lesson.category] || '#6B7280';
+        const successRate = (lesson.successRate || 0).toFixed(0);
+        const effectivenessRate = lesson.effectivenessRate
+            ? lesson.effectivenessRate.toFixed(0)
+            : 'N/A';
+
+        const confidenceEmoji = lesson.confidenceLevel === 'high' ? '🔥' :
+                               lesson.confidenceLevel === 'medium' ? '⭐' : '💡';
+
+        return `
+            <div class="lesson-card" data-lesson-id="${lesson.id}" style="border-left-color: ${categoryColor}">
+                <div class="lesson-header">
+                    <span class="lesson-category" style="background: ${categoryColor}">${lesson.category.replace('_', ' ').toUpperCase()}</span>
+                    <span class="lesson-confidence">${confidenceEmoji} ${lesson.confidenceLevel}</span>
+                </div>
+                <div class="lesson-text">${lesson.text}</div>
+                <div class="lesson-meta">
+                    <span>✅ Success: ${successRate}%</span>
+                    <span>📊 Effectiveness: ${effectivenessRate}%</span>
+                    <span>🔢 Applied: ${lesson.timesApplied || 0}x</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateLessonsPagination() {
+    const totalPages = Math.ceil(filteredLessons.length / lessonsPerPage);
+    const prevButton = document.getElementById('lessons-prev-page');
+    const nextButton = document.getElementById('lessons-next-page');
+    const pageInfo = document.getElementById('lessons-pagination-info');
+
+    if (!prevButton || !nextButton || !pageInfo) return;
+
+    // Update button states
+    prevButton.disabled = currentPage === 1;
+    nextButton.disabled = currentPage === totalPages || totalPages === 0;
+
+    // Update page info - match Recent Predictions format
+    if (totalPages === 0) {
+        pageInfo.textContent = 'Page 1';
+    } else {
+        pageInfo.textContent = `Page ${currentPage}`;
+    }
+}
+
+function formatCategory(category) {
+    return category.split('_').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+}
+
+function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+function showLoading(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) {
+        const grid = section.querySelector('.lessons-grid');
+        if (grid) {
+            grid.innerHTML = '<div class="loading">Loading lessons...</div>';
+        }
+    }
+}
+
+function showError(sectionId, message) {
+    const section = document.getElementById(sectionId);
+    if (section) {
+        const grid = section.querySelector('.lessons-grid');
+        if (grid) {
+            grid.innerHTML = `<div class="error">Error: ${message}</div>`;
+        }
+    }
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // Initialize monitoring system
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM ready, initializing TradingMonitor');
     const monitor = new TradingMonitor();
+
+    // Initialize All Lessons section
+    initLessonsSection();
 
     // Debug: Check if token exists
     const token = localStorage.getItem('jwt_token');

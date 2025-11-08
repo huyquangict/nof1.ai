@@ -2277,6 +2277,539 @@ tr.highlighted {
   }
 }
 
+/* === ALL LESSONS SECTION === */
+.all-lessons-section {
+  margin-bottom: var(--space-3xl);
+}
+
+.lessons-count-badge {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-blue);
+  color: var(--color-white);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-left: var(--space-md);
+}
+
+.lessons-controls {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lessons-filter-select {
+  padding: var(--space-sm);
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-black);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  border-radius: 4px;
+  min-width: 140px;
+}
+
+.lessons-filter-select:focus {
+  outline: none;
+  border-color: var(--color-blue);
+}
+
+/* Lessons Statistics Overview */
+.lessons-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg);
+  background-color: var(--color-gray-50);
+  border: 2px solid var(--color-gray-200);
+  border-radius: 4px;
+}
+
+.lessons-filters {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.lessons-filters button {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-300);
+  color: var(--color-gray-800);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.lessons-filters button:hover {
+  border-color: var(--color-black);
+  background: var(--color-gray-50);
+}
+
+.lessons-filters button.active {
+  background: var(--color-black);
+  border-color: var(--color-black);
+  color: var(--color-white);
+}
+
+.lessons-search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.lessons-search input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+.lessons-search input:focus {
+  outline: none;
+  border-color: var(--color-blue);
+}
+
+.lessons-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.lessons-sort select {
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lessons-sort label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-gray-800);
+  white-space: nowrap;
+}
+
+/* Lessons Pagination */
+.lessons-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.pagination-btn {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-300);
+  color: var(--color-gray-800);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+  min-width: 40px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: var(--color-black);
+  background: var(--color-gray-50);
+  transform: translateY(-1px);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-btn.active {
+  background: var(--color-black);
+  border-color: var(--color-black);
+  color: var(--color-white);
+}
+
+
+
+/* Lessons Grid */
+.lessons-grid-container {
+  margin-bottom: var(--space-xl);
+}
+
+.lessons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--space-xl);
+}
+
+.lessons-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-2xl);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-gray-600);
+}
+
+.lessons-grid .lesson-card {
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-200);
+  border-radius: 4px;
+  padding: var(--space-lg);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.lessons-grid .lesson-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-blue);
+  opacity: 0.8;
+}
+
+.lessons-grid .lesson-card.risk-management::before {
+  background: var(--color-red);
+}
+
+.lessons-grid .lesson-card.entry_timing::before {
+  background: var(--color-green);
+}
+
+.lessons-grid .lesson-card.exit_timing::before {
+  background: var(--color-orange);
+}
+
+.lessons-grid .lesson-card.market_conditions::before {
+  background: var(--color-purple);
+}
+
+.lessons-grid .lesson-card.symbol_behavior::before {
+  background: var(--color-cyan);
+}
+
+.lessons-grid .lesson-card.funding_rate::before {
+  background: var(--color-yellow);
+}
+
+.lessons-grid .lesson-card:hover {
+  border-color: var(--color-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.lesson-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-md);
+}
+
+.lesson-category {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-gray-100);
+  color: var(--color-gray-800);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 3px;
+  margin-bottom: var(--space-xs);
+}
+
+.lesson-content {
+  margin-bottom: var(--space-md);
+  color: var(--color-gray-800);
+  line-height: 1.5;
+}
+
+.lesson-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+  font-size: 0.875rem;
+  color: var(--color-gray-600);
+}
+
+.lesson-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background-color: var(--color-gray-50);
+  border-radius: 3px;
+}
+
+.lesson-stat {
+  text-align: center;
+}
+
+.lesson-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-gray-600);
+  margin-bottom: 2px;
+}
+
+.lesson-stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-black);
+}
+
+.lesson-stat-value.success {
+  color: var(--color-green);
+}
+
+.lesson-stat-value.warning {
+  color: var(--color-orange);
+}
+
+.lesson-stat-value.error {
+  color: var(--color-red);
+}
+
+.lesson-applicable-symbols {
+  font-size: 0.875rem;
+  color: var(--color-gray-600);
+  padding: var(--space-sm);
+  background: var(--color-gray-50);
+  border-radius: 3px;
+  text-align: center;
+}
+
+/* Lessons Pagination */
+.lessons-pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-xl);
+  padding: var(--space-md);
+  background-color: var(--color-gray-50);
+  border: 2px solid var(--color-gray-200);
+  border-radius: 4px;
+}
+
+.pagination-size-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.875rem;
+  color: var(--color-gray-600);
+}
+
+.per-page-select {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-gray-300);
+  background: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.per-page-select:focus {
+  outline: none;
+  border-color: var(--color-blue);
+}
+
+/* Tablet adjustments for All Lessons */
+@media (max-width: 1024px) {
+  .lessons-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-lg);
+  }
+}
+
+/* Mobile adjustments for All Lessons */
+@media (max-width: 768px) {
+  .lessons-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-md);
+  }
+
+  .lessons-search {
+    min-width: auto;
+    order: -1; /* Put search first on mobile */
+  }
+
+  .lessons-sort {
+    justify-content: center;
+  }
+
+  .lessons-sort select {
+    font-size: 0.8125rem;
+  }
+
+  .lessons-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+
+  .lessons-stats h3 {
+    font-size: 1.25rem;
+  }
+
+  .lessons-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .lessons-grid .lesson-card {
+    padding: var(--space-md);
+  }
+
+  .lesson-header {
+    flex-direction: column;
+    gap: var(--space-sm);
+    align-items: flex-start;
+  }
+
+  .lesson-category {
+    font-size: 0.625rem;
+    padding: 2px 6px;
+  }
+
+  .lesson-confidence {
+    font-size: 0.625rem;
+    padding: 2px 6px;
+  }
+
+  .lesson-content {
+    font-size: 0.875rem;
+  }
+
+  .lesson-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+
+  .lesson-stat {
+    flex-direction: column;
+    text-align: center;
+    gap: 2px;
+  }
+
+  .lesson-stat .label {
+    font-size: 0.625rem;
+  }
+
+  .lesson-stat .value {
+    font-size: 0.8125rem;
+  }
+
+  .lessons-pagination {
+    gap: var(--space-xs);
+  }
+
+  .pagination-btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.75rem;
+    min-width: 32px;
+  }
+}
+
+/* Extra small mobile adjustments for All Lessons */
+@media (max-width: 480px) {
+  .lessons-stats {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+  }
+
+  .lessons-stats h3 {
+    font-size: 1.125rem;
+  }
+
+  .lessons-filters button {
+    font-size: 0.625rem;
+    padding: 6px 10px;
+  }
+
+  .lessons-search input {
+    font-size: 0.8125rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .lessons-sort label {
+    font-size: 0.75rem;
+  }
+
+  .lessons-sort select {
+    font-size: 0.75rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .lessons-grid .lesson-card {
+    padding: var(--space-sm);
+  }
+
+  .lesson-text {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  .lesson-details {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+  }
+
+  .lesson-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--color-gray-200);
+  }
+
+  .lesson-stat:last-child {
+    border-bottom: none;
+  }
+
+  .lessons-pagination {
+    gap: 4px;
+  }
+
+  .pagination-btn {
+    padding: 4px 8px;
+    font-size: 0.625rem;
+    min-width: 28px;
+  }
+}
+
 /* Mobile adjustments for AI Learning */
 @media (max-width: 768px) {
   .learning-config {
