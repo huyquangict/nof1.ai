@@ -2086,7 +2086,7 @@ async function loadLessons() {
     try {
         showLoading('lessons-section');
 
-        const response = await fetch('/api/learning/lessons');
+        const response = await fetch('/api/learning/lessons?limit=1000');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -2110,59 +2110,64 @@ async function loadLessons() {
 }
 
 function updateLessonsStats() {
-    const statsContainer = document.querySelector('.lessons-stats');
-    if (!statsContainer) return;
+    // Update statistics values in existing HTML elements
+    const totalEl = document.getElementById('lessons-total-count');
+    const activeEl = document.getElementById('lessons-active-count');
+    const avgSuccessEl = document.getElementById('lessons-avg-success');
+    const topCategoryEl = document.getElementById('lessons-top-category');
 
     const totalLessons = lessonsData.length;
     const activeLessons = lessonsData.filter(l => l.isActive === 1).length;
     const avgSuccessRate = totalLessons > 0 ?
         (lessonsData.reduce((sum, l) => sum + (l.successRate || 0), 0) / totalLessons).toFixed(1) : 0;
-    const avgConfidence = totalLessons > 0 ?
-        (lessonsData.filter(l => l.confidenceLevel === 'high').length / totalLessons * 100).toFixed(0) : 0;
 
-    statsContainer.innerHTML = `
-        <div class="stat-card">
-            <h3>${totalLessons}</h3>
-            <p>Total Lessons</p>
-        </div>
-        <div class="stat-card">
-            <h3>${activeLessons}</h3>
-            <p>Active Lessons</p>
-        </div>
-        <div class="stat-card">
-            <h3>${avgSuccessRate}%</h3>
-            <p>Avg Success Rate</p>
-        </div>
-        <div class="stat-card">
-            <h3>${avgConfidence}%</h3>
-            <p>High Confidence</p>
-        </div>
-    `;
+    // Find top category
+    let topCategory = '-';
+    if (totalLessons > 0) {
+        const categoryCounts = {};
+        lessonsData.forEach(lesson => {
+            const category = lesson.category || 'unknown';
+            categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+        });
+        const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+        if (sortedCategories.length > 0) {
+            topCategory = sortedCategories[0][0].replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+    }
+
+    // Update DOM elements
+    if (totalEl) totalEl.textContent = totalLessons;
+    if (activeEl) activeEl.textContent = activeLessons;
+    if (avgSuccessEl) avgSuccessEl.textContent = avgSuccessRate + '%';
+    if (topCategoryEl) topCategoryEl.textContent = topCategory;
+
+    // Update lessons count badge in header
+    const countBadge = document.getElementById('lessons-count-badge');
+    if (countBadge) {
+        countBadge.textContent = `${totalLessons} Lessons`;
+    }
 }
 
 function setupLessonsEventListeners() {
-    // Filter buttons
-    document.querySelectorAll('.lessons-filters button').forEach(button => {
-        button.addEventListener('click', function() {
-            document.querySelectorAll('.lessons-filters button').forEach(btn =>
-                btn.classList.remove('active'));
-            this.classList.add('active');
-
-            currentFilter = this.dataset.filter;
+    // Category filter dropdown
+    const categoryFilter = document.getElementById('lessons-category-filter');
+    if (categoryFilter) {
+        categoryFilter.addEventListener('change', function() {
+            currentFilter = this.value;
             filterLessons();
         });
-    });
+    }
 
-    // Search input
-    const searchInput = document.querySelector('.lessons-search input');
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(function() {
+    // Confidence filter dropdown
+    const confidenceFilter = document.getElementById('lessons-confidence-filter');
+    if (confidenceFilter) {
+        confidenceFilter.addEventListener('change', function() {
             filterLessons();
-        }, 300));
+        });
     }
 
     // Sort dropdown
-    const sortSelect = document.querySelector('.lessons-sort select');
+    const sortSelect = document.getElementById('lessons-sort');
     if (sortSelect) {
         sortSelect.addEventListener('change', function() {
             sortLessons(this.value);
@@ -2196,15 +2201,22 @@ function setupLessonsEventListeners() {
 }
 
 function filterLessons() {
+    const categoryFilter = document.getElementById('lessons-category-filter')?.value || 'all';
+    const confidenceFilter = document.getElementById('lessons-confidence-filter')?.value || 'all';
     const searchTerm = document.querySelector('.lessons-search input')?.value.toLowerCase() || '';
 
     filteredLessons = lessonsData.filter(lesson => {
         // Filter by category
-        if (currentFilter !== 'all' && lesson.category !== currentFilter) {
+        if (categoryFilter !== 'all' && lesson.category !== categoryFilter) {
             return false;
         }
 
-        // Filter by search term
+        // Filter by confidence level
+        if (confidenceFilter !== 'all' && lesson.confidenceLevel !== confidenceFilter) {
+            return false;
+        }
+
+        // Filter by search term (if search input exists)
         if (searchTerm && !lesson.text.toLowerCase().includes(searchTerm)) {
             return false;
         }
@@ -2219,18 +2231,20 @@ function filterLessons() {
 
 function sortLessons(sortBy) {
     switch (sortBy) {
-        case 'success_rate':
+        case 'success_rate_desc':
             filteredLessons.sort((a, b) => (b.successRate || 0) - (a.successRate || 0));
             break;
-        case 'created_at':
-            filteredLessons.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        case 'created_at_desc':
+            filteredLessons.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             break;
-        case 'confidence_level':
-            const confidenceOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-            filteredLessons.sort((a, b) => confidenceOrder[b.confidenceLevel] - confidenceOrder[a.confidenceLevel]);
+        case 'created_at_asc':
+            filteredLessons.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
             break;
-        case 'effectiveness_rate':
+        case 'effectiveness_desc':
             filteredLessons.sort((a, b) => (b.effectivenessRate || 0) - (a.effectivenessRate || 0));
+            break;
+        case 'times_applied_desc':
+            filteredLessons.sort((a, b) => (b.timesApplied || 0) - (a.timesApplied || 0));
             break;
     }
 
