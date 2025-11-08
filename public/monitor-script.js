@@ -452,8 +452,8 @@ class TradingMonitor {
             if (container) {
                 const message = document.createElement('div');
                 message.className = 'no-data';
-                message.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00cc88; text-align: center;';
-                message.innerHTML = 'No historical data<br><small style="color: #008866;">System records account assets every 10 minutes</small>';
+                message.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #000000; text-align: center;';
+                message.innerHTML = 'No historical data<br><small style="color: #666666;">System records account assets every 10 minutes</small>';
                 container.appendChild(message);
             }
             return;
@@ -476,8 +476,8 @@ class TradingMonitor {
                     {
                         label: 'Total Assets (USDT)',
                         data: historyData.map(d => parseFloat(d.totalValue.toFixed(2))),
-                        borderColor: 'rgb(0, 255, 170)',
-                        backgroundColor: 'rgba(0, 255, 170, 0.1)',
+                        borderColor: 'rgb(0, 100, 255)',
+                        backgroundColor: 'rgba(0, 100, 255, 0.1)',
                         borderWidth: 2,
                         fill: true,
                         tension: 0.4,
@@ -498,16 +498,16 @@ class TradingMonitor {
                         display: true,
                         position: 'top',
                         labels: {
-                            color: '#fff',
+                            color: '#000000',
                             usePointStyle: true,
                             padding: 15
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        titleColor: '#000000',
+                        bodyColor: '#000000',
+                        borderColor: 'rgb(0, 0, 0)',
                         borderWidth: 1,
                         padding: 12,
                         displayColors: true,
@@ -529,11 +529,11 @@ class TradingMonitor {
                     x: {
                         display: true,
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(0, 0, 0, 0.1)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: '#000000',
                             maxRotation: 45,
                             minRotation: 0,
                             maxTicksLimit: 10
@@ -543,11 +543,11 @@ class TradingMonitor {
                         display: true,
                         position: 'left',
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(0, 0, 0, 0.1)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: '#000000',
                             callback: function(value) {
                                 return '$' + value.toFixed(2);
                             }

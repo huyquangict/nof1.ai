@@ -10,8 +10,8 @@
     --bg-secondary: #F5F5F5;
     --bg-tertiary: #EEEEEE;
     --text-primary: #000000;
-    --text-secondary: #333333;
-    --text-dim: #666666;
+    --text-secondary: #000000;
+    --text-dim: #333333;
     --border-color: #000000;
     --accent-green: #00AA00;
     --accent-red: #FF0000;
@@ -216,7 +216,7 @@ body {
 }
 
 .decision-title {
-    font-size: 1rem;
+    font-size: 1.2rem;
     color: var(--text-primary);
     margin: 0;
 }
@@ -256,7 +256,7 @@ body {
 }
 
 .chart-title {
-    font-size: 1rem;
+    font-size: 1.2rem;
     color: var(--text-primary);
     margin: 0;
 }
@@ -306,7 +306,7 @@ body {
 }
 
 .decision-text {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -480,7 +480,7 @@ body {
 }
 
 .account-header h2 {
-    font-size: 0.9rem;
+    font-size: 1.1rem;
     color: var(--text-dim);
 }
 
@@ -498,7 +498,7 @@ body {
 .value-change {
     display: flex;
     gap: 0.5rem;
-    font-size: 1rem;
+    font-size: 1.1rem;
     margin-top: 0.5rem;
 }
 
@@ -531,12 +531,12 @@ body {
 
 .detail-label {
     color: var(--text-dim);
-    font-size: 0.8rem;
+    font-size: 0.95rem;
 }
 
 .detail-value {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     font-weight: bold;
 }
 
@@ -679,7 +679,7 @@ body {
 .positions-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 1rem;
     min-width: 600px;
 }
 
@@ -692,7 +692,7 @@ body {
     text-align: left;
     color: var(--text-dim);
     font-weight: bold;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
 }
 
 .positions-table td {
@@ -739,7 +739,7 @@ body {
 
 .section-header {
     color: var(--text-primary);
-    font-size: 1rem;
+    font-size: 1.2rem;
     margin-bottom: 1.5rem;
     padding-bottom: 0.8rem;
     border-bottom: 2px solid var(--border-color);
@@ -765,7 +765,7 @@ body {
 .trades-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 1rem;
     min-width: 700px;
 }
 
@@ -778,7 +778,7 @@ body {
     text-align: left;
     color: var(--text-dim);
     font-weight: bold;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     text-transform: uppercase;
 }
 
