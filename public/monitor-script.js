@@ -102,6 +102,7 @@ class TradingMonitor {
             this.initCustomInstructions(); // Initialize custom instructions
             this.initTradingSettings(); // Initialize trading settings
             this.initLearningSystem(); // Initialize AI learning system
+            this.initializeTabbedInterface(); // Initialize tabbed interface
         } catch (error) {
             // If loading fails, token is invalid - show login
             console.error('Failed to load data:', error);

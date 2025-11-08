@@ -2277,9 +2277,22 @@ tr.highlighted {
   }
 }
 
-/* === ALL LESSONS SECTION === */
+/* === ALL LESSONS SECTION (within AI Learning Tab) === */
 .all-lessons-section {
-  margin-bottom: var(--space-3xl);
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-xl);
+  border-top: 2px solid var(--color-gray-200);
+}
+
+.all-lessons-section h4 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+  color: var(--color-black);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
 }
 
 .lessons-count-badge {
@@ -2290,7 +2303,6 @@ tr.highlighted {
   font-size: 0.75rem;
   font-weight: 700;
   border-radius: 4px;
-  margin-left: var(--space-md);
 }
 
 .lessons-controls {

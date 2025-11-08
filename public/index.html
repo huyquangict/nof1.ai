@@ -430,79 +430,75 @@ Your custom instructions will be added to every AI trading prompt."
               <button class="pagination-btn" id="next-page" disabled>Next →</button>
             </div>
           </div>
+
+          <!-- All AI Learning Lessons Section -->
+          <div class="all-lessons-section">
+            <h4>📚 All AI Learning Lessons</h4>
+            <div class="lessons-controls">
+              <select id="lessons-category-filter" class="lessons-filter-select">
+                <option value="all">All Categories</option>
+                <option value="entry_timing">Entry Timing</option>
+                <option value="exit_timing">Exit Timing</option>
+                <option value="risk_management">Risk Management</option>
+                <option value="symbol_behavior">Symbol Behavior</option>
+                <option value="market_conditions">Market Conditions</option>
+                <option value="time_of_day">Time of Day</option>
+                <option value="funding_rate">Funding Rate</option>
+              </select>
+              <select id="lessons-confidence-filter" class="lessons-filter-select">
+                <option value="all">All Confidence Levels</option>
+                <option value="high">High Confidence</option>
+                <option value="medium">Medium Confidence</option>
+                <option value="low">Low Confidence</option>
+              </select>
+              <select id="lessons-sort" class="lessons-filter-select">
+                <option value="created_at_desc">Newest First</option>
+                <option value="created_at_asc">Oldest First</option>
+                <option value="success_rate_desc">Highest Success Rate</option>
+                <option value="effectiveness_desc">Most Effective</option>
+                <option value="times_applied_desc">Most Applied</option>
+              </select>
+            </div>
+
+            <!-- Lessons Statistics Overview -->
+            <div class="learning-stats">
+              <div class="stat-card">
+                <div class="stat-label">Total Lessons</div>
+                <div class="stat-value" id="lessons-total-count">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Active Lessons</div>
+                <div class="stat-value" id="lessons-active-count">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Avg Success</div>
+                <div class="stat-value" id="lessons-avg-success">0%</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Top Category</div>
+                <div class="stat-value" id="lessons-top-category">-</div>
+              </div>
+            </div>
+
+            <!-- Lessons Grid -->
+            <div class="lessons-grid-container">
+              <div id="lessons-grid" class="lessons-grid">
+                <div class="lessons-loading">Loading lessons...</div>
+              </div>
+            </div>
+
+            <!-- Lessons Pagination -->
+            <div class="pagination-controls" id="lessons-pagination">
+              <button class="pagination-btn" id="lessons-prev-page" disabled>← Previous</button>
+              <span class="pagination-info" id="lessons-pagination-info">Page 1</span>
+              <button class="pagination-btn" id="lessons-next-page" disabled>Next →</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- All Lessons Section -->
-    <section class="chart-section all-lessons-section">
-      <div class="chart-header">
-        <h3 class="chart-title">
-          📚 All AI Learning Lessons
-          <span class="lessons-count-badge" id="lessons-count-badge">0 Lessons</span>
-        </h3>
-        <div class="lessons-controls">
-          <select id="lessons-category-filter" class="lessons-filter-select">
-            <option value="all">All Categories</option>
-            <option value="entry_timing">Entry Timing</option>
-            <option value="exit_timing">Exit Timing</option>
-            <option value="risk_management">Risk Management</option>
-            <option value="symbol_behavior">Symbol Behavior</option>
-            <option value="market_conditions">Market Conditions</option>
-            <option value="time_of_day">Time of Day</option>
-            <option value="funding_rate">Funding Rate</option>
-          </select>
-          <select id="lessons-confidence-filter" class="lessons-filter-select">
-            <option value="all">All Confidence Levels</option>
-            <option value="high">High Confidence</option>
-            <option value="medium">Medium Confidence</option>
-            <option value="low">Low Confidence</option>
-          </select>
-          <select id="lessons-sort" class="lessons-filter-select">
-            <option value="created_at_desc">Newest First</option>
-            <option value="created_at_asc">Oldest First</option>
-            <option value="success_rate_desc">Highest Success Rate</option>
-            <option value="effectiveness_desc">Most Effective</option>
-            <option value="times_applied_desc">Most Applied</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Lessons Statistics Overview -->
-      <div class="learning-stats">
-        <div class="stat-card">
-          <div class="stat-label">Total Lessons</div>
-          <div class="stat-value" id="lessons-total-count">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Active Lessons</div>
-          <div class="stat-value" id="lessons-active-count">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg Success</div>
-          <div class="stat-value" id="lessons-avg-success">0%</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Top Category</div>
-          <div class="stat-value" id="lessons-top-category">-</div>
-        </div>
-      </div>
-
-      <!-- Lessons Grid -->
-      <div class="lessons-grid-container">
-        <div id="lessons-grid" class="lessons-grid">
-          <div class="lessons-loading">Loading lessons...</div>
-        </div>
-      </div>
-
-      <!-- Lessons Pagination -->
-      <div class="pagination-controls" id="lessons-pagination">
-        <button class="pagination-btn" id="lessons-prev-page" disabled>← Previous</button>
-        <span class="pagination-info" id="lessons-pagination-info">Page 1</span>
-        <button class="pagination-btn" id="lessons-next-page" disabled>Next →</button>
-      </div>
-    </section>
-
+  
     <!-- Account Value Section -->
     <section class="account-section">
       <div class="account-header">
@@ -607,7 +603,7 @@ Your custom instructions will be added to every AI trading prompt."
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-  <script src="monitor-script.js?v=20251108a"></script>
+  <script src="monitor-script.js?v=20251108c"></script>
 </body>
 
 </html>
