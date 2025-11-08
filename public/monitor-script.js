@@ -404,18 +404,19 @@ class TradingMonitor {
 
             // Win Rate calculation (only count closed trades with P&L)
             const closedTrades = trades.filter(t => t.type === 'close' && t.pnl !== null && t.pnl !== undefined);
-            const winTrades = closedTrades.filter(t => t.pnl > 0).length;
-            const lossTrades = closedTrades.filter(t => t.pnl <= 0).length;
+            const winTrades = closedTrades.filter(t => t.pnl > 0);
+            const lossTrades = closedTrades.filter(t => t.pnl < 0);
             const totalClosedTrades = closedTrades.length;
 
             if (totalClosedTrades > 0) {
-                const winRate = ((winTrades / totalClosedTrades) * 100).toFixed(1);
-                const lossRate = ((lossTrades / totalClosedTrades) * 100).toFixed(1);
-                document.getElementById('stat-win-rate').textContent = `${winRate}% Win`;
-                document.getElementById('stat-loss-rate').textContent = `${lossRate}% Loss`;
+                const winRate = ((winTrades.length / totalClosedTrades) * 100).toFixed(1);
+                document.getElementById('stat-win-rate-percent').textContent = `${winRate}%`;
+                document.getElementById('stat-win-count').textContent = `${winTrades.length} Win`;
+                document.getElementById('stat-loss-count').textContent = `${lossTrades.length} Loss`;
             } else {
-                document.getElementById('stat-win-rate').textContent = '0% Win';
-                document.getElementById('stat-loss-rate').textContent = '0% Loss';
+                document.getElementById('stat-win-rate-percent').textContent = '0%';
+                document.getElementById('stat-win-count').textContent = '0 Win';
+                document.getElementById('stat-loss-count').textContent = '0 Loss';
             }
 
             // Total P&L
@@ -430,27 +431,26 @@ class TradingMonitor {
             }
 
             // Best and Worst order
-            if (closedTrades.length > 0) {
-                const pnlValues = closedTrades.map(t => t.pnl || 0);
-                const bestPnL = Math.max(...pnlValues);
-                const worstPnL = Math.min(...pnlValues);
+            // Best from all closed trades, Worst from loss trades only
+            const bestOrderEl = document.getElementById('stat-best-order');
+            const worstOrderEl = document.getElementById('stat-worst-order');
 
-                const bestOrderEl = document.getElementById('stat-best-order');
+            if (winTrades.length > 0) {
+                const bestPnL = Math.max(...winTrades.map(t => t.pnl));
                 bestOrderEl.textContent = `$${bestPnL.toFixed(2)}`;
-                bestOrderEl.className = 'stat-value';
-                if (bestPnL > 0) {
-                    bestOrderEl.classList.add('positive');
-                }
-
-                const worstOrderEl = document.getElementById('stat-worst-order');
-                worstOrderEl.textContent = `$${worstPnL.toFixed(2)}`;
-                worstOrderEl.className = 'stat-value';
-                if (worstPnL < 0) {
-                    worstOrderEl.classList.add('negative');
-                }
+                bestOrderEl.className = 'stat-value-win';
             } else {
-                document.getElementById('stat-best-order').textContent = '$0.00';
-                document.getElementById('stat-worst-order').textContent = '$0.00';
+                bestOrderEl.textContent = '$0.00';
+                bestOrderEl.className = 'stat-value-win';
+            }
+
+            if (lossTrades.length > 0) {
+                const worstPnL = Math.min(...lossTrades.map(t => t.pnl));
+                worstOrderEl.textContent = `$${worstPnL.toFixed(2)}`;
+                worstOrderEl.className = 'stat-value-loss';
+            } else {
+                worstOrderEl.textContent = '$0.00';
+                worstOrderEl.className = 'stat-value-loss';
             }
 
         } catch (error) {
