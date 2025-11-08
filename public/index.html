@@ -197,43 +197,41 @@
           <div class="positions-cards-empty">No positions</div>
         </div>
       </div>
+    </section>
 
-      <!-- Statistics Section -->
-      <div class="statistics-section">
-        <div class="statistics-header">
-          <span class="statistics-title">Statistics</span>
+    <!-- Statistics Section -->
+    <section class="statistics-panel">
+      <h2 class="section-header">Statistics</h2>
+      <div class="statistics-grid">
+        <div class="stat-card">
+          <div class="stat-label">Active Orders</div>
+          <div class="stat-value" id="stat-active-orders">0</div>
         </div>
-        <div class="statistics-container">
-          <div class="stat-item">
-            <span class="stat-label">Active Orders</span>
-            <span class="stat-value" id="stat-active-orders">0</span>
+        <div class="stat-card">
+          <div class="stat-label">Total Orders</div>
+          <div class="stat-breakdown">
+            <span class="stat-value-long" id="stat-total-long">0 Long</span>
+            <span class="stat-value-short" id="stat-total-short">0 Short</span>
           </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Orders</span>
-            <div class="stat-breakdown">
-              <span class="stat-value-long" id="stat-total-long">0 Long</span>
-              <span class="stat-value-short" id="stat-total-short">0 Short</span>
-            </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-breakdown">
+            <span class="stat-value-win" id="stat-win-rate">0% Win</span>
+            <span class="stat-value-loss" id="stat-loss-rate">0% Loss</span>
           </div>
-          <div class="stat-item">
-            <span class="stat-label">Win Rate</span>
-            <div class="stat-breakdown">
-              <span class="stat-value-win" id="stat-win-rate">0% Win</span>
-              <span class="stat-value-loss" id="stat-loss-rate">0% Loss</span>
-            </div>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total P&L</span>
-            <span class="stat-value" id="stat-total-pnl">$0.00</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Best Order</span>
-            <span class="stat-value" id="stat-best-order">$0.00</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Worst Order</span>
-            <span class="stat-value" id="stat-worst-order">$0.00</span>
-          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total P&L</div>
+          <div class="stat-value" id="stat-total-pnl">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Best Order</div>
+          <div class="stat-value" id="stat-best-order">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Worst Order</div>
+          <div class="stat-value" id="stat-worst-order">$0.00</div>
         </div>
       </div>
     </section>
