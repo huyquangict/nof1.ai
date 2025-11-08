@@ -45,7 +45,8 @@ class TradingMonitor {
                 this.loadPositionsData(),
                 this.loadTradesData(),
                 this.loadLogsData(),
-                this.loadTickerPrices()
+                this.loadTickerPrices(),
+                this.loadStatisticsData()
             ]);
         } catch (error) {
             console.error('Failed to load initial data:', error);
@@ -373,6 +374,90 @@ class TradingMonitor {
         }
     }
 
+    // Load statistics data
+    async loadStatisticsData() {
+        try {
+            // Fetch trades and positions data
+            const [tradesResponse, positionsResponse] = await Promise.all([
+                fetch('/api/trades?limit=1000'),
+                fetch('/api/positions')
+            ]);
+
+            const tradesData = await tradesResponse.json();
+            const positionsData = await positionsResponse.json();
+
+            // Active orders (current positions)
+            const activeOrders = positionsData.positions ? positionsData.positions.length : 0;
+            document.getElementById('stat-active-orders').textContent = activeOrders;
+
+            if (!tradesData.trades || tradesData.trades.length === 0) {
+                return;
+            }
+
+            const trades = tradesData.trades;
+
+            // Total Orders (Long and Short)
+            const longOrders = trades.filter(t => t.side === 'long').length;
+            const shortOrders = trades.filter(t => t.side === 'short').length;
+            document.getElementById('stat-total-long').textContent = `${longOrders} Long`;
+            document.getElementById('stat-total-short').textContent = `${shortOrders} Short`;
+
+            // Win Rate calculation (only count closed trades with P&L)
+            const closedTrades = trades.filter(t => t.type === 'close' && t.pnl !== null && t.pnl !== undefined);
+            const winTrades = closedTrades.filter(t => t.pnl > 0).length;
+            const lossTrades = closedTrades.filter(t => t.pnl <= 0).length;
+            const totalClosedTrades = closedTrades.length;
+
+            if (totalClosedTrades > 0) {
+                const winRate = ((winTrades / totalClosedTrades) * 100).toFixed(1);
+                const lossRate = ((lossTrades / totalClosedTrades) * 100).toFixed(1);
+                document.getElementById('stat-win-rate').textContent = `${winRate}% Win`;
+                document.getElementById('stat-loss-rate').textContent = `${lossRate}% Loss`;
+            } else {
+                document.getElementById('stat-win-rate').textContent = '0% Win';
+                document.getElementById('stat-loss-rate').textContent = '0% Loss';
+            }
+
+            // Total P&L
+            const totalPnL = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+            const totalPnLEl = document.getElementById('stat-total-pnl');
+            totalPnLEl.textContent = `$${totalPnL.toFixed(2)}`;
+            totalPnLEl.className = 'stat-value';
+            if (totalPnL > 0) {
+                totalPnLEl.classList.add('positive');
+            } else if (totalPnL < 0) {
+                totalPnLEl.classList.add('negative');
+            }
+
+            // Best and Worst order
+            if (closedTrades.length > 0) {
+                const pnlValues = closedTrades.map(t => t.pnl || 0);
+                const bestPnL = Math.max(...pnlValues);
+                const worstPnL = Math.min(...pnlValues);
+
+                const bestOrderEl = document.getElementById('stat-best-order');
+                bestOrderEl.textContent = `$${bestPnL.toFixed(2)}`;
+                bestOrderEl.className = 'stat-value';
+                if (bestPnL > 0) {
+                    bestOrderEl.classList.add('positive');
+                }
+
+                const worstOrderEl = document.getElementById('stat-worst-order');
+                worstOrderEl.textContent = `$${worstPnL.toFixed(2)}`;
+                worstOrderEl.className = 'stat-value';
+                if (worstPnL < 0) {
+                    worstOrderEl.classList.add('negative');
+                }
+            } else {
+                document.getElementById('stat-best-order').textContent = '$0.00';
+                document.getElementById('stat-worst-order').textContent = '$0.00';
+            }
+
+        } catch (error) {
+            console.error('Failed to load statistics:', error);
+        }
+    }
+
     // Update price ticker
     updateTickerPrices() {
         this.cryptoPrices.forEach((price, symbol) => {
@@ -399,11 +484,12 @@ class TradingMonitor {
             await this.loadTickerPrices();
         }, 10000);
 
-        // Update trade history and logs every 30 seconds
+        // Update trade history, logs, and statistics every 30 seconds
         setInterval(async () => {
             await Promise.all([
                 this.loadTradesData(),
-                this.loadLogsData()
+                this.loadLogsData(),
+                this.loadStatisticsData()
             ]);
         }, 30000);
 
