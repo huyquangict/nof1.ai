@@ -1,5 +1,5 @@
 /**
- * open-nof1.ai - AI 加密货币自动交易系统
+ * open-nof1.ai - AI Cryptocurrency Automated Trading System
  * Copyright (C) 2025 195440
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  */
 
 /**
- * 交易 Agent 配置（极简版）
+ * Trading Agent Configuration (Minimalist Version)
  */
 import { Agent, Memory } from "@voltagent/core";
 import { LibSQLMemoryAdapter } from "@voltagent/libsql";
@@ -28,7 +28,7 @@ import { formatChinaTime } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 
 /**
- * 账户风险配置
+ * Account Risk Configuration
  */
 export interface AccountRiskConfig {
   stopLossUsdt: number;
@@ -37,7 +37,7 @@ export interface AccountRiskConfig {
 }
 
 /**
- * 从环境变量读取账户风险配置
+ * read from environment variablesAccount Risk Configuration
  */
 export function getAccountRiskConfig(): AccountRiskConfig {
   return {
@@ -48,12 +48,12 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 }
 
 /**
- * 交易策略类型
+ * Trading Strategy Type
  */
 export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short" | "swing-trend";
 
 /**
- * 策略参数配置
+ * Strategy Parameter Configuration
  */
 export interface StrategyParams {
   name: string;
@@ -78,20 +78,20 @@ export interface StrategyParams {
     high: number;
   };
   trailingStop: {
-    // 移动止盈阶梯配置 [触发盈利, 移动止损线]
+    // Trailing stop level configuration [trigger profit, stop loss line]
     level1: { trigger: number; stopAt: number };
     level2: { trigger: number; stopAt: number };
     level3: { trigger: number; stopAt: number };
   };
   partialTakeProfit: {
-    // 分批止盈配置（根据策略杠杆调整）
-    stage1: { trigger: number; closePercent: number }; // 第一阶段：平仓50%
-    stage2: { trigger: number; closePercent: number }; // 第二阶段：平仓剩余50%
-    stage3: { trigger: number; closePercent: number }; // 第三阶段：全部清仓
+    // Partial take-profit configuration (adjusted by strategy leverage)
+    stage1: { trigger: number; closePercent: number }; // Stage 1: Close 50% position
+    stage2: { trigger: number; closePercent: number }; // Stage 2: Close remaining 50%
+    stage3: { trigger: number; closePercent: number }; // Stage 3: Close all positions
   };
-  peakDrawdownProtection: number; // 峰值回撤保护阈值（百分比）
+  peakDrawdownProtection: number; // Peak drawdown protection threshold (percentage)
   volatilityAdjustment: {
-    // 波动率调整系数
+    // Volatility adjustment factor
     highVolatility: { leverageFactor: number; positionFactor: number }; // ATR > 5%
     normalVolatility: { leverageFactor: number; positionFactor: number }; // ATR 2-5%
     lowVolatility: { leverageFactor: number; positionFactor: number }; // ATR < 2%
@@ -99,13 +99,13 @@ export interface StrategyParams {
   entryCondition: string;
   riskTolerance: string;
   tradingStyle: string;
-  // 自动监控止损配置（仅 swing-trend 策略使用）
+  // Auto-monitor stop-loss configuration (swing-trend strategy only)
   codeLevelStopLoss?: {
     lowRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
     mediumRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
     highRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
   };
-  // 自动监控移动止盈配置（仅 swing-trend 策略使用）
+  // Auto-monitor trailing take-profit configuration (swing-trend strategy only)
   codeLevelTrailingStop?: {
     stage1: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
     stage2: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
@@ -116,27 +116,27 @@ export interface StrategyParams {
 }
 
 /**
- * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
+ * Get strategy parameters (dynamically calculated based on MAX_LEVERAGE)
  */
 export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const maxLeverage = RISK_PARAMS.MAX_LEVERAGE;
   
-  // 根据 MAX_LEVERAGE 动态计算各策略的杠杆范围
-  // 保守策略：30%-60% 的最大杠杆
+  // Dynamically calculate leverage range for each strategy based on MAX_LEVERAGE
+  // Conservative strategy: 30%-60% of max leverage
   const conservativeLevMin = Math.max(1, Math.ceil(maxLeverage * 0.3));
   const conservativeLevMax = Math.max(2, Math.ceil(maxLeverage * 0.6));
   const conservativeLevNormal = conservativeLevMin;
   const conservativeLevGood = Math.ceil((conservativeLevMin + conservativeLevMax) / 2);
   const conservativeLevStrong = conservativeLevMax;
   
-  // 平衡策略：60%-85% 的最大杠杆
+  // Balanced strategy: 60%-85% of max leverage
   const balancedLevMin = Math.max(2, Math.ceil(maxLeverage * 0.6));
   const balancedLevMax = Math.max(3, Math.ceil(maxLeverage * 0.85));
   const balancedLevNormal = balancedLevMin;
   const balancedLevGood = Math.ceil((balancedLevMin + balancedLevMax) / 2);
   const balancedLevStrong = balancedLevMax;
   
-  // 激进策略：85%-100% 的最大杠杆
+  // Aggressive strategy: 85%-100% of max leverage
   const aggressiveLevMin = Math.max(3, Math.ceil(maxLeverage * 0.85));
   const aggressiveLevMax = maxLeverage;
   const aggressiveLevNormal = aggressiveLevMin;
@@ -145,14 +145,14 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "ultra-short": {
-      name: "超短线",
-      description: "极短周期快进快出，5分钟执行，适合高频交易",
+      name: "ultra-short",
+      description: "Ultra-short cycles quick in and out, 5-minute execution, suitable for high-frequency trading",
       leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.5)),
       leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.75)),
       leverageRecommend: {
-        normal: `${Math.max(3, Math.ceil(maxLeverage * 0.5))}倍`,
-        good: `${Math.max(4, Math.ceil(maxLeverage * 0.625))}倍`,
-        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.75))}倍`,
+        normal: `${Math.max(3, Math.ceil(maxLeverage * 0.5))}x`,
+        good: `${Math.max(4, Math.ceil(maxLeverage * 0.625))}x`,
+        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.75))}x`,
       },
       positionSizeMin: 18,
       positionSizeMax: 25,
@@ -167,36 +167,36 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         high: -1.5,
       },
       trailingStop: {
-        // 超短线策略：快速锁利（5分钟周期）
-        level1: { trigger: 4, stopAt: 1.5 },   // 盈利达到 +4% 时，止损线移至 +1.5%
-        level2: { trigger: 8, stopAt: 4 },     // 盈利达到 +8% 时，止损线移至 +4%
-        level3: { trigger: 15, stopAt: 8 },    // 盈利达到 +15% 时，止损线移至 +8%
+        // Ultra-short strategy: Quick profit lock (5-minute cycle)
+        level1: { trigger: 4, stopAt: 1.5 },   // When profit reaches +4%, move stop-loss to +1.5%
+        level2: { trigger: 8, stopAt: 4 },     // When profit reaches +8%, move stop-loss to +4%
+        level3: { trigger: 15, stopAt: 8 },    // When profit reaches +15%, move stop-loss to +8%
       },
       partialTakeProfit: {
-        // 超短线策略：快速分批止盈
-        stage1: { trigger: 15, closePercent: 50 },  // +15% 平仓50%
-        stage2: { trigger: 25, closePercent: 50 },  // +25% 平仓剩余50%
-        stage3: { trigger: 35, closePercent: 100 }, // +35% 全部清仓
+        // Ultra-short strategy: Quick partial take-profit
+        stage1: { trigger: 15, closePercent: 50 },  // +15% close position50%
+        stage2: { trigger: 25, closePercent: 50 },  // +25% close remaining50%
+        stage3: { trigger: 35, closePercent: 100 }, // +35% close all positions
       },
-      peakDrawdownProtection: 20, // 超短线：20%峰值回撤保护（快速保护利润）
+      peakDrawdownProtection: 20, // ultra-short：20%peak drawdown protection（quickly protect profits）
       volatilityAdjustment: {
         highVolatility: { leverageFactor: 0.7, positionFactor: 0.8 },
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },
         lowVolatility: { leverageFactor: 1.1, positionFactor: 1.0 },
       },
-      entryCondition: "至少2个时间框架信号一致，优先1-5分钟级别",
-      riskTolerance: "单笔交易风险控制在18-25%之间，快进快出",
-      tradingStyle: "超短线交易，5分钟执行周期，快速捕捉短期波动，严格执行2%周期锁利规则和30分钟盈利平仓规则",
+      entryCondition: "at least2timeframe signals aligned，priority1-5minuteslevel",
+      riskTolerance: "Single trade risk controlled at 18-25%, quick in and out",
+      tradingStyle: "ultra-shorttrading，5-minute execution cycle, quickly capture short-term fluctuations, strictly follow 2% cycle profit lock rule and 30-minute profit close rule",
     },
     "swing-trend": {
-      name: "波段趋势",
-      description: "中长线波段交易，20分钟执行，捕捉中期趋势，适合稳健成长",
+      name: "Swing Trend",
+      description: "Medium-long term swing trading, 20-minute execution, capture medium-term trends, suitable for steady growth",
       leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.2)),
       leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.5)),
       leverageRecommend: {
-        normal: `${Math.max(2, Math.ceil(maxLeverage * 0.2))}倍`,
-        good: `${Math.max(3, Math.ceil(maxLeverage * 0.35))}倍`,
-        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.5))}倍`,
+        normal: `${Math.max(2, Math.ceil(maxLeverage * 0.2))}x`,
+        good: `${Math.max(3, Math.ceil(maxLeverage * 0.35))}x`,
+        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.5))}x`,
       },
       positionSizeMin: 20,
       positionSizeMax: 35,
@@ -206,100 +206,100 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         strong: "30-35%",
       },
       stopLoss: {
-        low: -9,      // 低杠杆(2-3倍)：-9%止损（给趋势足够空间，略收紧1%）
-        mid: -7.5,    // 中杠杆(3-4倍)：-7.5%止损（略收紧0.5%）
-        high: -5.5,   // 高杠杆(4-5倍)：-5.5%止损（略收紧0.5%）
+        low: -9,      // Low leverage (2-3x): -9% stop-loss (give trend enough space, slightly tightened by 1%)
+        mid: -7.5,    // Medium leverage (3-4x): -7.5% stop-loss (slightly tightened by 0.5%)
+        high: -5.5,   // High leverage (4-5x): -5.5% stop-loss (slightly tightened by 0.5%)
       },
       trailingStop: {
-        // 波段策略：给趋势更多空间，较晚锁定利润
-        level1: { trigger: 15, stopAt: 8 },   // 盈利达到 +15% 时，止损线移至 +8%
-        level2: { trigger: 30, stopAt: 20 },  // 盈利达到 +30% 时，止损线移至 +20%
-        level3: { trigger: 50, stopAt: 35 },  // 盈利达到 +50% 时，止损线移至 +35%
+        // Swing strategy: Give trend more space, lock profit later
+        level1: { trigger: 15, stopAt: 8 },   // When profit reaches +15%, move stop-loss to +8%
+        level2: { trigger: 30, stopAt: 20 },  // When profit reaches +30%, move stop-loss to +20%
+        level3: { trigger: 50, stopAt: 35 },  // When profit reaches +50%, move stop-loss to +35%
       },
       partialTakeProfit: {
-        // 波段策略：更晚分批止盈，追求趋势利润最大化
-        stage1: { trigger: 50, closePercent: 40 },  // +50% 平仓40%（保留60%追求更大利润）
-        stage2: { trigger: 80, closePercent: 60 },  // +80% 平仓剩余60%（累计平仓100%）
-        stage3: { trigger: 120, closePercent: 100 },// +120% 全部清仓
+        // Swing strategy: Later partial take-profit, pursue maximum trend profit
+        stage1: { trigger: 50, closePercent: 40 },  // +50% close position40%（retain60%pursue greater profits）
+        stage2: { trigger: 80, closePercent: 60 },  // +80% close remaining60%（cumulative close100%）
+        stage3: { trigger: 120, closePercent: 100 },// +120% close all positions
       },
-      peakDrawdownProtection: 35, // 波段策略：35%峰值回撤保护（给趋势更多空间）
+      peakDrawdownProtection: 35, // Swing strategy: 35% peak drawdown protection (give trend more space)
       volatilityAdjustment: {
-        highVolatility: { leverageFactor: 0.5, positionFactor: 0.6 },   // 高波动：大幅降低风险
-        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：标准配置
-        lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：适度提高（趋势稳定）
+        highVolatility: { leverageFactor: 0.5, positionFactor: 0.6 },   // highvolatility：significantly reduce risk
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // normal volatility：standard configuration
+        lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // lowvolatility：moderately increase（trend stable）
       },
-      entryCondition: "必须1分钟、3分钟、5分钟、15分钟这4个时间框架信号全部强烈一致，加权共振分析达到STRONG级别（总分≥70且对齐度≥75%），关键指标共振（MACD、RSI、EMA方向一致）",
-      riskTolerance: "单笔交易风险控制在20-35%之间，注重趋势质量而非交易频率",
-      tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
-      // 自动监控止损配置（每10秒自动检查）
+      entryCondition: "must1minutes、3minutes、5minutes、15minutesthese4all timeframe signals strongly aligned，weighted confluence analysis reachesSTRONGlevel（total score≥70and alignment≥75%），key indicator confluence（MACD、RSI、EMAdirection aligned）",
+      riskTolerance: "Single trade risk controlled at 20-35%, focus on trend quality rather than trading frequency",
+      tradingStyle: "Swing Trendtrading，20-minute execution cycle, patiently wait for high-quality trend signals, holding time can reach several days, let profits run fully",
+      // Auto-monitor stop-loss configuration (auto-check every 10 seconds)
       codeLevelStopLoss: {
         lowRisk: {
           minLeverage: 5,
           maxLeverage: 7,
           stopLossPercent: -6,
-          description: "5-7倍杠杆，亏损 -6% 时止损",
+          description: "5-7x leverage, stop-loss at -6% loss",
         },
         mediumRisk: {
           minLeverage: 8,
           maxLeverage: 12,
           stopLossPercent: -5,
-          description: "8-12倍杠杆，亏损 -5% 时止损",
+          description: "8-12x leverage, stop-loss at -5% loss",
         },
         highRisk: {
           minLeverage: 13,
           maxLeverage: Infinity,
           stopLossPercent: -4,
-          description: "13倍以上杠杆，亏损 -4% 时止损",
+          description: "13x+ leverage, stop-loss at -4% loss",
         },
       },
-      // 自动监控移动止盈配置（每10秒自动检查，5级规则）
+      // Auto-monitor trailing take-profit configuration (auto-check every 10 seconds, 5-level rules)
       codeLevelTrailingStop: {
         stage1: {
-          name: "阶段1",
+          name: "stage1",
           minProfit: 4,
           maxProfit: 6,
           drawdownPercent: 1.5,
-          description: "峰值4-6%，回退1.5%平仓（保底2.5%）",
+          description: "Peak value4-6%，pullback1.5%close position（minimum2.5%）",
         },
         stage2: {
-          name: "阶段2",
+          name: "stage2",
           minProfit: 6,
           maxProfit: 10,
           drawdownPercent: 2,
-          description: "峰值6-10%，回退2%平仓（保底4%）",
+          description: "Peak value6-10%，pullback2%close position（minimum4%）",
         },
         stage3: {
-          name: "阶段3",
+          name: "stage3",
           minProfit: 10,
           maxProfit: 15,
           drawdownPercent: 2.5,
-          description: "峰值10-15%，回退2.5%平仓（保底7.5%）",
+          description: "Peak value10-15%，pullback2.5%close position（minimum7.5%）",
         },
         stage4: {
-          name: "阶段4",
+          name: "stage4",
           minProfit: 15,
           maxProfit: 25,
           drawdownPercent: 3,
-          description: "峰值15-25%，回退3%平仓（保底12%）",
+          description: "Peak value15-25%，pullback3%close position（minimum12%）",
         },
         stage5: {
-          name: "阶段5",
+          name: "stage5",
           minProfit: 25,
           maxProfit: Infinity,
           drawdownPercent: 5,
-          description: "峰值25%+，回退5%平仓（保底20%）",
+          description: "Peak value25%+，pullback5%close position（minimum20%）",
         },
       },
     },
     "conservative": {
-      name: "稳健",
-      description: "低风险低杠杆，严格入场条件，适合保守投资者",
+      name: "steady",
+      description: "Low risk low leverage, strict entry conditions, suitable for conservative investors",
       leverageMin: conservativeLevMin,
       leverageMax: conservativeLevMax,
       leverageRecommend: {
-        normal: `${conservativeLevNormal}倍`,
-        good: `${conservativeLevGood}倍`,
-        strong: `${conservativeLevStrong}倍`,
+        normal: `${conservativeLevNormal}x`,
+        good: `${conservativeLevGood}x`,
+        strong: `${conservativeLevStrong}x`,
       },
       positionSizeMin: 15,
       positionSizeMax: 22,
@@ -314,37 +314,37 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         high: -2.5,
       },
       trailingStop: {
-        // 保守策略：较早锁定利润（基准：15倍杠杆）
-        // 注意：这些是基准值，实际使用时会根据杠杆动态调整
-        level1: { trigger: 6, stopAt: 2 },   // 基准：盈利达到 +6% 时，止损线移至 +2%
-        level2: { trigger: 12, stopAt: 6 },  // 基准：盈利达到 +12% 时，止损线移至 +6%
-        level3: { trigger: 20, stopAt: 12 }, // 基准：盈利达到 +20% 时，止损线移至 +12%
+        // Conservative strategy: Lock profit earlier (baseline: 15x leverage)
+        // Note: These are baseline values, will be dynamically adjusted based on leverage in actual use
+        level1: { trigger: 6, stopAt: 2 },   // baseline：When profit reaches +6%, move stop-loss to +2%
+        level2: { trigger: 12, stopAt: 6 },  // baseline：When profit reaches +12%, move stop-loss to +6%
+        level3: { trigger: 20, stopAt: 12 }, // baseline：When profit reaches +20%, move stop-loss to +12%
       },
       partialTakeProfit: {
-        // 保守策略：较早分批止盈，提前锁定利润
-        stage1: { trigger: 20, closePercent: 50 },  // +20% 平仓50%
-        stage2: { trigger: 30, closePercent: 50 },  // +30% 平仓剩余50%
-        stage3: { trigger: 40, closePercent: 100 }, // +40% 全部清仓
+        // Conservative strategy: Earlier partial take-profit, lock profit in advance
+        stage1: { trigger: 20, closePercent: 50 },  // +20% close position50%
+        stage2: { trigger: 30, closePercent: 50 },  // +30% close remaining50%
+        stage3: { trigger: 40, closePercent: 100 }, // +40% close all positions
       },
-      peakDrawdownProtection: 25, // 保守策略：25%峰值回撤保护（更早保护利润）
+      peakDrawdownProtection: 25, // Conservative strategy: 25% peak drawdown protection (protect profit earlier)
       volatilityAdjustment: {
-        highVolatility: { leverageFactor: 0.6, positionFactor: 0.7 },   // 高波动：大幅降低
-        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
-        lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整（保守不追求）
+        highVolatility: { leverageFactor: 0.6, positionFactor: 0.7 },   // highvolatility：significantly reduce
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // normal volatility：no adjustment
+        lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // Low volatility: No adjustment (conservative doesn't pursue)
       },
-      entryCondition: "至少3个关键时间框架信号一致，4个或更多更佳",
-      riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",
-      tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",
+      entryCondition: "at least3key timeframe signals aligned，4or more is better",
+      riskTolerance: "Single trade risk controlled at 15-22%, strictly control drawdown",
+      tradingStyle: "Cautious trading, would rather miss opportunities than take risks, prioritize capital protection",
     },
     "balanced": {
-      name: "平衡",
-      description: "中等风险杠杆，合理入场条件，适合大多数投资者",
+      name: "Balanced",
+      description: "Medium risk leverage, reasonable entry conditions, suitable for most investors",
       leverageMin: balancedLevMin,
       leverageMax: balancedLevMax,
       leverageRecommend: {
-        normal: `${balancedLevNormal}倍`,
-        good: `${balancedLevGood}倍`,
-        strong: `${balancedLevStrong}倍`,
+        normal: `${balancedLevNormal}x`,
+        good: `${balancedLevGood}x`,
+        strong: `${balancedLevStrong}x`,
       },
       positionSizeMin: 20,
       positionSizeMax: 27,
@@ -359,37 +359,37 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         high: -2,
       },
       trailingStop: {
-        // 平衡策略：适中的移动止盈（基准：15倍杠杆）
-        // 注意：这些是基准值，实际使用时会根据杠杆动态调整
-        level1: { trigger: 8, stopAt: 3 },   // 基准：盈利达到 +8% 时，止损线移至 +3%
-        level2: { trigger: 15, stopAt: 8 },  // 基准：盈利达到 +15% 时，止损线移至 +8%
-        level3: { trigger: 25, stopAt: 15 }, // 基准：盈利达到 +25% 时，止损线移至 +15%
+        // Balanced strategy: Moderate trailing take-profit (baseline: 15x leverage)
+        // Note: These are baseline values, will be dynamically adjusted based on leverage in actual use
+        level1: { trigger: 8, stopAt: 3 },   // baseline：When profit reaches +8%, move stop-loss to +3%
+        level2: { trigger: 15, stopAt: 8 },  // baseline：When profit reaches +15%, move stop-loss to +8%
+        level3: { trigger: 25, stopAt: 15 }, // baseline：When profit reaches +25%, move stop-loss to +15%
       },
       partialTakeProfit: {
-        // 平衡策略：标准分批止盈
-        stage1: { trigger: 30, closePercent: 50 },  // +30% 平仓50%
-        stage2: { trigger: 40, closePercent: 50 },  // +40% 平仓剩余50%
-        stage3: { trigger: 50, closePercent: 100 }, // +50% 全部清仓
+        // Balanced strategy: Standard partial take-profit
+        stage1: { trigger: 30, closePercent: 50 },  // +30% close position50%
+        stage2: { trigger: 40, closePercent: 50 },  // +40% close remaining50%
+        stage3: { trigger: 50, closePercent: 100 }, // +50% close all positions
       },
-      peakDrawdownProtection: 30, // 平衡策略：30%峰值回撤保护（标准平衡点）
+      peakDrawdownProtection: 30, // Balanced strategy: 30% peak drawdown protection (standard balance point)
       volatilityAdjustment: {
-        highVolatility: { leverageFactor: 0.7, positionFactor: 0.8 },   // 高波动：适度降低
-        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
-        lowVolatility: { leverageFactor: 1.1, positionFactor: 1.0 },    // 低波动：略微提高杠杆
+        highVolatility: { leverageFactor: 0.7, positionFactor: 0.8 },   // highvolatility：moderately reduce
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // normal volatility：no adjustment
+        lowVolatility: { leverageFactor: 1.1, positionFactor: 1.0 },    // Low volatility: Slightly increase leverage
       },
-      entryCondition: "至少2个关键时间框架信号一致，3个或更多更佳",
-      riskTolerance: "单笔交易风险控制在20-27%之间，平衡风险与收益",
-      tradingStyle: "在风险可控前提下积极把握机会，追求稳健增长",
+      entryCondition: "at least2key timeframe signals aligned，3or more is better",
+      riskTolerance: "Single trade risk controlled at 20-27%, balance risk and reward",
+      tradingStyle: "Actively seize opportunities under controlled risk, pursue steady growth",
     },
     "aggressive": {
-      name: "激进",
-      description: "高风险高杠杆，宽松入场条件，适合激进投资者",
+      name: "aggressive",
+      description: "High risk high leverage, loose entry conditions, suitable for aggressive investors",
       leverageMin: aggressiveLevMin,
       leverageMax: aggressiveLevMax,
       leverageRecommend: {
-        normal: `${aggressiveLevNormal}倍`,
-        good: `${aggressiveLevGood}倍`,
-        strong: `${aggressiveLevStrong}倍`,
+        normal: `${aggressiveLevNormal}x`,
+        good: `${aggressiveLevGood}x`,
+        strong: `${aggressiveLevStrong}x`,
       },
       positionSizeMin: 25,
       positionSizeMax: 32,
@@ -404,27 +404,27 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         high: -1.5,
       },
       trailingStop: {
-        // 激进策略：更晚锁定，追求更高利润（基准：15倍杠杆）
-        // 注意：这些是基准值，实际使用时会根据杠杆动态调整
-        level1: { trigger: 10, stopAt: 4 },  // 基准：盈利达到 +10% 时，止损线移至 +4%
-        level2: { trigger: 18, stopAt: 10 }, // 基准：盈利达到 +18% 时，止损线移至 +10%
-        level3: { trigger: 30, stopAt: 18 }, // 基准：盈利达到 +30% 时，止损线移至 +18%
+        // Aggressive strategy: Lock later, pursue higher profits (baseline: 15x leverage)
+        // Note: These are baseline values, will be dynamically adjusted based on leverage in actual use
+        level1: { trigger: 10, stopAt: 4 },  // baseline：When profit reaches +10%, move stop-loss to +4%
+        level2: { trigger: 18, stopAt: 10 }, // baseline：When profit reaches +18%, move stop-loss to +10%
+        level3: { trigger: 30, stopAt: 18 }, // baseline：When profit reaches +30%, move stop-loss to +18%
       },
       partialTakeProfit: {
-        // 激进策略：更晚分批止盈，追求更高利润
-        stage1: { trigger: 40, closePercent: 50 },  // +40% 平仓50%
-        stage2: { trigger: 50, closePercent: 50 },  // +50% 平仓剩余50%
-        stage3: { trigger: 60, closePercent: 100 }, // +60% 全部清仓
+        // Aggressive strategy: Later partial take-profit, pursue higher profits
+        stage1: { trigger: 40, closePercent: 50 },  // +40% close position50%
+        stage2: { trigger: 50, closePercent: 50 },  // +50% close remaining50%
+        stage3: { trigger: 60, closePercent: 100 }, // +60% close all positions
       },
-      peakDrawdownProtection: 35, // 激进策略：35%峰值回撤保护（给利润更多奔跑空间）
+      peakDrawdownProtection: 35, // Aggressive strategy: 35% peak drawdown protection (give profits more room to run)
       volatilityAdjustment: {
-        highVolatility: { leverageFactor: 0.8, positionFactor: 0.85 },  // 高波动：轻微降低
-        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
-        lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：提高杠杆和仓位
+        highVolatility: { leverageFactor: 0.8, positionFactor: 0.85 },  // highvolatility：slightly reduce
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // normal volatility：no adjustment
+        lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // Low volatility: Increase leverage and position size
       },
-      entryCondition: "至少2个关键时间框架信号一致即可入场",
-      riskTolerance: "单笔交易风险可达25-32%，追求高收益",
-      tradingStyle: "积极进取，快速捕捉市场机会，追求最大化收益",
+      entryCondition: "at least2can enter when these key timeframe signals align",
+      riskTolerance: "Single trade risk can reach 25-32%, pursue high returns",
+      tradingStyle: "aggressive and enterprising，quickly capture market opportunities，pursue maximum returns",
     },
   };
 
@@ -437,19 +437,19 @@ const logger = createPinoLogger({
 });
 
 /**
- * 从环境变量读取交易策略
+ * read from environment variablestradingstrategy
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
   if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short" || strategy === "swing-trend") {
     return strategy;
   }
-  logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
+  logger.warn(`Unknown trading strategy: ${strategy}，using default strategy: balanced`);
   return "balanced";
 }
 
 /**
- * 生成交易提示词（参照 1.md 格式）
+ * Generate trading prompt (reference 1.md format)
  */
 export function generateTradingPrompt(data: {
   minutesElapsed: number;
@@ -464,10 +464,10 @@ export function generateTradingPrompt(data: {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
   
-  // 获取当前策略参数（用于每周期强调风控规则）
+  // Get current strategy parameters (for emphasizing risk control rules each cycle)
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
-  // 判断是否启用自动监控止损和移动止盈（仅波段策略启用）
+  // Determine if auto-monitor stop-loss and trailing take-profit are enabled (swing strategy only)
   const isCodeLevelProtectionEnabled = strategy === "swing-trend";
   
   let prompt = `[Trading Cycle #${iteration}] ${currentTime}
@@ -544,7 +544,7 @@ Timeframe description: Unless otherwise stated in section title, intraday series
 Current market status for all symbols
 `;
 
-  // 按照 1.md 格式输出每个币种的数据
+  // Output data for each symbol according to 1.md format
   for (const [symbol, dataRaw] of Object.entries(marketData)) {
     const data = dataRaw as any;
     
@@ -960,31 +960,31 @@ Current market status for all symbols
     prompt += `- This design helps you intuitively understand actual returns: +10% means principal increased 10%, -10% means principal lost 10%\n`;
     prompt += `- Please directly use the system-provided P&L percentage, do not recalculate yourself\n\n`;
     for (const pos of positions) {
-      // 计算盈亏百分比：考虑杠杆倍数
-      // 对于杠杆交易：盈亏百分比 = (价格变动百分比) × 杠杆倍数
+      // calculateP&L percentage：consideredLeverage multiplier
+      // For leveraged trading: P&L percentage = (price change percentage) × leverage multiplier
       const priceChangePercent = pos.entry_price > 0 
         ? ((pos.current_price - pos.entry_price) / pos.entry_price * 100 * (pos.side === 'long' ? 1 : -1))
         : 0;
       const pnlPercent = priceChangePercent * pos.leverage;
       
-      // 计算持仓时长
+      // calculate holding duration
       const openedTime = new Date(pos.opened_at);
       const now = new Date();
       const holdingMinutes = Math.floor((now.getTime() - openedTime.getTime()) / (1000 * 60));
       const holdingHours = (holdingMinutes / 60).toFixed(1);
       const remainingHours = Math.max(0, 36 - parseFloat(holdingHours));
-      const holdingCycles = Math.floor(holdingMinutes / intervalMinutes); // 根据实际执行周期计算
-      const maxCycles = Math.floor(36 * 60 / intervalMinutes); // 36小时的总周期数
+      const holdingCycles = Math.floor(holdingMinutes / intervalMinutes); // Calculated based on actual execution cycle
+      const maxCycles = Math.floor(36 * 60 / intervalMinutes); // Total cycles in 36 hours
       const remainingCycles = Math.max(0, maxCycles - holdingCycles);
       
-      prompt += `当前活跃持仓: ${pos.symbol} ${pos.side === 'long' ? '做多' : '做空'}\n`;
-      prompt += `  杠杆倍数: ${pos.leverage}x\n`;
-      prompt += `  盈亏百分比: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (已考虑杠杆倍数)\n`;
-      prompt += `  盈亏金额: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
-      prompt += `  开仓价: ${pos.entry_price.toFixed(2)}\n`;
-      prompt += `  当前价: ${pos.current_price.toFixed(2)}\n`;
-      prompt += `  开仓时间: ${formatChinaTime(pos.opened_at)}\n`;
-      prompt += `  已持仓: ${holdingHours} 小时 (${holdingMinutes} 分钟, ${holdingCycles} 个周期)\n`;
+      prompt += `current active positions: ${pos.symbol} ${pos.side === 'long' ? 'long' : 'short'}\n`;
+      prompt += `  Leverage multiplier: ${pos.leverage}x\n`;
+      prompt += `  P&L percentage: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (alreadyconsideredLeverage multiplier)\n`;
+      prompt += `  P&L amount: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
+      prompt += `  entry price: ${pos.entry_price.toFixed(2)}\n`;
+      prompt += `  current price: ${pos.current_price.toFixed(2)}\n`;
+      prompt += `  entry time: ${formatChinaTime(pos.opened_at)}\n`;
+      prompt += `  Held for: ${holdingHours} hours (${holdingMinutes} minutes, ${holdingCycles} cycle)\n`;
       prompt += `  Distance to 36-hour limit: ${remainingHours.toFixed(1)} hours (${remainingCycles} cycles)\n`;
 
       // If approaching 36 hours, add warning
@@ -1463,10 +1463,10 @@ Market data is sorted chronologically (oldest → newest) across multiple timefr
 }
 
 /**
- * 创建交易 Agent
+ * Create trading Agent
  */
 export function createTradingAgent(intervalMinutes: number = 5) {
-  // 使用 OpenAI SDK，通过配置 baseURL 兼容 OpenRouter 或其他供应商
+  // use OpenAI SDK，throughconfiguration baseURL compatible OpenRouter or other providers
   const openai = createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || "",
     baseURL: process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1",
@@ -1479,9 +1479,9 @@ export function createTradingAgent(intervalMinutes: number = 5) {
     }),
   });
   
-  // 获取当前策略
+  // get current strategy
   const strategy = getTradingStrategy();
-  logger.info(`使用交易策略: ${strategy}`);
+  logger.info(`Using trading strategy: ${strategy}`);
 
   const agent = new Agent({
     name: "trading-agent",
