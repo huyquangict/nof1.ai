@@ -25,6 +25,7 @@ import { createExchangeClient } from "../../services/exchange";
 import { createClient } from "@libsql/client";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
+import { calculatePnL } from "../../utils/pnlCalculator";
 import { createPinoLogger } from "@voltagent/logger";
 
 const logger = createPinoLogger({ name: "account-management-tools" });
@@ -579,24 +580,17 @@ export const syncPositionsTool = createTool({
             const side = dbPos.side || 'long';
             const leverage = dbPos.leverage || 1;
 
-            // Calculate estimated PnL with quantoMultiplier
-            const contract = client.normalizeSymbol(symbol);
-            const quantoMultiplier = await getQuantoMultiplier(contract);
-
-            const priceChange = side === 'long'
-              ? (exitPrice - entryPrice)
-              : (entryPrice - exitPrice);
-
-            const grossPnl = priceChange * quantity * quantoMultiplier;
-
-            // Calculate fees
-            const entryNotional = entryPrice * quantity * quantoMultiplier;
-            const exitNotional = exitPrice * quantity * quantoMultiplier;
-            const entryFee = entryNotional * 0.0005;
-            const exitFee = exitNotional * 0.0005;
-            const totalFee = entryFee + exitFee;
-
-            const pnl = grossPnl - totalFee;
+            // Calculate estimated PnL using centralized calculator
+            const pnlResult = await calculatePnL({
+              symbol,
+              side,
+              entryPrice,
+              exitPrice,
+              quantity,
+              leverage,
+            }, undefined, false); // Use maker fee for unknown close reason
+            const pnl = pnlResult.netPnl;
+            const totalFee = pnlResult.totalFees;
 
             // Record close trade with entry_order_id link
             await dbClient.execute({
@@ -663,24 +657,17 @@ async function recordSlTpTrigger(
     const exitPrice = triggeredOrder.price || triggeredOrder.filled; // Actual fill price
     const quantity = triggeredOrder.filled; // Actual filled quantity
 
-    // Calculate PnL
-    const contract = client.normalizeSymbol(symbol);
-    const quantoMultiplier = await getQuantoMultiplier(contract);
-
-    const priceChange = side === 'long'
-      ? (exitPrice - entryPrice)
-      : (entryPrice - exitPrice);
-
-    const grossPnl = priceChange * quantity * quantoMultiplier;
-
-    // Calculate fees
-    const entryNotional = entryPrice * quantity * quantoMultiplier;
-    const exitNotional = exitPrice * quantity * quantoMultiplier;
-    const entryFee = entryNotional * 0.0005;
-    const exitFee = exitNotional * 0.0005;
-    const totalFee = entryFee + exitFee;
-
-    const pnl = grossPnl - totalFee;
+    // Calculate PnL using centralized calculator
+    const pnlResult = await calculatePnL({
+      symbol,
+      side,
+      entryPrice,
+      exitPrice,
+      quantity,
+      leverage,
+    }, undefined, true); // Use taker fee for SL/TP
+    const pnl = pnlResult.netPnl;
+    const totalFee = pnlResult.totalFees;
 
     // Record close trade with entry_order_id link
     await dbClient.execute({

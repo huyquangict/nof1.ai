@@ -24,6 +24,7 @@ import type {
 } from '../../types/services';
 import type { Position } from '../../database/schema';
 import { PositionNotFoundError, PositionConflictError } from '../../errors';
+import { calculatePnL } from '../../utils/pnlCalculator';
 
 /**
  * Position Service
@@ -271,16 +272,18 @@ export class PositionService {
 
       const exitPrice = closeOrder.price || 0;
 
-      // 4. Calculate PnL
-      const pnl = this.calculatePnl(
-        position.entry_price,
+      // 4. Calculate PnL using centralized calculator
+      const pnlResult = await calculatePnL({
+        symbol,
+        side: position.side,
+        entryPrice: position.entry_price,
         exitPrice,
-        closeQuantity,
-        position.leverage,
-        position.side
-      );
+        quantity: closeQuantity,
+        leverage: position.leverage,
+      });
 
-      const pnlPercent = ((exitPrice - position.entry_price) / position.entry_price) * position.leverage * 100 * (position.side === 'long' ? 1 : -1);
+      const pnl = pnlResult.netPnl;
+      const pnlPercent = pnlResult.pnlPercent;
 
       this.logger.positionClosed({
         symbol,
@@ -303,7 +306,7 @@ export class PositionService {
         quantity: closeQuantity,
         leverage: position.leverage,
         pnl,
-        fee: 0,
+        fee: pnlResult.totalFees,
         timestamp: new Date().toISOString(),
         status: 'filled',
         close_reason: reason,
@@ -520,20 +523,7 @@ export class PositionService {
     }
   }
 
-  /**
-   * Calculate PnL for a position
-   */
-  private calculatePnl(
-    entryPrice: number,
-    exitPrice: number,
-    quantity: number,
-    leverage: number,
-    side: 'long' | 'short'
-  ): number {
-    const priceChange = side === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice;
-    return (priceChange / entryPrice) * leverage * quantity * entryPrice;
-  }
-
+  
   /**
    * Round price to appropriate precision
    */

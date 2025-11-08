@@ -7,6 +7,7 @@ import { createPinoLogger } from "@voltagent/logger";
 import type { Client } from "@libsql/client";
 import type { IExchangeClient } from "../../../services/exchange/IExchangeClient";
 import { getQuantoMultiplier } from "../../../utils/contractUtils";
+import { calculatePnL } from "../../../utils/pnlCalculator";
 
 const logger = createPinoLogger({
   name: "risk-checker",
@@ -149,20 +150,18 @@ export class RiskChecker {
         const openTrade = openResult.rows[0];
         const openPrice = Number.parseFloat(openTrade.price as string);
 
-        // Get contract multiplier
-        const contract = `${symbol}_USDT`;
-        const quantoMultiplier = await getQuantoMultiplier(contract);
-
-        // Recalculate correct P&L
-        const priceChange = side === "long"
-          ? (closePrice - openPrice)
-          : (openPrice - closePrice);
-
-        const grossPnl = priceChange * quantity * quantoMultiplier;
-        const openFee = openPrice * quantity * quantoMultiplier * 0.0005;
-        const closeFee = closePrice * quantity * quantoMultiplier * 0.0005;
-        const totalFee = openFee + closeFee;
-        const correctPnl = grossPnl - totalFee;
+        // Recalculate correct P&L using centralized calculator
+        const leverage = Number.parseFloat(openTrade.leverage as string) || 1;
+        const pnlResult = await calculatePnL({
+          symbol,
+          side: side as 'long' | 'short',
+          entryPrice: openPrice,
+          exitPrice: closePrice,
+          quantity,
+          leverage,
+        }, undefined, false); // Use maker fee for historical accuracy
+        const correctPnl = pnlResult.netPnl;
+        const totalFee = pnlResult.totalFees;
 
         // Calculate difference
         const pnlDiff = Math.abs(recordedPnl - correctPnl);

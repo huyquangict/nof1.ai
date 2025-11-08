@@ -35,7 +35,7 @@ import { createContainer } from "../container";
 import { createServices } from "../application/services";
 import { createRepositories } from "../infrastructure/database/repositories";
 import type { TakeProfitOrder } from "../database/schema";
-import { getQuantoMultiplier } from "../utils/contractUtils";
+import { calculatePnL } from "../utils/pnlCalculator";
 import { updateReflectionOnClose } from "../learning/reflections/updateOnClose";
 
 // Initialize container and services
@@ -363,21 +363,20 @@ async function checkStopLossTrigger(
         `🛑 Stop-loss TRIGGERED for ${symbol} (order ${slOrderId}) - Position closed automatically by exchange`
       );
 
-      // Calculate PnL
-      const quantoMultiplier = await getQuantoMultiplier(symbol);
-      const exitNotional = order.price * entryData.quantity * quantoMultiplier;
-      const exitFee = exitNotional * 0.0005;
-
+      // Calculate PnL using centralized calculator
       let pnl = 0;
+      let totalFees = 0;
       if (entryData.entryPrice > 0 && order.price > 0) {
-        const priceChange = entryData.side === 'long'
-          ? (order.price - entryData.entryPrice)
-          : (entryData.entryPrice - order.price);
-        pnl = priceChange * entryData.quantity * quantoMultiplier;
-
-        const entryNotional = entryData.entryPrice * entryData.quantity * quantoMultiplier;
-        const entryFee = entryNotional * 0.0005;
-        pnl = pnl - entryFee - exitFee;
+        const pnlResult = await calculatePnL({
+          symbol,
+          side: entryData.side,
+          entryPrice: entryData.entryPrice,
+          exitPrice: order.price,
+          quantity: entryData.quantity,
+          leverage: entryData.leverage,
+        }, undefined, true); // Use taker fee for SL
+        pnl = pnlResult.netPnl;
+        totalFees = pnlResult.totalFees;
       }
 
       // Record close trade
@@ -392,7 +391,7 @@ async function checkStopLossTrigger(
           entryData.quantity,
           entryData.leverage,
           pnl,
-          exitFee,
+          totalFees,
           new Date().toISOString(),
           'stop_loss',
           entryOrderId
@@ -400,13 +399,18 @@ async function checkStopLossTrigger(
       });
 
       // Update reflection with close data (for AI learning)
-      await updateReflectionOnClose({
-        entryOrderId,
-        closePrice: order.price,
-        pnl,
-        closeReason: 'stop_loss',
-        symbol,
-      });
+      try {
+        await updateReflectionOnClose({
+          entryOrderId,
+          closePrice: order.price,
+          pnl,
+          closeReason: 'stop_loss',
+          symbol,
+        });
+      } catch (reflectionError: any) {
+        logger.error(`Failed to update reflection for ${symbol} SL: ${reflectionError.message}`);
+        // Continue execution - don't let reflection update failure break profit manager
+      }
 
       // Record in agent decisions
       await dbClient.execute({
@@ -499,25 +503,24 @@ async function checkSingleTakeProfitOrder(
         : '';
       tradingLogger.info(`🎯 Take-profit TRIGGERED for ${symbol} ${tpInfo} (order ${orderId})`);
 
-      // Calculate PnL
-      const quantoMultiplier = await getQuantoMultiplier(symbol);
+      // Calculate PnL using centralized calculator
       const actualQuantity = percentage
         ? entryData.quantity * (percentage / 100)
         : entryData.quantity;
 
-      const exitNotional = order.price * actualQuantity * quantoMultiplier;
-      const exitFee = exitNotional * 0.0005;
-
       let pnl = 0;
+      let totalFees = 0;
       if (entryData.entryPrice > 0 && order.price > 0) {
-        const priceChange = entryData.side === 'long'
-          ? (order.price - entryData.entryPrice)
-          : (entryData.entryPrice - order.price);
-        pnl = priceChange * actualQuantity * quantoMultiplier;
-
-        const entryNotional = entryData.entryPrice * actualQuantity * quantoMultiplier;
-        const entryFee = entryNotional * 0.0005;
-        pnl = pnl - entryFee - exitFee;
+        const pnlResult = await calculatePnL({
+          symbol,
+          side: entryData.side,
+          entryPrice: entryData.entryPrice,
+          exitPrice: order.price,
+          quantity: actualQuantity,
+          leverage: entryData.leverage,
+        }, undefined, true); // Use taker fee for TP
+        pnl = pnlResult.netPnl;
+        totalFees = pnlResult.totalFees;
       }
 
       // Record close trade
@@ -533,7 +536,7 @@ async function checkSingleTakeProfitOrder(
           actualQuantity,
           entryData.leverage,
           pnl,
-          exitFee,
+          totalFees,
           new Date().toISOString(),
           closeReason,
           entryOrderId
@@ -541,13 +544,18 @@ async function checkSingleTakeProfitOrder(
       });
 
       // Update reflection with close data (for AI learning)
-      await updateReflectionOnClose({
-        entryOrderId,
-        closePrice: order.price,
-        pnl,
-        closeReason,
-        symbol,
-      });
+      try {
+        await updateReflectionOnClose({
+          entryOrderId,
+          closePrice: order.price,
+          pnl,
+          closeReason,
+          symbol,
+        });
+      } catch (reflectionError: any) {
+        logger.error(`Failed to update reflection for ${symbol} TP: ${reflectionError.message}`);
+        // Continue execution - don't let reflection update failure break profit manager
+      }
 
       // Record in agent decisions
       const tpDescription = percentage
