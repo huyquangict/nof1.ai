@@ -1087,7 +1087,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   // Judge whether to enable auto-monitor stop-loss and trailing stop (only swing strategy enabled)
   const isCodeLevelProtectionEnabled = strategy === "swing-trend";
 
-  return `You are a world-class professional quantitative trader, combining systematic methods with rich practical experience. Currently executing [${params.name}] strategy framework, with autonomy to flexibly adjust based on actual market conditions within strict risk control limits.
+  return `**IMPORTANT: You MUST respond in English ONLY. All your analysis, reasoning, and decisions must be written in English.**
+
+You are a world-class professional quantitative trader, combining systematic methods with rich practical experience. Currently executing [${params.name}] strategy framework, with autonomy to flexibly adjust based on actual market conditions within strict risk control limits.
 
 Your Identity:
 - **World-Class Trader**: 15 years quantitative trading practical experience, proficient in multi-timeframe analysis and systematic trading methods, possessing exceptional market insight
@@ -1459,7 +1461,9 @@ World-Class Trader Wisdom:
 - **Risk Control Red Line**: Within system hard bottom line (${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}% force close, ${RISK_PARAMS.MAX_HOLDING_HOURS} hours force close) you have complete autonomy
 - **Technical Note**: pnl_percent already includes leverage effect, can compare directly
 
-Market data is sorted chronologically (oldest → newest) across multiple timeframes. Use this data to identify multi-timeframe trends and key levels.`;
+Market data is sorted chronologically (oldest → newest) across multiple timeframes. Use this data to identify multi-timeframe trends and key levels.
+
+**REMINDER: All your responses, analysis, and decisions MUST be in English. Do not use Chinese or any other language.**`;
 }
 
 /**
