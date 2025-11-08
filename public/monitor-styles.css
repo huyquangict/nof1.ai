@@ -2078,6 +2078,205 @@ tr.highlighted {
   font-weight: 700;
 }
 
+/* === TRADING SETTINGS SECTION === */
+.trading-settings-section {
+  margin-bottom: var(--space-3xl);
+}
+
+.settings-badge {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-green);
+  color: var(--color-white);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-left: var(--space-md);
+}
+
+.save-settings-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-blue);
+  border: 2px solid var(--color-blue);
+  color: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.save-settings-button:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  transform: translateY(-2px);
+}
+
+.save-settings-button:active {
+  transform: translateY(0);
+}
+
+.save-settings-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
+}
+
+/* Trading Settings Configuration */
+.trading-settings {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg);
+  background-color: var(--color-gray-50);
+  border: 2px solid var(--color-gray-200);
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.settings-row label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-gray-800);
+}
+
+/* Coins Selector */
+.coins-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background-color: var(--color-white);
+  border: 2px solid var(--color-gray-300);
+  border-radius: 4px;
+}
+
+.coin-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background-color: var(--color-gray-50);
+  border: 2px solid var(--color-gray-200);
+  border-radius: 4px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.coin-option:hover {
+  border-color: var(--color-gray-400);
+  background-color: var(--color-gray-100);
+}
+
+.coin-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-blue);
+  cursor: pointer;
+}
+
+.coin-option input[type="checkbox"]:checked + label {
+  color: var(--color-blue);
+  font-weight: 700;
+}
+
+.coin-option:has(input[type="checkbox"]:checked) {
+  border-color: var(--color-blue);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.coin-option label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray-800);
+  margin: 0;
+  user-select: none;
+}
+
+/* Settings Select */
+.settings-select {
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-black);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  border-radius: 4px;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: var(--color-blue);
+}
+
+/* Settings Info */
+.settings-info {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 4px solid var(--color-blue);
+}
+
+/* Mobile adjustments for Trading Settings */
+@media (max-width: 768px) {
+  .coins-selector {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+  }
+
+  .coin-option {
+    padding: var(--space-xs) var(--space-sm);
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-xs);
+  }
+
+  .coin-option input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+  }
+
+  .coin-option label {
+    font-size: 0.75rem;
+  }
+
+  .settings-select {
+    font-size: 0.8125rem;
+  }
+
+  .save-settings-button {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .save-settings-button svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
 /* Mobile adjustments for AI Learning */
 @media (max-width: 768px) {
   .learning-config {

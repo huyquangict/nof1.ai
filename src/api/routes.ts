@@ -865,6 +865,108 @@ export function createApiRoutes() {
     }
   });
 
+  /**
+   * Get trading settings (symbols and max positions)
+   */
+  app.get("/api/trading/settings", async (c) => {
+    try {
+      // Get trading symbols from database
+      const symbolsResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'trading_symbols'",
+        args: [],
+      });
+      const tradingSymbols = symbolsResult.rows.length > 0
+        ? (symbolsResult.rows[0].value as string).split(',').map(s => s.trim())
+        : (process.env.TRADING_SYMBOLS || 'BTC,ETH,SOL,XRP,BNB,BCH,DOGE,LTC,HBAR,ASTER').split(',').map(s => s.trim());
+
+      // Get max positions from database
+      const maxPosResult = await dbClient.execute({
+        sql: "SELECT value FROM system_config WHERE key = 'max_positions'",
+        args: [],
+      });
+      const maxPositions = maxPosResult.rows.length > 0
+        ? parseInt(maxPosResult.rows[0].value as string)
+        : parseInt(process.env.MAX_POSITIONS || '4');
+
+      // Supported coins list (from environment TRADING_SYMBOLS)
+      const supportedCoins = (process.env.TRADING_SYMBOLS || 'BTC,ETH,SOL,XRP,BNB,BCH,DOGE,LTC,HBAR,ASTER').split(',').map(s => s.trim());
+
+      return c.json({
+        tradingSymbols,
+        maxPositions,
+        supportedCoins,
+      });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * Update trading settings (symbols and max positions)
+   */
+  app.post("/api/trading/settings", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { tradingSymbols, maxPositions } = body;
+
+      if (tradingSymbols !== undefined) {
+        if (!Array.isArray(tradingSymbols) || tradingSymbols.length === 0) {
+          return c.json({ error: "Invalid tradingSymbols, must be non-empty array" }, 400);
+        }
+
+        // Get supported coins from environment
+        const supportedCoins = (process.env.TRADING_SYMBOLS || 'BTC,ETH,SOL,XRP,BNB,BCH,DOGE,LTC,HBAR,ASTER').split(',').map(s => s.trim());
+
+        // Validate each trading symbol against supported coins
+        const invalidSymbols = tradingSymbols.filter(symbol => !supportedCoins.includes(symbol));
+        if (invalidSymbols.length > 0) {
+          return c.json({
+            error: `Invalid trading symbols: ${invalidSymbols.join(', ')}. Supported symbols: ${supportedCoins.join(', ')}`
+          }, 400);
+        }
+
+        const symbolsStr = tradingSymbols.join(',');
+        await dbClient.execute({
+          sql: `INSERT INTO system_config (key, value, updated_at)
+                VALUES ('trading_symbols', ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET
+                  value = excluded.value,
+                  updated_at = datetime('now')`,
+          args: [symbolsStr],
+        });
+
+        logger.info(`⚙️  Trading symbols updated: ${symbolsStr}`);
+      }
+
+      if (maxPositions !== undefined) {
+        if (typeof maxPositions !== 'number' || maxPositions < 1 || maxPositions > 20) {
+          return c.json({ error: "Invalid maxPositions, must be between 1 and 20" }, 400);
+        }
+
+        await dbClient.execute({
+          sql: `INSERT INTO system_config (key, value, updated_at)
+                VALUES ('max_positions', ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET
+                  value = excluded.value,
+                  updated_at = datetime('now')`,
+          args: [maxPositions.toString()],
+        });
+
+        logger.info(`⚙️  Max positions updated: ${maxPositions}`);
+      }
+
+      return c.json({
+        success: true,
+        message: "Trading settings updated successfully. Changes will take effect on next trading cycle.",
+        tradingSymbols,
+        maxPositions,
+      });
+    } catch (error: any) {
+      logger.error("Failed to update trading settings:", error);
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
   return app;
 }
 

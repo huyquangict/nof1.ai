@@ -225,6 +225,92 @@ Your custom instructions will be added to every AI prompt."
       </div>
     </section>
 
+    <!-- Trading Settings Section -->
+    <section class="chart-section trading-settings-section">
+      <div class="chart-header">
+        <h3 class="chart-title">
+          ⚙️ Trading Settings
+          <span class="settings-badge" id="settings-status-badge">CONFIGURED</span>
+        </h3>
+        <button class="save-settings-button" id="save-settings-button" title="Save trading settings">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          <span>SAVE SETTINGS</span>
+        </button>
+      </div>
+
+      <!-- Trading Settings Configuration -->
+      <div class="trading-settings">
+        <div class="settings-row">
+          <label>Enabled Trading Coins:</label>
+          <div class="coins-selector" id="coins-selector">
+            <div class="coin-option">
+              <input type="checkbox" id="coin-BTC" value="BTC" checked>
+              <label for="coin-BTC">BTC</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-ETH" value="ETH" checked>
+              <label for="coin-ETH">ETH</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-SOL" value="SOL" checked>
+              <label for="coin-SOL">SOL</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-XRP" value="XRP" checked>
+              <label for="coin-XRP">XRP</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-BNB" value="BNB" checked>
+              <label for="coin-BNB">BNB</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-BCH" value="BCH">
+              <label for="coin-BCH">BCH</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-DOGE" value="DOGE">
+              <label for="coin-DOGE">DOGE</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-LTC" value="LTC">
+              <label for="coin-LTC">LTC</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-HBAR" value="HBAR">
+              <label for="coin-HBAR">HBAR</label>
+            </div>
+            <div class="coin-option">
+              <input type="checkbox" id="coin-ASTER" value="ASTER">
+              <label for="coin-ASTER">ASTER</label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label for="max-positions">Maximum Simultaneous Positions:</label>
+          <select id="max-positions" class="settings-select">
+            <option value="1">1 position (Very Conservative)</option>
+            <option value="2">2 positions (Conservative)</option>
+            <option value="3">3 positions (Moderate)</option>
+            <option value="4" selected>4 positions (Balanced)</option>
+            <option value="5">5 positions (Moderate)</option>
+            <option value="8">8 positions (Aggressive)</option>
+            <option value="10">10 positions (Very Aggressive)</option>
+            <option value="15">15 positions (Maximum)</option>
+            <option value="20">20 positions (Expert)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Settings Info -->
+      <div class="settings-info">
+        <span class="info-text">Configure which cryptocurrencies to trade and maximum position limits. Changes take effect on the next trading cycle.</span>
+      </div>
+    </section>
+
     <!-- AI Learning System Section -->
     <section class="chart-section ai-learning-section">
       <div class="chart-header">

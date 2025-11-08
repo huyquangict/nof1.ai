@@ -100,6 +100,7 @@ class TradingMonitor {
             this.initPauseButton(); // Initialize pause button
             this.initReverseButton(); // Initialize reverse button
             this.initCustomInstructions(); // Initialize custom instructions
+            this.initTradingSettings(); // Initialize trading settings
             this.initLearningSystem(); // Initialize AI learning system
         } catch (error) {
             // If loading fails, token is invalid - show login
@@ -445,6 +446,197 @@ class TradingMonitor {
                 alert(`Failed to save custom instructions: ${error.message}`);
             }
         }
+    }
+
+    // Initialize trading settings
+    initTradingSettings() {
+        const saveButton = document.getElementById('save-settings-button');
+
+        if (!saveButton) {
+            console.error('Trading settings elements not found');
+            return;
+        }
+
+        // Load initial settings
+        this.loadTradingSettings();
+
+        // Add save button handler
+        saveButton.addEventListener('click', async () => {
+            await this.saveTradingSettings();
+        });
+    }
+
+    // Load trading settings from API
+    async loadTradingSettings() {
+        try {
+            const response = await fetch('/api/trading/settings');
+            const data = await response.json();
+
+            if (data.error) {
+                console.error('Failed to load trading settings:', data.error);
+                return;
+            }
+
+            // Update trading symbols checkboxes
+            if (data.tradingSymbols && Array.isArray(data.tradingSymbols)) {
+                const enabledSymbols = new Set(data.tradingSymbols);
+
+                // Update all coin checkboxes
+                const allCoinOptions = document.querySelectorAll('.coin-option input[type="checkbox"]');
+                allCoinOptions.forEach(checkbox => {
+                    const symbol = checkbox.value;
+                    if (enabledSymbols.has(symbol)) {
+                        checkbox.checked = true;
+                    } else {
+                        checkbox.checked = false;
+                    }
+                });
+            }
+
+            // Update max positions select
+            if (data.maxPositions !== undefined) {
+                const maxPositionsSelect = document.getElementById('max-positions');
+                if (maxPositionsSelect) {
+                    maxPositionsSelect.value = data.maxPositions.toString();
+                }
+            }
+
+            // Update settings badge
+            this.updateSettingsBadge(data.tradingSymbols, data.maxPositions);
+
+        } catch (error) {
+            console.error('Failed to load trading settings:', error);
+        }
+    }
+
+    // Save trading settings to API
+    async saveTradingSettings() {
+        const saveButton = document.getElementById('save-settings-button');
+        if (!saveButton) return;
+
+        try {
+            // Get selected trading symbols
+            const selectedCheckboxes = document.querySelectorAll('.coin-option input[type="checkbox"]:checked');
+            const tradingSymbols = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+
+            // Get max positions
+            const maxPositionsSelect = document.getElementById('max-positions');
+            const maxPositions = maxPositionsSelect ? parseInt(maxPositionsSelect.value) : 5;
+
+            // Validate selections
+            if (tradingSymbols.length === 0) {
+                alert('❌ Please select at least one trading coin.');
+                return;
+            }
+
+            if (maxPositions < 1 || maxPositions > 20) {
+                alert('❌ Maximum positions must be between 1 and 20.');
+                return;
+            }
+
+            // Add loading state
+            saveButton.classList.add('saving');
+            saveButton.style.opacity = '0.6';
+            saveButton.style.cursor = 'not-allowed';
+
+            // Send settings to API
+            const response = await fetch('/api/trading/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tradingSymbols,
+                    maxPositions
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log('Trading settings updated:', data);
+
+                // Update settings badge
+                this.updateSettingsBadge(tradingSymbols, maxPositions);
+
+                // Show success notification
+                const message = `⚙️ Trading settings updated successfully!\n` +
+                              `• Enabled coins: ${tradingSymbols.join(', ')}\n` +
+                              `• Max positions: ${maxPositions}\n` +
+                              `Changes take effect on the next trading cycle.`;
+
+                this.showSettingsNotification(message, 'success');
+            } else {
+                console.error('Failed to update trading settings:', data.error);
+                alert(`❌ Failed to update trading settings: ${data.error}`);
+            }
+
+        } catch (error) {
+            console.error('Failed to update trading settings:', error);
+            alert(`❌ Failed to update trading settings: ${error.message}`);
+        } finally {
+            // Remove loading state
+            saveButton.classList.remove('saving');
+            saveButton.style.opacity = '1';
+            saveButton.style.cursor = 'pointer';
+        }
+    }
+
+    // Update settings badge
+    updateSettingsBadge(tradingSymbols, maxPositions) {
+        const badge = document.getElementById('settings-status-badge');
+        if (badge) {
+            const coinsCount = tradingSymbols ? tradingSymbols.length : 0;
+            badge.textContent = `${coinsCount} COINS • ${maxPositions} POS`;
+
+            // Change color based on configuration
+            if (coinsCount === 0) {
+                badge.style.background = 'var(--color-red)';
+            } else if (coinsCount <= 2) {
+                badge.style.background = 'var(--color-orange)';
+            } else if (coinsCount <= 5) {
+                badge.style.background = 'var(--color-green)';
+            } else {
+                badge.style.background = 'var(--color-blue)';
+            }
+        }
+    }
+
+    // Show settings notification toast
+    showSettingsNotification(message, type = 'info') {
+        // Remove existing notification if any
+        const existing = document.getElementById('settings-notification');
+        if (existing) existing.remove();
+
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.id = 'settings-notification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 16px 24px;
+            background: ${type === 'success' ? '#10B981' : type === 'warning' ? '#F97316' : '#3B82F6'};
+            color: white;
+            border: 3px solid #000;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.3s ease-out;
+            white-space: pre-line;
+            max-width: 400px;
+        `;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 6 seconds (longer for detailed settings message)
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 6000);
     }
 
     // Initialize AI learning system
