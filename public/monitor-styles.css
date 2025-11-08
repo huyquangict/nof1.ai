@@ -705,7 +705,7 @@ body {
 
 .stat-value {
     color: var(--text-primary);
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: bold;
     line-height: 1;
 }

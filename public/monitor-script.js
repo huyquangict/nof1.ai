@@ -399,8 +399,10 @@ class TradingMonitor {
             // Total Orders (Long and Short)
             const longOrders = trades.filter(t => t.side === 'long').length;
             const shortOrders = trades.filter(t => t.side === 'short').length;
-            document.getElementById('stat-total-long').textContent = `${longOrders} Long`;
-            document.getElementById('stat-total-short').textContent = `${shortOrders} Short`;
+            const totalOrders = longOrders + shortOrders;
+            document.getElementById('stat-total-orders').textContent = totalOrders;
+            document.getElementById('stat-total-long').textContent = `${longOrders}L`;
+            document.getElementById('stat-total-short').textContent = `${shortOrders}S`;
 
             // Win Rate calculation (only count closed trades with P&L)
             const closedTrades = trades.filter(t => t.type === 'close' && t.pnl !== null && t.pnl !== undefined);
