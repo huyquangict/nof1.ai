@@ -69,3 +69,5 @@ Thumbs.db
 *.temp
 .cache/
 .specstory
+*__pycache__/
+*venv/
